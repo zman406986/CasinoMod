@@ -1,0 +1,167 @@
+{
+    "economy": {
+        "stargemExchangeRate": 10.0,
+        "shipTradeRate": 10.0,
+        "vipPassCost": 9999,
+        "vipPassDays": 30,
+        "vipDailyGemReward": 100,
+        "gemPackages": [
+            {
+                "gems": 1980,
+                "cost": 29999
+            },
+            {
+                "gems": 3280,
+                "cost": 49999
+            },
+            {
+                "gems": 6480,
+                "cost": 99999
+            }
+        ]
+    },
+    "gacha": {
+        "pullCost": 160,
+        "prob5Star": 0.006,
+        "prob4Star": 0.051,
+        "pityHard5": 90,
+        "pityHard4": 10,
+        "pitySoftStart5": 74
+    },
+    "poker": {
+        "smallBlind": 100,
+        "bigBlind": 200,
+        "raiseAmounts": [200, 400, 1000, 5000],
+        "aiBluffChance": 0.1
+    },
+    "vipAds": [
+        "May your journey lead you starward. (Tachy-Impact)",
+        "Tech Miners Save The Sector. (Tachy-Impact)",
+        "The warp currents align for you today. (Tachy-Impact)",
+        "How about we explore the area ahead of us later? (Tachy-Impact)",
+        "Thank you for supporting Tachy-Impact. (Tachy-Impact)",
+        "Don't use AI Cores as emergency food! (Tachy-Impact)",
+        "To the Stars and the Abyss. (Tachy-Impact)",
+        "Follow the path of the Trailblazer (Tachy-Impact)",
+        "Hegemony rules are made to be broken! (Tachy-Impact)",
+        "Astral blessings upon you. (Tachy-Impact)"
+    ],
+    "arenaFlavorTexts": [
+        "$attacker attacks $target for $dmg damage!",
+        "$attacker sends $target to the stars with $dmg damage!",
+        "$attacker unleashes a tactical orbital sneeze on $target for $dmg damage!",
+        "$attacker accidentally bumps into $target for $dmg damage!",
+        "$attacker sends an emotionally damaging text to $target for $dmg!",
+        "$attacker preemptively strikes $target for $dmg damage!",
+        "$attacker voids $target 's insurance with $dmg damage!"
+    ],
+    "arenaMissFlavorTexts": [
+        "$target: 'Too slow!' ($attacker missed)",
+        "$target: 'Frame perfect!' (Dodged $attacker)",
+        "$target: 'Is that all?' ($attacker's shot went wide)",
+        "$target: 'Think you can get away?' (Evaded $attacker)",
+        "$target: 'Your aim is as bad as my gacha luck!' ($attacker missed)"
+    ],
+    "arenaCritFlavorTexts": [
+        "$attacker: 'Nowhere to hide!' ($target takes $dmg CRITICAL damage!)",
+        "$attacker: 'Witness the stars shatter!' ($target takes $dmg CRITICAL damage!)",
+        "$attacker: 'Disappear among the sea of butterflies!' ($target takes $dmg CRITICAL damage!)",
+        "$attacker: 'Time for... retribution!' ($target takes $dmg CRITICAL damage!)",
+        "$attacker: 'Rules are made to be broken!' ($target takes $dmg CRITICAL damage!)",
+        "$attacker: 'Feel the weight of a thousand failed gacha pulls!' ($target takes $dmg CRIT!)"
+    ],
+    "arenaKillFlavorTexts": [
+        "$attacker deletes $target from the simulation!",
+        "$attacker serves $target on a silver platter!",
+        "$attacker sends $target to the stars... permanently.",
+        "$attacker eliminates $target from the Spiral Abyss!",
+        "$attacker: 'The dead... will return!' (But $target won't)",
+        "$attacker: 'Good food, good life!' (for $target)",
+        "$attacker forces $target to 'Disappear among the sea of butterflies'"
+    ],
+    "_ARENA_MODIFIERS_COMMENT": "WARNING: 'agilityCap' prevents frigates from becoming un-hittable. A frigate with base 60% dodge + 'Swift' (+20%) + 'of Speed' (+10%) = 90%. Do NOT set agility bonuses too high or small ships will never be hit!",
+    "arenaModifiers": {
+        "agilityCap": 0.90,
+        "prefixMultStrong": 1.2,
+        "prefixMultWeak": 0.8,
+        "prefixAgilityBonus": 0.2,
+        "prefixBraveryBonus": 0.2,
+        "affixMultStrong": 1.1,
+        "affixMultWeak": 0.9,
+        "affixAgilityBonus": 0.1,
+        "affixBraveryBonus": 0.1,
+        "prefixStrongPos": [
+            "impenetrable",
+            "Strong",
+            "Swift",
+            "Brave"
+        ],
+        "prefixStrongNeg": [
+            "Vulnerable",
+            "Weak",
+            "Slow",
+            "Cowardly"
+        ],
+        "affixPos": [
+            "of Sturdiness",
+            "of Power",
+            "of Speed",
+            "of Courage"
+        ],
+        "affixNeg": [
+            "of Frailty",
+            "of Weakness",
+            "of Sluggishness",
+            "of Timidness"
+        ]
+    },
+    "vipSystem": {
+        "interestRate": 0.05,
+        "debtHunterThreshold": -10000
+    },
+    "marketInteraction": {
+        "minSizeForPlayerCasino": 3,
+        "minSizeForGeneralCasino": 4
+    },
+    "pokerAI": {
+        "tightThresholdFold": 6.0,
+        "tightThresholdRaise": 12.0,
+        "normalThresholdFold": 4.0,
+        "normalThresholdRaise": 10.0,
+        "aggressiveThresholdFold": 2.0,
+        "aggressiveThresholdRaise": 8.0,
+        "minRaiseValue": 200,
+        "maxRaiseRandomAddition": 200,
+        "stackPercentFoldTight": 0.3,
+        "stackPercentCallLimit": 0.05,
+        "strengthHigh": 80.0,
+        "strengthMedium": 40.0,
+        "stackPercentCallMedium": 0.5,
+        "potPercentCallDraw": 0.4,
+        "bluffStrengthBoost": 30.0,
+        "drawChance": 0.2,
+        "checkRaiseChance": 0.3,
+        "bluffFoldChance": 0.1
+    },
+    "music": {
+        "poker": "casino_poker_track",
+        "arena": "casino_arena_track",
+        "gacha": "casino_gacha_track",
+        "ambient": "casino_ambient_track"
+    },
+    "arena": {
+        "chaosEventChance": 0.15,
+        "hullBreachDamagePercent": 0.2,
+        "entryFee": 100,
+        "survivalRewardMult": 2.0,
+        "survivalRewardPerTurn": 10,
+        "killRewardPerKill": 20,
+        "shipCount": 6,
+        "baseStats": {
+            "frigate": { "hp": 56, "power": 25, "agility": 0.60 },
+            "destroyer": { "hp": 84, "power": 29, "agility": 0.40 },
+            "cruiser": { "hp": 112, "power": 33, "agility": 0.20 },
+            "capital": { "hp": 140, "power": 40, "agility": 0.00 }
+        }
+    }
+}

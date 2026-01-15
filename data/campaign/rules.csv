@@ -1,0 +1,9 @@
+id,trigger,conditions,script,text,options
+# Add the Visit Casino option to markets (both stations and colonies)
+casino_add_option,PopulateOptions,"$hasMarket
+$marketSize >= 3
+$menuState == main
+$tradeMode == OPEN
+!$global.casino_disabled",,,8:visit_casino:Visit Casino,
+# Handle when the Visit Casino option is selected from market interaction
+casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartCasinoInteraction,,
