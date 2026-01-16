@@ -2,217 +2,529 @@ package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
-import com.fs.starfarer.api.campaign.InteractionDialogPlugin;
-import com.fs.starfarer.api.campaign.OptionPanelAPI;
 import com.fs.starfarer.api.campaign.TextPanelAPI;
+import com.fs.starfarer.api.campaign.OptionPanelAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
-import com.fs.starfarer.api.combat.EngagementResultAPI;
-import data.scripts.casino.CasinoConfig;
+import com.fs.starfarer.api.util.IntervalUtil;
 import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.CasinoConfig;
+import data.scripts.CasinoMusicPlugin;
+import data.scripts.casino.interaction.OptionHandler;
 import java.awt.Color;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
-/**
- * Primary router for the casino interface.
- * Delegates logic to specialized handlers (Poker, Arena, Gacha).
- */
-public class CasinoInteraction implements InteractionDialogPlugin {
-
-    protected InteractionDialogAPI dialog;
-    protected TextPanelAPI textPanel;
-    protected OptionPanelAPI options;
-    
-    // Sub-Handlers - Each manages a specific aspect of the casino
-    protected PokerHandler poker;
-    protected ArenaHandler arena;
-    protected GachaHandler gacha;
-    protected FinHandler fin;
-    protected HelpHandler help;
-
-    /**
-     * State enum tracks which section of the casino the player is currently in
-     */
+public class CasinoInteraction {
+    // Enum for tracking current state
     public enum State {
-        MENU, POKER, ARENA, GACHA, FINANCIAL, HELP, LEAVE_CONFIRM
+        MAIN_MENU, POKER, ARENA, GACHA, FINANCIAL, HELP
     }
-    protected State currentState = State.MENU;
 
-    /**
-     * Initializes the casino interaction when the dialog is opened
-     */
-    @Override
-    public void init(InteractionDialogAPI dialog) {
-        // Store references to the dialog components for easy access
+    // Dependencies
+    public final PokerHandler poker;
+    public final ArenaHandler arena;
+    public final GachaHandler gacha;
+    public final FinHandler fin;
+    public final HelpHandler help;
+
+    // UI Components
+    public InteractionDialogAPI dialog;
+    public TextPanelAPI textPanel;
+    public OptionPanelAPI options;
+
+    // Handlers maps
+    private final Map<String, OptionHandler> handlers = new HashMap<>();
+    private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
+
+    // State tracking
+    private State currentState = State.MAIN_MENU;
+    private boolean handbookIntroShown = false;
+
+    public CasinoInteraction(InteractionDialogAPI dialog) {
         this.dialog = dialog;
         this.textPanel = dialog.getTextPanel();
         this.options = dialog.getOptionPanel();
-        
-        // Initialize all sub-handlers, passing this instance so they can access shared resources
         this.poker = new PokerHandler(this);
         this.arena = new ArenaHandler(this);
         this.gacha = new GachaHandler(this);
         this.fin = new FinHandler(this);
         this.help = new HelpHandler(this);
-
-        // Check player's financial status to determine if they can access the casino
-        int gems = 0;
-        int ceiling = 0;
-        try {
-            gems = CasinoVIPManager.getStargems();
-            ceiling = CasinoVIPManager.getDebtCeiling();
-        } catch (Exception e) {
-            // Fallback values if there's an issue with VIP manager
-            Global.getLogger(CasinoInteraction.class).warn("Error accessing VIP manager, using default values", e);
-            gems = 0;
-            ceiling = 10000;
-        }
-        
-        // If player's debt exceeds their credit limit, they get a warning and must leave
-        if (gems < -ceiling) {
-            textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
-            options.addOption("End Interaction", "leave_now");
-            return;
-        }
-
-        // Welcome message to the player
-        textPanel.addParagraph("You enter the Private Lounge.");
-        textPanel.addParagraph("Welcome to the IPC Casino!", Color.YELLOW);
-        
-        // Check if there's a suspended game to resume
-        if (!checkSuspendedGame()) {
-            showMenu();
-        }
+        initializeMainHandlers();
     }
 
-    /**
-     * Displays the main casino menu with all available options
-     */
-    public void showMenu() {
-        // Get player's current gem balance and debt ceiling
-        int gems = 0;
-        int ceiling = 0;
-        try {
-            gems = CasinoVIPManager.getStargems();
-            ceiling = CasinoVIPManager.getDebtCeiling();
-        } catch (Exception e) {
-            // Fallback values if there's an issue with VIP manager
-            Global.getLogger(CasinoInteraction.class).warn("Error accessing VIP manager, using default values", e);
-            gems = 0;
-            ceiling = 10000;
-        }
-        
-        // Clear any existing options to start fresh
-        options.clearOptions();
-        
-        // Display the player's current status
-        textPanel.addParagraph("Status: " + gems + " Gems (Limit: " + ceiling + ")");
-        textPanel.highlightInLastPara(Color.GREEN, "" + gems);
-
-        // Add all main menu options to the dialog
-        options.addOption("Texas Hold'em", "play");
-        options.addOption("Spiral Abyss Arena", "arena_lobby");
-        options.addOption("Tachy-Impact (Gacha)", "gacha_menu");
-        options.addOption("Financial (Top-up/Cash-out)", "financial_menu");
-        options.addOption("Handbook", "how_to_play_main");
-        options.addOption("Leave", "leave");
-        
-        // Update the current state to reflect the menu screen
-        currentState = State.MENU;
-    }
-
-    /**
-     * Handles when the player selects an option from the dialog
-     */
-    @Override
-    public void optionSelected(String optionText, Object optionData) {
-        String option = (String) optionData;
-        
-        // Handle the visit_casino option (for market interaction)
-        if ("visit_casino".equals(option)) {
-            // We're already in the casino interaction, so show the menu
-            showMenu();
-            return;
-        }
-        
-        // Handle resuming a suspended game
-        if ("resume_game".equals(option)) {
+    // Initialize handlers in constructor or init method
+    private void initializeMainHandlers() {
+        // Exact match handlers
+        handlers.put("visit_casino", option -> showMenu());
+        handlers.put("resume_game", option -> {
+            // Check debt before resuming any game
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            String type = mem.getString("$ipc_suspended_game_type");
-            if ("Poker".equals(type)) {
-                poker.restoreSuspendedGame(); // Restore the suspended poker game
+            if (mem.contains("$ipc_suspended_game_type")) {
+                String type = mem.getString("$ipc_suspended_game_type");
+                if ("Poker".equals(type)) {
+                    poker.restoreSuspendedGame(); // Restore the suspended poker game
+                    mem.unset("$ipc_suspended_game_type");
+                }
+                else if ("Arena".equals(type)) {
+                    arena.showArenaLobby();
+                    mem.unset("$ipc_suspended_game_type");
+                }
+            } else {
+                // If no suspended game, just return to main menu
+                showMenu();
+            }
+        });
+        handlers.put("forfeit_and_return", option -> {
+            // Clear the suspended game memory
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            if (mem.contains("$ipc_suspended_game_type")) {
                 mem.unset("$ipc_suspended_game_type");
             }
-            else if ("Arena".equals(type)) {
-                arena.showArenaLobby();
+            // Return to main menu
+            showMenu();
+        });
+        handlers.put("play", option -> {
+            // Check debt before entering poker
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
+            // Check if there's a suspended game and warn the player
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            if (mem.contains("$ipc_suspended_game_type")) {
+                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one.", Color.RED);
+                textPanel.addPara("Would you like to continue?", Color.YELLOW);
+                options.clearOptions();
+                options.addOption("Continue with New Game", "confirm_new_poker");
+                options.addOption("Resume Suspended Game", "resume_game");
+                options.addOption("Back to Main Menu", "back_menu");
+            } else {
+                poker.handle(option);
+            }
+        });
+        handlers.put("confirm_new_poker", option -> {
+            // Check debt before entering poker
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
+            // Clear the suspended game memory if any
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            if (mem.contains("$ipc_suspended_game_type")) {
                 mem.unset("$ipc_suspended_game_type");
             }
-            return;
-        }
-
-        // Check if the option belongs to any specific handler FIRST, regardless of current state
-        // This ensures that submenu options are properly routed even if not in that state
-        if ("play".equals(option) || "confirm_poker_ante".equals(option) || "next_hand".equals(option) ||
-            "how_to_poker".equals(option) || currentState == State.POKER) {
+            // Now start the new poker game
+            poker.handle("play");
+        });
+        handlers.put("confirm_poker_ante", option -> {
+            // Check debt before entering poker
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
             poker.handle(option);
-        } else if ("arena_lobby".equals(option) || "arena_watch_next".equals(option) || "arena_skip".equals(option) ||
-                   "arena_switch".equals(option) || "how_to_arena".equals(option) || currentState == State.ARENA) {
+        });
+        handlers.put("next_hand", option -> {
+            // Check debt before entering poker
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            poker.handle(option);
+        });
+        handlers.put("how_to_poker", option -> {
+            // Check debt before entering poker help
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            poker.handle(option);
+        });
+        handlers.put("arena_lobby", option -> {
+            // Check debt before entering arena
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
+            // Check if there's a suspended game and warn the player
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            if (mem.contains("$ipc_suspended_game_type")) {
+                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one.", Color.RED);
+                textPanel.addPara("Would you like to continue?", Color.YELLOW);
+                options.clearOptions();
+                options.addOption("Continue with New Game", "confirm_new_arena");
+                options.addOption("Resume Suspended Game", "resume_game");
+                options.addOption("Back to Main Menu", "back_menu");
+            } else {
+                arena.handle(option);
+            }
+        });
+        handlers.put("confirm_new_arena", option -> {
+            // Check debt before entering arena
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
+            // Clear the suspended game memory if any
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            if (mem.contains("$ipc_suspended_game_type")) {
+                mem.unset("$ipc_suspended_game_type");
+            }
+            // Now start the new arena game
+            arena.handle("arena_lobby");
+        });
+        handlers.put("arena_watch_next", option -> {
+            // Check debt before continuing arena
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
             arena.handle(option);
-        } else if ("gacha_menu".equals(option) || "pull_1".equals(option) || "pull_10".equals(option) ||
-                   "auto_convert".equals(option) || "how_to_gacha".equals(option) || currentState == State.GACHA) {
+        });
+        handlers.put("arena_skip", option -> {
+            // Check debt before continuing arena
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            arena.handle(option);
+        });
+        handlers.put("arena_switch", option -> {
+            // Check debt before continuing arena
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            arena.handle(option);
+        });
+        handlers.put("how_to_arena", option -> {
+            // Check debt before entering arena help
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            arena.handle(option);
+        });
+        handlers.put("gacha_menu", option -> {
+            // Check debt before entering gacha
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
             gacha.handle(option);
-        } else if ("financial_menu".equals(option) || "buy_chips".equals(option) || "cash_out".equals(option) ||
-                   option.startsWith("buy_pack_") || option.startsWith("confirm_buy_pack_") ||
-                   "buy_vip".equals(option) || "confirm_buy_vip".equals(option) || "buy_ship".equals(option) ||
-                   currentState == State.FINANCIAL) {
+        });
+        handlers.put("pull_1", option -> {
+            // Check debt before entering gacha
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            gacha.handle(option);
+        });
+        handlers.put("pull_10", option -> {
+            // Check debt before entering gacha
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            gacha.handle(option);
+        });
+        handlers.put("auto_convert", option -> {
+            // Check debt before entering gacha
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            gacha.handle(option);
+        });
+        handlers.put("how_to_gacha", option -> {
+            // Check debt before entering gacha help
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            gacha.handle(option);
+        });
+        handlers.put("financial_menu", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
             fin.handle(option);
-        } else if ("how_to_play_main".equals(option) || "how_to_poker".equals(option) || "how_to_arena".equals(option) ||
-                   "how_to_gacha".equals(option) || currentState == State.HELP) {
-            help.handle(option);
-        } else if ("leave".equals(option) || "leave_now".equals(option)) {
-            // Close the interaction dialog
+        });
+        handlers.put("buy_chips", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        handlers.put("cash_out", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        handlers.put("buy_vip", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        handlers.put("confirm_buy_vip", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        handlers.put("buy_ship", option -> {
+            // Check debt before entering financial menu
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        handlers.put("how_to_play_main", option -> {
+            // Check debt before entering help
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            
+            // Only show the intro page if it hasn't been shown yet
+            if (!handbookIntroShown) {
+                help.showIntroPage();
+                handbookIntroShown = true;
+            } else {
+                // Otherwise show the main help menu
+                help.showMainMenu();
+            }
+        });
+        handlers.put("leave", option -> {
+            // Stop casino music when leaving the casino
+            CasinoMusicPlugin.stopCasinoMusic();
             dialog.dismiss();
-        } else if ("back_menu".equals(option)) {
-            // Return to the main menu
-            showMenu();
-        } else {
-            // If we reach here, the option wasn't handled by any specific handler
-            // Show the main menu as fallback
-            showMenu();
-        }
+        });
+        handlers.put("leave_now", option -> {
+            // Stop casino music when leaving the casino
+            CasinoMusicPlugin.stopCasinoMusic();
+            dialog.dismiss();
+        });
+        handlers.put("back_menu", option -> showMenu());
+        
+        // Predicate-based handlers for pattern matching
+        predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
+            // Check debt before financial transaction
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
+            // Check debt before financial transaction
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return;
+            }
+            fin.handle(option);
+        });
+        
+        // State-dependent handlers
+        predicateHandlers.put(option -> {
+            // Check debt before state-dependent handling
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return false;
+            }
+            return currentState == State.POKER;
+        }, option -> poker.handle(option));
+        predicateHandlers.put(option -> {
+            // Check debt before state-dependent handling
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return false;
+            }
+            return currentState == State.ARENA;
+        }, option -> arena.handle(option));
+        predicateHandlers.put(option -> {
+            // Check debt before state-dependent handling
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return false;
+            }
+            return currentState == State.GACHA;
+        }, option -> gacha.handle(option));
+        predicateHandlers.put(option -> {
+            // Check debt before state-dependent handling
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return false;
+            }
+            return currentState == State.FINANCIAL;
+        }, option -> fin.handle(option));
+        predicateHandlers.put(option -> {
+            // Check debt before state-dependent handling
+            int gems = CasinoVIPManager.getStargems();
+            int ceiling = CasinoVIPManager.getDebtCeiling();
+            if (gems < -ceiling) {
+                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                options.addOption("End Interaction", "leave_now");
+                return false;
+            }
+            return currentState == State.HELP;
+        }, option -> help.handle(option));
     }
-
+    
+    public void setState(State state) {
+        this.currentState = state;
+    }
+    
+    public State getState() {
+        return this.currentState;
+    }
+    
+    public InteractionDialogAPI getDialog() {
+        return dialog;
+    }
+    
+    public TextPanelAPI getTextPanel() {
+        return textPanel;
+    }
+    
+    public OptionPanelAPI getOptions() {
+        return options;
+    }
+    
+    public void showMenu() {
+        options.clearOptions();
+        textPanel.addPara("Welcome to the Intergalactic Casino!");
+        textPanel.addPara("Choose your entertainment:");
+        
+        options.addOption("Poker Table", "play");
+        options.addOption("Arena Combat", "arena_lobby");
+        options.addOption("Gacha Terminal", "gacha_menu");
+        options.addOption("Financial Services", "financial_menu");
+        options.addOption("How to Play", "how_to_play_main");
+        options.addOption("Leave Casino", "leave");
+        
+        setState(State.MAIN_MENU);
+    }
+    
     /**
-     * Checks if there's a suspended game that the player can resume
+     * Static method to start the casino interaction from rule commands
      */
-    private boolean checkSuspendedGame() {
-        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        if (mem.contains("$ipc_suspended_game_type")) {
-            String type = mem.getString("$ipc_suspended_game_type");
-            textPanel.addParagraph("You have an active session of " + type + " waiting. Resume?", Color.YELLOW);
-            options.addOption("Resume Game", "resume_game");
-            options.addOption("Forfeit & Start New", "back_menu");
-            return true; 
-        }
-        return false;
-    }
-
-    // Boilerplate for Dialog Plugin
-    @Override public void optionMousedOver(String optionText, Object optionData) {}
-    @Override public void advance(float amount) {}
-    @Override public void backFromEngagement(EngagementResultAPI battleResult) {}
-    @Override public Object getContext() { return null; }
-    @Override public Map<String, MemoryAPI> getMemoryMap() { return null; }
-    
-    // Getters for handlers
-    public InteractionDialogAPI getDialog() { return dialog; }
-    public TextPanelAPI getTextPanel() { return textPanel; }
-    public OptionPanelAPI getOptions() { return options; }
-    public void setState(State state) { this.currentState = state; }
-    
-    // Static method to start the casino interaction from anywhere
     public static void startCasinoInteraction(InteractionDialogAPI dialog) {
-        CasinoInteraction casinoInteraction = new CasinoInteraction();
-        dialog.setPlugin(casinoInteraction);
-        casinoInteraction.init(dialog);
+        new CasinoInteraction(dialog).showMenu();
     }
 }
+

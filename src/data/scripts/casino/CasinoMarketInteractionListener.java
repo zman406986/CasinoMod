@@ -4,14 +4,10 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.*;
 import com.fs.starfarer.api.campaign.econ.MarketAPI;
 import com.fs.starfarer.api.campaign.listeners.ColonyInteractionListener;
-import com.fs.starfarer.api.combat.EngagementResultAPI;
-import com.fs.starfarer.api.campaign.rules.MemoryAPI;
-import data.scripts.casino.interaction.CasinoInteraction;
 
 public class CasinoMarketInteractionListener implements ColonyInteractionListener {
 
     private static final String CASINO_OPTION_ID = "visit_casino";
-    private static final String VISITED_CASINO_KEY = "$ipc_visited_casino";
     
     /**
      * MOD DEVELOPMENT NOTES FOR BEGINNERS:
@@ -39,6 +35,7 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
     public void reportPlayerClosedMarket(MarketAPI market) {
         // Cleanup if needed when player closes the market
     }
+    
     /**
      * Called after the cargo/market data has been updated
      * 
@@ -53,6 +50,7 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
             addCasinoOptionToMarket(market);
         }
     }
+    
     /**
      * Called when the player completes a transaction at the market
      * 
@@ -64,6 +62,7 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
     public void reportPlayerMarketTransaction(PlayerMarketTransaction transaction) {
         // Handle transaction events if needed
     }
+    
     /**
      * Determines if the casino option should be available at this market
      * 

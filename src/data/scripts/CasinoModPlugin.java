@@ -4,7 +4,6 @@ import com.fs.starfarer.api.BaseModPlugin;
 import com.fs.starfarer.api.Global;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
-
 import data.scripts.casino.CasinoMarketInteractionListener;
 
 /**
@@ -18,7 +17,7 @@ import data.scripts.casino.CasinoMarketInteractionListener;
  * 2. CasinoInteraction: Main interaction routing.
  * 3. Specialized Handlers: PokerHandler, ArenaHandler, GachaHandler.
  * 4. Managers: CasinoVIPManager (Background), CasinoGachaManager (Data).
- * 5. TromTromNPCManager: NPC management for casino access
+ * 5. CasinoMarketInteractionListener: Market interaction management
  * 
  * LEARNERS: Keeping this file clean makes it easier to manage the "brain" 
  * of your mod without getting lost in UI and minigame code.
@@ -63,9 +62,7 @@ public class CasinoModPlugin extends BaseModPlugin {
         // Start the background loyalty/debt script that runs continuously
         // This manages VIP daily rewards, debt interest, and other persistent game logic
         Global.getSector().addTransientScript(new CasinoVIPManager());
-        
 
-        
         // Register the casino market interaction listener
         // This adds the "Visit Private Lounge" option to compatible markets
         Global.getSector().getListenerManager().addListener(new CasinoMarketInteractionListener(), true);

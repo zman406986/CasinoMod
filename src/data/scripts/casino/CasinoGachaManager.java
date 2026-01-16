@@ -5,7 +5,16 @@ import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
-import java.util.*;
+import com.fs.starfarer.api.impl.campaign.ids.Tags;
+import com.fs.starfarer.api.impl.campaign.ids.Items;
+import java.util.ArrayList;
+import java.util.Collections;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 /**
  * Handles the gacha system for obtaining ships/weapons.
@@ -22,9 +31,7 @@ public class CasinoGachaManager {
     
     private final Random random = new Random();
     
-    // Genshin Rates - Now using values from CasinoConfig
-    private static final float RATE_5_STAR_BASE = CasinoConfig.PROB_5_STAR; // 0.6%
-    private static final float RATE_4_STAR_BASE = CasinoConfig.PROB_4_STAR; // 5.1%
+    // Genshin Rates - Using values from CasinoConfig
     
     /**
      * Persistent data for gacha system including pity counters and auto-convert settings
@@ -55,27 +62,24 @@ public class CasinoGachaManager {
      * Based on similar logic to Nexerelin's Prism Shop
      */
     public boolean isShipAllowed(ShipHullSpecAPI spec) {
-        // Skip fighters
-        if (spec.getHullSize() == ShipAPI.HullSize.FIGHTER) return false;
+        // Skip d-hulls
+        if (spec.isDHull()) return false;
+        
+        // Skip ships with no-sell tags (using same tags as Prism Shop)
+        if (spec.hasTag(Tags.NO_SELL) || spec.hasTag(Tags.RESTRICTED) || spec.hasTag(Items.TAG_NO_DEALER)) return false;
         
         // Skip station modules
         if (spec.getHints().contains(ShipHullSpecAPI.ShipTypeHints.STATION)) return false;
         
-        // Skip civilian ships
-        if (spec.getHints().contains(ShipHullSpecAPI.ShipTypeHints.CIVILIAN)) return false;
-        
-        // Skip d-hulls
-        if (spec.isDHull()) return false;
-        
-        // Skip ships with no-sell tags
-        if (spec.hasTag("NoSell") || spec.hasTag("Restricted") || spec.hasTag("NoDealer")) return false;
+        // Skip fighters
+        if (spec.getHullSize() == ShipAPI.HullSize.FIGHTER) return false;
         
         // Skip ships that start with restricted prefixes
         String hullId = spec.getHullId();
         if (hullId.startsWith("tem_")) return false;
         
-        // Skip boss ships (secret ships) - typically very high FP ships
-        if (spec.getFleetPoints() > 50) return false; // Adjust this value as needed
+        // Skip high FP ships that might be boss/secret ships
+        if (spec.getFleetPoints() > 50) return false;
         
         return true;
     }
@@ -95,7 +99,12 @@ public class CasinoGachaManager {
              String hullId = spec.getHullId();
              if (!uniqueHullIds.contains(hullId) && list.size() < 20) { // Limit to 20 ships
                  uniqueHullIds.add(hullId);
-                 list.add(Global.getFactory().createFleetMember(FleetMemberType.SHIP, spec.getHullId() + "_Hull")); 
+                 
+                 // Create a fleet member with a proper variant to ensure names are populated
+                 FleetMemberAPI member = createShip(spec.getHullId());
+                 if (member != null) {
+                     list.add(member);
+                 }
              }
          }
          return list;
@@ -142,59 +151,6 @@ public class CasinoGachaManager {
     }
     
     /**
-     * Performs a single gacha pull with normal fleet addition behavior
-     */
-    public String performPull() {
-        GachaData data = getData();
-        data.pity5++;
-        data.pity4++;
-        
-        // --- 1. Check 5* (Capital) ---
-        float currentRate5 = CasinoConfig.PROB_5_STAR;
-        
-        if (data.pity5 >= CasinoConfig.PITY_SOFT_START_5) {
-            currentRate5 = CasinoConfig.PROB_5_STAR + (data.pity5 - (CasinoConfig.PITY_SOFT_START_5 - 1)) * 0.06f;
-        }
-        if (data.pity5 >= CasinoConfig.PITY_HARD_5) currentRate5 = 10.0f; 
-        
-        float roll = random.nextFloat();
-        
-        if (roll < currentRate5) {
-            data.pity5 = 0; 
-            return handle5StarForNormalUsage(data);
-        }
-        
-        // --- 2. Check 4* (Cruiser) ---
-        float currentRate4 = CasinoConfig.PROB_4_STAR;
-        if (data.pity4 >= CasinoConfig.PITY_HARD_4) currentRate4 = 10.0f;
-        
-        float roll4 = random.nextFloat();
-        
-        if (roll4 < currentRate4) {
-             data.pity4 = 0;
-             return handle4StarForNormalUsage(data);
-        }
-        
-        // --- 3. Trash (3*) ---
-        String s = getRandomHull(random.nextBoolean() ? ShipAPI.HullSize.DESTROYER : ShipAPI.HullSize.FRIGATE);
-             
-        // Auto Convert Check
-        if (data.autoConvertIds.contains(s)) {
-            int val = (int)(Global.getSettings().getHullSpec(s).getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-            CasinoVIPManager.addStargems(val);
-            return "Auto-Converted: " + Global.getSettings().getHullSpec(s).getHullName() + " (+" + val + " Gems)";
-        }
-             
-        FleetMemberAPI m = createShip(s);
-        if (m != null) {
-           Global.getSector().getPlayerFleet().getFleetData().addFleetMember(m);
-           return m.getShipName() + " (" + m.getHullSpec().getHullName() + ")";
-        } else {
-           return "Error: Blueprint corrupted.";
-        }
-    }
-    
-    /**
      * Performs a single gacha pull but collects ships without adding to fleet
      */
     public String performPullDetailed(List<FleetMemberAPI> collectedShips) {
@@ -231,18 +187,26 @@ public class CasinoGachaManager {
         // --- 3. Trash (3*) ---
         String s = getRandomHull(random.nextBoolean() ? ShipAPI.HullSize.DESTROYER : ShipAPI.HullSize.FRIGATE);
              
-        // Auto Convert Check - still do this immediately
-        if (data.autoConvertIds.contains(s)) {
-            int val = (int)(Global.getSettings().getHullSpec(s).getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-            CasinoVIPManager.addStargems(val);
-            return "Auto-Converted: " + Global.getSettings().getHullSpec(s).getHullName() + " (+" + val + " Gems)";
+        // Auto Convert Check - still do this immediately with null safety
+        if (s != null && data.autoConvertIds.contains(s)) {
+            ShipHullSpecAPI hullSpec = Global.getSettings().getHullSpec(s);
+            if (hullSpec != null) {
+                int val = (int)(hullSpec.getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
+                CasinoVIPManager.addStargems(val);
+                return "Auto-Converted: " + hullSpec.getHullName() + " (+" + val + " Gems)";
+            }
         }
              
         FleetMemberAPI m = createShip(s);
         if (m != null) {
            // Add to collected ships but don't add to fleet yet - let the handler decide
            collectedShips.add(m);
-           return m.getShipName() + " (" + m.getHullSpec().getHullName() + ")";
+           
+           String shipName = m.getShipName();
+           if (shipName == null || shipName.isEmpty()) {
+               shipName = m.getHullSpec().getHullName();
+           }
+           return shipName + " (" + m.getHullSpec().getHullName() + ")";
         } else {
            return "Error: Blueprint corrupted.";
         }
@@ -271,7 +235,12 @@ public class CasinoGachaManager {
         
         FleetMemberAPI member = createShip(resultId);
         Global.getSector().getPlayerFleet().getFleetData().addFleetMember(member);
-        return member.getShipName() + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
+        
+        String shipName = member.getShipName();
+        if (shipName == null || shipName.isEmpty()) {
+            shipName = member.getHullSpec().getHullName();
+        }
+        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
     }
     
     /**
@@ -297,7 +266,12 @@ public class CasinoGachaManager {
         
         FleetMemberAPI member = createShip(resultId);
         Global.getSector().getPlayerFleet().getFleetData().addFleetMember(member);
-        return member.getShipName() + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
+        
+        String shipName = member.getShipName();
+        if (shipName == null || shipName.isEmpty()) {
+            shipName = member.getHullSpec().getHullName();
+        }
+        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
     }
     
     /**
@@ -325,7 +299,12 @@ public class CasinoGachaManager {
         if (member != null) {
             collectedShips.add(member);
         }
-        return member.getShipName() + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
+        
+        String shipName = member.getShipName();
+        if (shipName == null || shipName.isEmpty()) {
+            shipName = member.getHullSpec().getHullName();
+        }
+        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
     }
     
     /**
@@ -353,25 +332,61 @@ public class CasinoGachaManager {
         if (member != null) {
             collectedShips.add(member);
         }
-        return member.getShipName() + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
+        
+        String shipName = member.getShipName();
+        if (shipName == null || shipName.isEmpty()) {
+            shipName = member.getHullSpec().getHullName();
+        }
+        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
     }
     
     /**
      * Creates a fleet member from a hull ID with error handling
+     * Ensures proper ship name assignment and basic loadout
      */
     public FleetMemberAPI createShip(String hullId) {
-        String variantId = hullId + "_Hull"; 
         try {
-            return Global.getFactory().createFleetMember(FleetMemberType.SHIP, variantId);
+            // First try to create with the standard method
+            FleetMemberAPI member = Global.getFactory().createFleetMember(FleetMemberType.SHIP, hullId + "_Hull");
+            
+            // If ship name is null or empty, try to set a proper name
+            if (member.getShipName() == null || member.getShipName().isEmpty()) {
+                ShipHullSpecAPI spec = Global.getSettings().getHullSpec(hullId);
+                if (spec != null) {
+                    // Use hull name as the ship name if it's empty
+                    member.setShipName(spec.getHullName());
+                }
+            }
+            
+            return member;
         } catch (Exception e) {
             try {
                 ShipHullSpecAPI spec = Global.getSettings().getHullSpec(hullId);
                 if (spec == null) throw new RuntimeException("Hull Spec not found: " + hullId);
-                com.fs.starfarer.api.combat.ShipVariantAPI variant = Global.getSettings().createEmptyVariant(hullId + "_temp", spec);
-                return Global.getFactory().createFleetMember(FleetMemberType.SHIP, variant);
+                
+                // Apply a basic loadout to the variant
+                com.fs.starfarer.api.combat.ShipVariantAPI variant = Global.getSettings().getVariant(hullId + "_Hull");
+                if (variant == null) {
+                    // If the default variant doesn't exist, create an empty one
+                    variant = Global.getSettings().createEmptyVariant(hullId + "_Hull", spec);
+                }
+                
+                FleetMemberAPI member = Global.getFactory().createFleetMember(FleetMemberType.SHIP, variant);
+                
+                // Make sure the ship has a proper name
+                if (member.getShipName() == null || member.getShipName().isEmpty()) {
+                    member.setShipName(spec.getHullName());
+                }
+                
+                return member;
             } catch (Exception ex) {
                 Global.getLogger(this.getClass()).error("CRITICAL: specific hullId " + hullId + " does not exist.", ex);
-                return Global.getFactory().createFleetMember(FleetMemberType.SHIP, "kite_Support_Hull"); // Changed to a more commonly available fallback
+                // Create a fallback ship with proper name
+                FleetMemberAPI fallback = Global.getFactory().createFleetMember(FleetMemberType.SHIP, "kite_Support_Hull");
+                if (fallback.getShipName() == null || fallback.getShipName().isEmpty()) {
+                    fallback.setShipName("Kite");
+                }
+                return fallback;
             }
         }
     }
@@ -421,6 +436,4 @@ public class CasinoGachaManager {
         }
         return list.get(random.nextInt(list.size()));
     }
-
-
 }

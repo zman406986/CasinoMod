@@ -33,7 +33,7 @@ public class CasinoVIPManager implements EveryFrameScript {
     // Performance: We track time to avoid running heavy logic every single frame.
     private float daysElapsed = 0;
     private float timer = 0f;
-    private Random random = new Random();
+    private final Random random = new Random();
 
     /**
      * Data structure to hold VIP specific info. 
@@ -42,12 +42,10 @@ public class CasinoVIPManager implements EveryFrameScript {
      * MOD DEVELOPMENT NOTES FOR BEGINNERS:
      * - This class holds persistent data for the VIP system
      * - daysRemaining: How many VIP days are left
-     * - lastDailyTime: Timestamp of last daily reward claim
      * - totalTopUps: Total gems purchased by the player
      */
     public static class VIPData {
         public int daysRemaining = 0;
-        public long lastDailyTime = 0;
         public int totalTopUps = 0; 
     }
 
@@ -186,7 +184,7 @@ public class CasinoVIPManager implements EveryFrameScript {
 
         // Reputation Logic: Corporate entities love big spenders.
         if (amount >= 10000) {
-            adjustTriTachRep(0.01f * (amount / 10000), "Significant Stargem purchase");
+            adjustTriTachRep((float) (0.01f * ((double) amount / 10000.0)), "Significant Stargem purchase");
         }
     }
 
@@ -236,17 +234,6 @@ public class CasinoVIPManager implements EveryFrameScript {
         return 0;
     }
     
-    /**
-     * Sets the player's stargem balance to a specific amount
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Directly sets the stargem value without incrementing
-     * - Use with caution as it replaces the entire balance
-     */
-    public static void setStargems(int amount) {
-        Global.getSector().getPersistentData().put(STARGEM_KEY, amount);
-    }
-
     /**
      * Adds VIP subscription days to the player's account
      * 

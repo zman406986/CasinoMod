@@ -1,14 +1,16 @@
 package data.scripts.casino.interaction;
 
-import com.fs.starfarer.api.Global;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.SpiralAbyssArena;
-import data.scripts.CasinoUIPanels.ArenaUIPanel;
+import data.scripts.CasinoUIPanels;
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Manages the Spiral Abyss Arena interaction flow.
@@ -63,69 +65,95 @@ public class ArenaHandler {
      * List of all bets placed in the current battle
      */
     protected List<BetInfo> arenaBets = new ArrayList<>();
+    
+    private final Map<String, OptionHandler> handlers = new HashMap<>();
+    private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
 
     public ArenaHandler(CasinoInteraction main) {
         this.main = main;
+        initializeHandlers();
+    }
+    
+    private void initializeHandlers() {
+        // Exact match handlers
+        handlers.put("arena_lobby", option -> showArenaLobby());
+        handlers.put("arena_add_bet_menu", option -> showAddBetMenu());
+        handlers.put("how_to_arena", option -> main.help.showArenaHelp());
+        handlers.put("back_menu", option -> main.showMenu());
+
+        handlers.put("arena_watch_next", option -> simulateArenaStep());
+        handlers.put("arena_skip", option -> {
+            boolean result;
+            do {
+                result = simulateArenaStep();
+            } while (result); // Continue simulating until the battle ends
+        });
+        handlers.put("arena_switch", option -> showArenaSwitchMenu());
+        handlers.put("arena_increase_bet", option -> showIncreaseBetMenu());
+        handlers.put("arena_status", option -> showArenaStatus());
+        handlers.put("start_battle_with_current_bet", option -> {
+            // Find the index of the chosen champion
+            int chosenIdx = -1;
+            for (int i = 0; i < arenaCombatants.size(); i++) {
+                if (arenaCombatants.get(i) == chosenChampion) {
+                    chosenIdx = i;
+                    break;
+                }
+            }
+            if (chosenIdx != -1) {
+                startArenaBattle(chosenIdx);
+            }
+        });
+        
+        // Predicate-based handlers for pattern matching
+        predicateHandlers.put(option -> option.startsWith("arena_select_ship_"), option -> {
+            int parsedIdx = Integer.parseInt(option.replace("arena_select_ship_", ""));
+            showArenaConfirm(parsedIdx);
+        });
+        predicateHandlers.put(option -> option.startsWith("arena_bet_") && !option.contains("_bet"), option -> {
+            int idx = Integer.parseInt(option.replace("arena_bet_", ""));
+            showArenaConfirm(idx);
+        });
+        predicateHandlers.put(option -> option.startsWith("confirm_arena_bet_"), option -> {
+            int parsedIdx = Integer.parseInt(option.replace("confirm_arena_bet_", ""));
+            startArenaBattle(parsedIdx);
+        });
+        predicateHandlers.put(option -> option.startsWith("arena_confirm_increase_bet_"), option -> {
+            int parsedAmount = Integer.parseInt(option.replace("arena_confirm_increase_bet_", ""));
+            performBetIncrease(parsedAmount);
+        });
+        predicateHandlers.put(option -> option.startsWith("arena_add_bet_") && !option.equals("arena_add_bet_menu"), option -> {
+            int parsedAdditionalAmount = Integer.parseInt(option.replace("arena_add_bet_", ""));
+            confirmAddBet(parsedAdditionalAmount);
+        });
+        predicateHandlers.put(option -> option.startsWith("confirm_arena_add_bet_"), option -> {
+            int parsedAdditionalAmount = Integer.parseInt(option.replace("confirm_arena_add_bet_", ""));
+            addIncrementalBet(parsedAdditionalAmount);
+        });
+        predicateHandlers.put(option -> option.startsWith("arena_confirm_switch_"), option -> {
+            int parsedIdx = Integer.parseInt(option.replace("arena_confirm_switch_", ""));
+            performChampionSwitch(parsedIdx);
+        });
     }
 
     /**
      * Handles arena menu options including lobby, betting, and battle simulation
      */
     public void handle(String option) {
-        if ("arena_lobby".equals(option)) {
-            showArenaLobby();
-        } else if ("arena_select_bet_menu".equals(option)) {
-            showBetAmountMenu();
-        } else if (option.startsWith("arena_select_ship_")) {
-            int idx = Integer.parseInt(option.replace("arena_select_ship_", ""));
-            showArenaConfirm(idx);
-        } else if (option.startsWith("arena_bet_") && !option.contains("_bet")) {
-            int idx = Integer.parseInt(option.replace("arena_bet_", ""));
-            showArenaConfirm(idx);
-        } else if (option.startsWith("confirm_arena_bet_")) {
-            int idx = Integer.parseInt(option.replace("confirm_arena_bet_", ""));
-            startArenaBattle(idx);
-        } else if ("arena_watch_next".equals(option)) {
-            simulateArenaStep();
-        } else if ("arena_skip".equals(option)) {
-            while (simulateArenaStep()) {}
-        } else if ("arena_switch".equals(option)) {
-            // Handle switching champion
-            showArenaSwitchMenu();
-        } else if ("arena_increase_bet".equals(option)) {
-            // Handle increasing bet on current champion
-            showIncreaseBetMenu();
-        } else if (option.startsWith("arena_confirm_increase_bet_")) {
-            int amount = Integer.parseInt(option.replace("arena_confirm_increase_bet_", ""));
-            performBetIncrease(amount);
-        } else if ("arena_custom_increase_bet".equals(option)) {
-            showCustomIncreaseBetMenu();
-        } else if ("arena_status".equals(option)) {
-            showArenaStatus();
-        } else if (option.startsWith("arena_confirm_switch_")) {
-            int idx = Integer.parseInt(option.replace("arena_confirm_switch_", ""));
-            performChampionSwitch(idx);
-        } else if ("arena_small_bet".equals(option)) {
-            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE / 2;
-            showArenaLobby();
-        } else if ("arena_standard_bet".equals(option)) {
-            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
-            showArenaLobby();
-        } else if ("arena_large_bet".equals(option)) {
-            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE * 2;
-            showArenaLobby();
-        } else if ("arena_custom_bet".equals(option)) {
-            showCustomBetMenu();
-        } else if (option.startsWith("arena_select_bet_")) {
-            int betAmount = Integer.parseInt(option.replace("arena_select_bet_", ""));
-            currentBetAmount = betAmount;
-            showArenaLobby();
-        } else if ("how_to_arena".equals(option)) {
-            main.help.showArenaHelp();
-        } else if ("back_menu".equals(option)) {
-            main.showMenu();
+        // Try exact match handlers first
+        OptionHandler handler = handlers.get(option);
+        if (handler != null) {
+            handler.handle(option);
+            return;
         }
-        // ... Dispatch other arena options ...
+        
+        // Try predicate-based handlers for pattern matching
+        for (Map.Entry<Predicate<String>, OptionHandler> entry : predicateHandlers.entrySet()) {
+            if (entry.getKey().test(option)) {
+                entry.getValue().handle(option);
+                return;
+            }
+        }
     }
 
     /**
@@ -133,80 +161,77 @@ public class ArenaHandler {
      */
     public void showArenaLobby() {
         main.options.clearOptions();
-        int fee = CasinoConfig.ARENA_ENTRY_FEE;
         
         // Only generate new ships if arena hasn't been initialized yet
         if (activeArena == null || arenaCombatants == null || arenaCombatants.isEmpty()) {
             activeArena = new SpiralAbyssArena();
             arenaCombatants = activeArena.generateCombatants(new CasinoGachaManager());
+            // Reset bet amount to default for a new championship
+            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
         }
         
-        main.textPanel.addParagraph("Spiral Abyss Arena - Today's Match Card", Color.CYAN);
-        main.textPanel.addParagraph("Current Bet Amount: " + currentBetAmount + " Stargems", Color.YELLOW);
-        main.textPanel.addParagraph("\nSelect a champion to bet on:", Color.YELLOW);
+        main.textPanel.addPara("Spiral Abyss Arena - Today's Match Card", Color.CYAN);
+        main.textPanel.addPara("\nSelect a champion to battle with:", Color.YELLOW);
         
         for (int i=0; i<arenaCombatants.size(); i++) {
             SpiralAbyssArena.SpiralGladiator g = arenaCombatants.get(i);
-            // Create properly formatted string with colored parts
-            String coloredName = formatColoredShipName(g);
-            main.textPanel.addParagraph((i+1) + ". " + coloredName + " (" + g.hullName + ")");
-            main.options.addOption((i+1) + ". " + g.fullName, "arena_select_ship_" + i);
+            
+            // Combine all ship name parts into a single paragraph to avoid excessive line breaks
+            main.textPanel.setFontInsignia();
+            
+            // Create the full ship name string
+            String shipEntry = (i+1) + ". " + g.prefix + " " + g.hullName + " " + g.affix + " (" + g.hullName + ")\n";
+            
+            // Add the entire string as one paragraph with prefix color as default
+            Color prefixColor = isPositiveAffix(g.prefix) ? Color.GREEN : Color.RED;
+            main.textPanel.addPara(shipEntry, prefixColor);
+            
+            // Highlight the hull name in white
+            main.textPanel.highlightInLastPara(Color.WHITE, g.hullName + " ");
+            
+            // Highlight the affix with appropriate color
+            Color affixColor = isPositiveAffix(g.affix) ? Color.GREEN : Color.RED;
+            main.textPanel.highlightInLastPara(affixColor, g.affix);
+            
+            // Highlight the hull name in parentheses in gray
+            main.textPanel.highlightInLastPara(Color.GRAY, "(" + g.hullName + ")");
+            
+            main.options.addOption(g.fullName, "arena_select_ship_" + i);
         }
         
-        main.options.addOption("Change Bet Amount", "arena_select_bet_menu");
         main.options.addOption("How it Works", "how_to_arena");
         main.options.addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.ARENA);
     }
 
     /**
-     * Shows bet amount selection menu
+     * Determines if an affix or prefix is positive or negative based on the configuration
      */
-    private void showBetAmountMenu() {
-        main.options.clearOptions();
-        int fee = CasinoConfig.ARENA_ENTRY_FEE;
-        main.textPanel.addParagraph("\nSelect Bet Amount:", Color.YELLOW);
-        main.textPanel.addParagraph("Current Bet Amount: " + currentBetAmount + " Stargems", Color.CYAN);
-        main.textPanel.addParagraph("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
+    private boolean isPositiveAffix(String affixOrPrefix) {
+        // Check if it's in the positive affix list
+        if (CasinoConfig.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
+            return true;
+        }
         
-        // Add betting amount selection
-        main.options.addOption("Small Bet (" + (fee/2) + " Gems)", "arena_small_bet");
-        main.options.addOption("Standard Bet (" + fee + " Gems)", "arena_standard_bet");
-        main.options.addOption("Large Bet (" + (fee*2) + " Gems)", "arena_large_bet");
-        main.options.addOption("Custom Bet...", "arena_custom_bet");
-        main.options.addOption("Back to Lobby", "arena_lobby");
+        // Check if it's in the negative affix list
+        if (CasinoConfig.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
+            return false;
+        }
+        
+        // Check if it's in the positive prefix list
+        if (CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
+            return true;
+        }
+        
+        // Check if it's in the negative prefix list
+        if (CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
+            return false;
+        }
+        
+        // Default to positive if not found in either list
+        return true;
     }
 
-    /**
-     * Shows custom bet amount selection menu
-     */
-    private void showCustomBetMenu() {
-        main.options.clearOptions();
-        main.textPanel.addParagraph("\nSelect Custom Bet Amount:", Color.YELLOW);
-        int playerBalance = CasinoVIPManager.getStargems();
-        main.textPanel.addParagraph("Balance: " + playerBalance + " Stargems", Color.CYAN);
-        
-        // Offer a range of bet amounts based on player's balance
-        int baseAmount = CasinoConfig.ARENA_ENTRY_FEE;
-        int[] betOptions = {baseAmount/4, baseAmount/2, baseAmount, baseAmount*2, baseAmount*3, baseAmount*5};
-        
-        for (int amount : betOptions) {
-            if (amount <= playerBalance) {
-                main.options.addOption(amount + " Gems", "arena_select_bet_" + amount);
-            }
-        }
-        
-        // Add percentage-based options for larger bets
-        int[] percentages = {10, 30, 50, 70, 100}; // 10%, 30%, 50%, 70%, 100%
-        for (int percent : percentages) {
-            int amount = (playerBalance * percent) / 100;
-            if (amount > 0 && amount <= playerBalance) {
-                main.options.addOption(percent + "% of Balance (" + amount + " Gems)", "arena_select_bet_" + amount);
-            }
-        }
-        
-        main.options.addOption("Back to Bet Selection", "arena_select_bet_menu");
-    }
 
     /**
      * Shows confirmation dialog for arena battle
@@ -215,39 +240,163 @@ public class ArenaHandler {
         main.options.clearOptions();
         SpiralAbyssArena.SpiralGladiator g = arenaCombatants.get(idx);
         
-        main.textPanel.addParagraph("Bet " + currentBetAmount + " Gems on ", Color.YELLOW);
-        main.textPanel.setFontInsignia();
-        main.textPanel.addParagraph(g.prefix + " ", Color.GREEN);
-        main.textPanel.addParagraph(g.hullName + " ", Color.WHITE);
-        main.textPanel.addParagraph(g.affix, Color.BLUE);
-        main.textPanel.addParagraph("?", Color.YELLOW);
-        main.textPanel.addParagraph("Balance after bet: " + (CasinoVIPManager.getStargems() - currentBetAmount) + " Stargems", Color.CYAN);
+        // Store the selected champion index temporarily
+        chosenChampion = arenaCombatants.get(idx); // Set the champion here
         
-        main.options.addOption("Confirm", "confirm_arena_bet_" + idx);
-        main.options.addOption("Cancel", "arena_lobby");
+        // Reset the bet amount to 0 and reset arena bets when a new champion is selected
+        currentBetAmount = 0;
+        arenaBets.clear();
+        
+        main.textPanel.setFontInsignia();
+        
+        // Combine champion selection text into a single paragraph
+        Color prefixColor = isPositiveAffix(g.prefix) ? Color.GREEN : Color.RED;
+        Color affixColor = isPositiveAffix(g.affix) ? Color.GREEN : Color.RED;
+        
+        String championText = "Selected champion: " + g.prefix + " " + g.hullName + " " + g.affix;
+        main.textPanel.addPara(championText, prefixColor);
+        
+        // Highlight the hull name in white
+        main.textPanel.highlightInLastPara(Color.WHITE, g.hullName + " ");
+        
+        // Highlight the affix with appropriate color
+        main.textPanel.highlightInLastPara(affixColor, g.affix);
+        
+        main.textPanel.addPara("Now add your bet amount:", Color.CYAN);
+        
+        // Go to add bet menu which loops back to itself until "Start Battle" is chosen
+        showAddBetMenu();
+    }
+    
+    /**
+     * Adds an incremental bet to the current arena battle
+     */
+    private void addIncrementalBet(int additionalAmount) {
+        if (CasinoVIPManager.getStargems() < additionalAmount) {
+            main.textPanel.addPara("Not enough Stargems! You only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+            showArenaStatus();
+            return;
+        }
+        
+        // Deduct the additional bet amount from player's gems
+        CasinoVIPManager.addStargems(-additionalAmount);
+        
+        // Add the new bet with the same multiplier as the last bet
+        float currentMultiplier = 1.0f;
+        if (!arenaBets.isEmpty()) {
+            currentMultiplier = arenaBets.get(arenaBets.size()-1).multiplier;
+        }
+        
+        arenaBets.add(new BetInfo(additionalAmount, currentMultiplier));
+        
+        main.textPanel.addPara("Added " + additionalAmount + " Stargems to your bet. Total bet: " + getCurrentTotalBet() + " Stargems.", Color.GREEN);
+        showArenaStatus();
+    }
+    
+    /**
+     * Shows incremental bet addition menu
+     */
+    private void showAddBetMenu() {
+        main.options.clearOptions();
+        main.textPanel.addPara("\nAdd to your bet:", Color.YELLOW);
+        main.textPanel.addPara("Current Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
+        
+        int playerBalance = CasinoVIPManager.getStargems();
+        
+        // Create fixed increment options based on project specifications
+        if (playerBalance >= 100) {
+            main.options.addOption("Add 100 Stargems", "arena_add_bet_100");
+        }
+        if (playerBalance >= 500) {
+            main.options.addOption("Add 500 Stargems", "arena_add_bet_500");
+        }
+        if (playerBalance >= 2000) {
+            main.options.addOption("Add 2000 Stargems", "arena_add_bet_2000");
+        }
+        
+        // Add percentage-based options
+        int tenPercent = (playerBalance * 10) / 100;
+        if (tenPercent > 0 && playerBalance >= tenPercent) {
+            main.options.addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_add_bet_" + tenPercent);
+        }
+        
+        int fiftyPercent = (playerBalance * 50) / 100;
+        if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+            main.options.addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_add_bet_" + fiftyPercent);
+        }
+        
+        // Add option to start battle with current bet amount
+        if (getCurrentTotalBet() > 0) {
+            main.options.addOption("Start Battle (" + getCurrentTotalBet() + " Stargems)", "start_battle_with_current_bet");
+        }
+        
+        main.options.addOption("Cancel & Return to Arena Lobby", "arena_lobby");
+    }
+    
+    /**
+     * Confirms the selected incremental bet amount with the player
+     */
+    private void confirmAddBet(int additionalAmount) {
+        main.options.clearOptions();
+        main.textPanel.addPara("\nConfirm additional bet amount:", Color.YELLOW);
+        main.textPanel.addPara("Additional Bet: " + additionalAmount + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Total Bet after addition: " + (getCurrentTotalBet() + additionalAmount) + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Balance after bet: " + (CasinoVIPManager.getStargems() - additionalAmount) + " Stargems", Color.CYAN);
+        
+        main.options.addOption("Confirm Addition", "confirm_arena_add_bet_" + additionalAmount);
+        main.options.addOption("Cancel", "arena_add_bet_menu");
     }
 
     /**
      * Starts the arena battle with selected champion
      */
     private void startArenaBattle(int chosenIdx) {
-        // Deduct the current bet amount from player's gems
-        CasinoVIPManager.addStargems(-currentBetAmount);
-        chosenChampion = arenaCombatants.get(chosenIdx);
-        arenaBets.clear();
-        arenaBets.add(new BetInfo(currentBetAmount, 1.0f)); // Use the current bet amount instead of fixed fee
+        // Make sure we have a valid champion
+        if (chosenIdx >= 0 && chosenIdx < arenaCombatants.size()) {
+            chosenChampion = arenaCombatants.get(chosenIdx);
+        }
+        
+        // Deduct the total bet amount from player's gems
+        int totalBet = getCurrentTotalBet();
+        
+        // If no bets have been placed, add a default bet of 50
+        if (totalBet <= 0) {
+            totalBet = 50;
+            arenaBets.add(new BetInfo(50, 1.0f));
+        }
+        
+        // Make sure player has enough gems
+        if (CasinoVIPManager.getStargems() < totalBet) {
+            main.textPanel.addPara("Not enough Stargems! You only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+            showAddBetMenu();
+            return;
+        }
+        
+        CasinoVIPManager.addStargems(-totalBet);
+        
         opponentsDefeated = 0;
         turnsSurvived = 0;
         
-        // Announce the battle with the chosen champion
-        main.textPanel.addParagraph("The battle begins! Your champion ", Color.RED);
+        // Announce the battle with the chosen champion using combined text to avoid line breaks
         main.textPanel.setFontInsignia();
-        main.textPanel.addParagraph(chosenChampion.prefix + " ", Color.GREEN);
-        main.textPanel.addParagraph(chosenChampion.hullName + " ", Color.WHITE);
-        main.textPanel.addParagraph(chosenChampion.affix, Color.BLUE);
-        main.textPanel.addParagraph(" enters the arena! (Bet: " + currentBetAmount + " Stargems)", Color.RED);
         
-        main.dialog.getVisualPanel().showCustomPanel(400, 600, new ArenaUIPanel(main));
+        Color prefixColor = isPositiveAffix(chosenChampion.prefix) ? Color.GREEN : Color.RED;
+        Color affixColor = isPositiveAffix(chosenChampion.affix) ? Color.GREEN : Color.RED;
+        
+        // Combine all text parts into a single paragraph
+        String battleStartText = "The battle begins! Your champion " + chosenChampion.prefix + " " + 
+                                 chosenChampion.hullName + " " + chosenChampion.affix + " enters the arena! (Bet: " + 
+                                 totalBet + " Stargems)";
+        main.textPanel.addPara(battleStartText, prefixColor);
+        
+        // Highlight the hull name in white
+        main.textPanel.highlightInLastPara(Color.WHITE, chosenChampion.hullName + " ");
+        
+        // Highlight the affix with appropriate color
+        main.textPanel.highlightInLastPara(affixColor, chosenChampion.affix);
+        
+        main.dialog.getVisualPanel().showCustomPanel(400, 600, new CasinoUIPanels.ArenaUIPanel(main));
         simulateArenaStep();
     }
 
@@ -273,7 +422,7 @@ public class ArenaHandler {
         
         // Add battle logs to text panel
         for (String logEntry : logEntries) {
-            // Process the log entry to highlight ship names with colors
+            // Process the log entry to identify attacker, target, and damage values
             processLogEntry(logEntry);
         }
         
@@ -301,10 +450,21 @@ public class ArenaHandler {
         boolean championWon = !chosenChampion.isDead;
         
         // Calculate rewards based on performance (survival and kills) regardless of win/loss
-        int baseReward = currentBetAmount; // Use the current bet amount instead of fixed fee
+        int totalBet = getCurrentTotalBet(); // Use the total accumulated bet amount
         int survivalReward = turnsSurvived * CasinoConfig.ARENA_SURVIVAL_REWARD_PER_TURN; // Configurable gems per turn survived
         int killReward = chosenChampion.kills * CasinoConfig.ARENA_KILL_REWARD_PER_KILL; // Configurable gems per kill
         int performanceBonus = survivalReward + killReward;
+        
+        // Determine the actual winner (could be different from chosen champion if player switched)
+        SpiralAbyssArena.SpiralGladiator actualWinner = null;
+        for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
+            if (!gladiator.isDead) {
+                actualWinner = gladiator;
+                break;
+            }
+        }
+        
+        String winnerName = actualWinner != null ? actualWinner.fullName : "Unknown";
         
         if (championWon) {
             // Winner gets base reward plus performance bonus
@@ -313,52 +473,92 @@ public class ArenaHandler {
             if (!arenaBets.isEmpty()) {
                 totalMultiplier = arenaBets.get(arenaBets.size()-1).multiplier; // Use the current active multiplier
             }
-            int winReward = (int)(baseReward * totalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT); 
+            int winReward = (int)(totalBet * totalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT); 
             int totalReward = winReward + performanceBonus;
             CasinoVIPManager.addStargems(totalReward);
             
-            main.textPanel.addParagraph("VICTORY! ", Color.CYAN);
             main.textPanel.setFontInsignia();
-            // Color the winning ship name
-            String prefix = chosenChampion.prefix;
-            String hullName = chosenChampion.hullName;
-            String affix = chosenChampion.affix;
-            main.textPanel.addParagraph(prefix + " ", Color.GREEN);
-            main.textPanel.addParagraph(hullName + " ", Color.WHITE);
-            main.textPanel.addParagraph(affix, Color.BLUE);
-            main.textPanel.addParagraph(" is the lone survivor.", Color.CYAN);
             
-            main.getTextPanel().addParagraph("Base Win Reward: " + winReward + " Stargems", Color.GREEN);
+            // Combine victory text with colored champion name into a single paragraph
+            Color prefixColor = isPositiveAffix(chosenChampion.prefix) ? Color.GREEN : Color.RED;
+            Color affixColor = isPositiveAffix(chosenChampion.affix) ? Color.GREEN : Color.RED;
+            
+            String victoryText = "VICTORY! " + chosenChampion.prefix + " " + 
+                                chosenChampion.hullName + " " + chosenChampion.affix + " is the lone survivor.";
+            main.textPanel.addPara(victoryText, prefixColor);
+            
+            // Highlight the hull name in white
+            main.textPanel.highlightInLastPara(Color.WHITE, chosenChampion.hullName + " ");
+            
+            // Highlight the affix with appropriate color
+            main.textPanel.highlightInLastPara(affixColor, chosenChampion.affix);
+            
+            main.getTextPanel().addPara("Base Win Reward: " + winReward + " Stargems", Color.GREEN);
         } else {
             // Loser still gets performance rewards
             CasinoVIPManager.addStargems(performanceBonus);
-            main.getTextPanel().addParagraph("DEFEAT. Your champion has been decommissioned.", Color.RED);
+            main.getTextPanel().addPara("DEFEAT. Your champion has been decommissioned.", Color.RED);
             
             if (performanceBonus > 0) {
-                main.getTextPanel().addParagraph("However, you earned " + performanceBonus + " Stargems for performance:", Color.YELLOW);
+                main.getTextPanel().addPara("However, you earned " + performanceBonus + " Stargems for performance:", Color.YELLOW);
             } else {
-                main.getTextPanel().addParagraph("Unfortunately, no performance rewards were earned.", Color.GRAY);
+                main.getTextPanel().addPara("Unfortunately, no performance rewards were earned.", Color.GRAY);
             }
         }
         
         // Display performance statistics
-        main.getTextPanel().addParagraph("Performance Summary:", Color.YELLOW);
-        main.getTextPanel().addParagraph("  - Original Bet: " + currentBetAmount + " Stargems", Color.WHITE);
-        main.getTextPanel().addParagraph("  - Turns Survived: " + turnsSurvived + " (" + survivalReward + " Stargems)", Color.WHITE);
-        main.getTextPanel().addParagraph("  - Kills Made: " + chosenChampion.kills + " (" + killReward + " Stargems)", Color.WHITE);
-        main.getTextPanel().addParagraph("  - Total Performance Bonus: " + performanceBonus + " Stargems", Color.CYAN);
+        main.getTextPanel().addPara("Performance Summary:", Color.YELLOW);
+        main.getTextPanel().addPara("  - Original Bet: " + totalBet + " Stargems", Color.WHITE);
+        main.getTextPanel().addPara("  - Turns Survived: " + turnsSurvived + " (" + survivalReward + " Stargems)", Color.WHITE);
+        main.getTextPanel().addPara("  - Kills Made: " + chosenChampion.kills + " (" + killReward + " Stargems)", Color.WHITE);
+        main.getTextPanel().addPara("  - Total Performance Bonus: " + performanceBonus + " Stargems", Color.CYAN);
         if (championWon) {
             float finalMultiplier = 1.0f;
             if (!arenaBets.isEmpty()) {
                 finalMultiplier = arenaBets.get(arenaBets.size()-1).multiplier; // Use the final multiplier
             }
-            int totalWinReward = (int)(currentBetAmount * finalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT);
-            main.getTextPanel().addParagraph("Total Reward: " + (performanceBonus + totalWinReward) + " Stargems", Color.GREEN);
-            main.getTextPanel().addParagraph("Net Profit: " + (performanceBonus + totalWinReward - currentBetAmount) + " Stargems", Color.GREEN);
+            int totalWinReward = (int)(totalBet * finalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT);
+            main.getTextPanel().addPara("Total Reward: " + (performanceBonus + totalWinReward) + " Stargems", Color.GREEN);
+            main.getTextPanel().addPara("Net Profit: " + (performanceBonus + totalWinReward - totalBet) + " Stargems", Color.GREEN);
         } else {
-            main.getTextPanel().addParagraph("Net Result: " + (performanceBonus - currentBetAmount) + " Stargems", Color.ORANGE);
+            main.getTextPanel().addPara("Net Result: " + (performanceBonus - totalBet) + " Stargems", Color.ORANGE);
         }
         
+        // Show the winner announcement panel
+        float finalMultiplier = arenaBets.isEmpty() ? 1.0f : arenaBets.get(arenaBets.size()-1).multiplier;
+        int netResult = championWon ? (performanceBonus + (int)(totalBet * finalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT) - totalBet) : (performanceBonus - totalBet);
+        int totalReward = championWon ? (performanceBonus + (int)(totalBet * finalMultiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT)) : performanceBonus;
+        
+        // Create the winner announcement panel
+        data.scripts.CasinoUIPanels.ArenaWinnerAnnouncementPanel winnerPanel = 
+            new data.scripts.CasinoUIPanels.ArenaWinnerAnnouncementPanel(
+                championWon,
+                winnerName,
+                turnsSurvived,
+                chosenChampion.kills,
+                totalReward,
+                netResult
+            );
+        
+        // Show the custom panel using LunaLib
+        try {
+            main.dialog.getVisualPanel().showCustomPanel(600, 800, winnerPanel);
+        } catch (Exception e) {
+            // If LunaLib is not available or has issues, continue without the popup
+            System.out.println("Could not show winner announcement popup: " + e.getMessage());
+        }
+        
+        // Reset the arena state to generate new ships for the next battle
+        activeArena = null;
+        arenaCombatants = null;
+        chosenChampion = null;
+        opponentsDefeated = 0;
+        turnsSurvived = 0;
+        arenaBets.clear();
+        currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE; // Reset to default bet amount for next game
+        
+        // According to the requirements, after battle, we should show a menu that allows adding bet
+        // until "Continue Battle" (which would be "arena_lobby" in this case) is chosen
         main.getOptions().addOption("Return to Lobby", "arena_lobby");
         main.getOptions().addOption("Back to Main Menu", "back_menu");
     }
@@ -368,8 +568,8 @@ public class ArenaHandler {
      */
     private void showArenaSwitchMenu() {
         main.getOptions().clearOptions();
-        main.getTextPanel().addParagraph("Select a new champion to switch to:", Color.YELLOW);
-        main.getTextPanel().addParagraph("Current Bet: " + currentBetAmount + " Stargems", Color.CYAN);
+        main.getTextPanel().addPara("Select a new champion to switch to:", Color.YELLOW);
+        main.getTextPanel().addPara("Current Bet: " + currentBetAmount + " Stargems", Color.CYAN);
         
         for (int i = 0; i < arenaCombatants.size(); i++) {
             SpiralAbyssArena.SpiralGladiator g = arenaCombatants.get(i);
@@ -378,13 +578,20 @@ public class ArenaHandler {
                 float penaltyFee = arenaBets.get(arenaBets.size()-1).amount * 0.5f;
                 float newMultiplier = arenaBets.get(arenaBets.size()-1).multiplier * 0.5f;
                 
-                // Add colored name
-                main.textPanel.addParagraph((i+1) + ". ");
                 main.textPanel.setFontInsignia();
-                main.textPanel.addParagraph(g.prefix + " ", Color.GREEN);
-                main.textPanel.addParagraph(g.hullName + " ", Color.WHITE);
-                main.textPanel.addParagraph(g.affix + " ", Color.BLUE);
-                main.textPanel.addParagraph("(Fee: " + (int)penaltyFee + " Gems, Multiplier: x" + newMultiplier + ")", Color.GRAY);
+                
+                // Combine all ship name parts into a single paragraph to avoid excessive line breaks
+                Color prefixColor = isPositiveAffix(g.prefix) ? Color.GREEN : Color.RED;
+                Color affixColor = isPositiveAffix(g.affix) ? Color.GREEN : Color.RED;
+                
+                String shipInfo = (i+1) + ". " + g.prefix + " " + g.hullName + " " + g.affix + " (Fee: " + (int)penaltyFee + " Gems, Multiplier: x" + newMultiplier + ")\n";
+                main.textPanel.addPara(shipInfo, prefixColor);
+                
+                // Highlight the hull name in white
+                main.textPanel.highlightInLastPara(Color.WHITE, g.hullName + " ");
+                
+                // Highlight the affix with appropriate color
+                main.textPanel.highlightInLastPara(affixColor, g.affix);
                 
                 // Use the full name for the option ID but display text can be customized
                 main.getOptions().addOption("Switch to " + g.prefix + " " + g.hullName + " " + g.affix, "arena_confirm_switch_" + i);
@@ -399,6 +606,14 @@ public class ArenaHandler {
     private void performChampionSwitch(int newChampionIndex) {
         // Calculate switching penalty
         int penaltyFee = (int)(arenaBets.get(arenaBets.size()-1).amount * 0.5);
+        
+        // Check if player has enough gems to pay the switching penalty
+        if (CasinoVIPManager.getStargems() < penaltyFee) {
+            main.getTextPanel().addPara("Not enough Stargems to switch champion! You need " + penaltyFee + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+            showArenaStatus(); // Return to the arena status menu
+            return;
+        }
+        
         CasinoVIPManager.addStargems(-penaltyFee);
         
         // Update multiplier to half of current
@@ -416,45 +631,113 @@ public class ArenaHandler {
     }
     
     /**
-     * Formats ship name with appropriate coloring
-     */
-    private String formatColoredShipName(SpiralAbyssArena.SpiralGladiator gladiator) {
-        // For now, return the full name since Starsector text panels don't easily support inline colored text
-        // We'll improve this in the future by handling the battle logs specially
-        return gladiator.fullName;
-    }
-    
-    /**
      * Processes battle log entry with appropriate formatting
      */
     private void processLogEntry(String logEntry) {
-        // For now, just add the paragraph as is
-        // Future enhancement: parse logEntry to find ship names and color them appropriately
-        main.textPanel.addParagraph(logEntry);
+        // Parse the log entry to identify attacker, target, and damage values
+        // Use regex to find patterns like "$attacker hits $target for $dmg!"
+        
+        // First, restore font to default
+        main.textPanel.setFontInsignia();
+        
+        if (logEntry.contains("$attacker") || logEntry.contains("$target") || logEntry.contains("$dmg")) {
+            // This shouldn't happen since the replacement should already occur in the simulation
+            main.textPanel.addPara(logEntry);
+            return;
+        }
+        
+        // Look for damage patterns: "shipName hits shipName for X HP!"
+        // We'll use a simple approach looking for "hits" and "for" keywords
+        String[] parts = logEntry.split("hits | for |!");
+        if (parts.length >= 3 && logEntry.contains("hits") && logEntry.contains("for")) {
+            // Format: "Attacker hits Target for Damage!"
+            String attacker = parts[0].trim();
+            String target = parts[1].trim();
+            String damagePart = parts[2].trim() + (logEntry.endsWith("!") ? "!" : "");
+            
+            // Combine the text into a single paragraph to avoid excessive line breaks
+            String combinedText = attacker + " hits " + target + " for " + damagePart;
+            main.textPanel.addPara(combinedText, Color.WHITE);
+        } else if (logEntry.contains("suffered a Hull Breach") || logEntry.contains("was lost to space decompression")) {
+            // Handle hull breach events: "shipName suffered a Hull Breach! (-X HP)"
+            String[] parts2 = logEntry.split(" suffered a| was lost");
+            if (parts2.length >= 1) {
+                String shipName = parts2[0].trim();
+                String eventDesc = logEntry.substring(shipName.length()).trim();
+                
+                // Combine into a single paragraph to avoid excessive line breaks
+                String combinedText = shipName + eventDesc;
+                main.textPanel.addPara(combinedText, Color.WHITE);
+            } else {
+                main.textPanel.addPara(logEntry);
+            }
+        } else if (logEntry.contains("💀") || logEntry.contains("💥") || logEntry.contains("⚠️")) {
+            // Handle special events with emojis
+            if (logEntry.contains(":")) {
+                String[] parts3 = logEntry.split(":", 2);
+                if (parts3.length >= 2) {
+                    // Combine into a single paragraph to avoid excessive line breaks
+                    String combinedText = parts3[0] + ": " + parts3[1];
+                    main.textPanel.addPara(combinedText, Color.WHITE);
+                } else {
+                    main.textPanel.addPara(logEntry);
+                }
+            } else {
+                main.textPanel.addPara(logEntry);
+            }
+        } else {
+            // For other log entries, try to identify ship names
+            boolean foundFormatted = false;
+            for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
+                if (logEntry.contains(gladiator.shortName)) {
+                    // Use the original log entry but with consistent coloring to avoid excessive line breaks
+                    main.textPanel.addPara(logEntry, Color.WHITE);
+                    foundFormatted = true;
+                    break;
+                }
+            }
+            if (!foundFormatted) {
+                main.textPanel.addPara(logEntry);
+            }
+        }
     }
     
     /**
-     * Shows menu for increasing bet on current champion
+     * Shows menu for increasing bet on current champion during battle
      */
     private void showIncreaseBetMenu() {
         main.getOptions().clearOptions();
-        main.getTextPanel().addParagraph("Increase your bet on current champion:", Color.YELLOW);
-        main.getTextPanel().addParagraph("Current Champion: " + chosenChampion.fullName, Color.CYAN);
-        main.getTextPanel().addParagraph("Current Total Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
-        main.getTextPanel().addParagraph("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
+        main.getTextPanel().addPara("Increase your bet on current champion:", Color.YELLOW);
+        main.getTextPanel().addPara("Current Champion: " + chosenChampion.fullName, Color.CYAN);
+        main.getTextPanel().addPara("Current Total Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
+        main.getTextPanel().addPara("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
         
-        // Add options for different bet increases
-        int[] increaseAmounts = {50, 100, 200, 500, 1000};
+        int playerBalance = CasinoVIPManager.getStargems();
         
-        for (int amount : increaseAmounts) {
-            if (CasinoVIPManager.getStargems() >= amount) {
-                main.getOptions().addOption("Add " + amount + " Stargems", "arena_confirm_increase_bet_" + amount);
-            }
+        // Create fixed increment options based on project specifications (same as in showAddBetMenu)
+        if (playerBalance >= 100) {
+            main.getOptions().addOption("Add 100 Stargems", "arena_confirm_increase_bet_100");
+        }
+        if (playerBalance >= 500) {
+            main.getOptions().addOption("Add 500 Stargems", "arena_confirm_increase_bet_500");
+        }
+        if (playerBalance >= 2000) {
+            main.getOptions().addOption("Add 2000 Stargems", "arena_confirm_increase_bet_2000");
         }
         
-        // Add custom bet option
-        main.getOptions().addOption("Custom Amount...", "arena_custom_increase_bet");
-        main.getOptions().addOption("Cancel", "arena_status");
+        // Add percentage-based options
+        int tenPercent = (playerBalance * 10) / 100;
+        if (tenPercent > 0 && playerBalance >= tenPercent) {
+            main.getOptions().addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_confirm_increase_bet_" + tenPercent);
+        }
+        
+        int fiftyPercent = (playerBalance * 50) / 100;
+        if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+            main.getOptions().addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_confirm_increase_bet_" + fiftyPercent);
+        }
+        
+        main.getOptions().addOption("Continue Battle Without Increasing Bet", "arena_status");
+        main.getOptions().addOption("Cancel & Return to Battle Options", "arena_status");
     }
     
     /**
@@ -472,6 +755,13 @@ public class ArenaHandler {
      * Performs the bet increase on the current champion
      */
     private void performBetIncrease(int additionalAmount) {
+        // Check if player has enough gems to increase the bet
+        if (CasinoVIPManager.getStargems() < additionalAmount) {
+            main.getTextPanel().addPara("Not enough Stargems to increase bet! You need " + additionalAmount + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+            showArenaStatus(); // Return to the arena status menu
+            return;
+        }
+        
         // Deduct the additional bet amount from player's gems
         CasinoVIPManager.addStargems(-additionalAmount);
         
@@ -484,7 +774,7 @@ public class ArenaHandler {
         // Add a new bet with the same multiplier
         arenaBets.add(new BetInfo(additionalAmount, currentMultiplier));
         
-        main.getTextPanel().addParagraph("Increased bet by " + additionalAmount + " Stargems on " + chosenChampion.fullName + ".", Color.YELLOW);
+        main.getTextPanel().addPara("Increased bet by " + additionalAmount + " Stargems on " + chosenChampion.fullName + ".", Color.YELLOW);
         showArenaStatus();
     }
     
@@ -493,11 +783,11 @@ public class ArenaHandler {
      */
     private void showCustomIncreaseBetMenu() {
         main.options.clearOptions();
-        main.textPanel.addParagraph("\nEnter Custom Bet Increase Amount:", Color.YELLOW);
+        main.textPanel.addPara("\nEnter Custom Bet Increase Amount:", Color.YELLOW);
         int playerBalance = CasinoVIPManager.getStargems();
-        main.textPanel.addParagraph("Balance: " + playerBalance + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Balance: " + playerBalance + " Stargems", Color.CYAN);
         int currentBet = getCurrentTotalBet();
-        main.textPanel.addParagraph("Current Total Bet: " + currentBet + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Current Total Bet: " + currentBet + " Stargems", Color.CYAN);
         
         // Add some suggested amounts based on current bet (similar to initial bet menu)
         int[] suggestedAmounts = {currentBet/4, currentBet/2, currentBet, currentBet*2, currentBet*3, currentBet*5};

@@ -2,6 +2,9 @@ package data.scripts.casino.interaction;
 
 import data.scripts.casino.CasinoConfig;
 import java.awt.Color;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Manages the educational handbook for all casino features
@@ -10,37 +13,66 @@ public class HelpHandler {
 
     private final CasinoInteraction main;
 
+    private final Map<String, OptionHandler> handlers = new HashMap<>();
+    
     public HelpHandler(CasinoInteraction main) {
         this.main = main;
+        initializeHandlers();
+    }
+    
+    private void initializeHandlers() {
+        // Exact match handlers
+        handlers.put("how_to_play_main", option -> showGeneralHelp());
+        handlers.put("how_to_poker", option -> showPokerHelp());
+        handlers.put("how_to_arena", option -> showArenaHelp());
+        handlers.put("how_to_gacha", option -> showGachaHelp());
+        handlers.put("back_menu", option -> main.showMenu());
+        handlers.put("gacha_menu", option -> main.gacha.handle(option));
+        handlers.put("play", option -> main.poker.handle(option));
+        handlers.put("arena_lobby", option -> main.arena.handle(option));
     }
 
     /**
      * Handles routing to different help topics
      */
     public void handle(String option) {
-        if ("how_to_play_main".equals(option)) {
-            showGeneralHelp();
-        } else if ("how_to_poker".equals(option)) {
-            showPokerHelp();
-        } else if ("how_to_arena".equals(option)) {
-            showArenaHelp();
-        } else if ("how_to_gacha".equals(option)) {
-            showGachaHelp();
-        } else if ("back_menu".equals(option)) {
-            main.showMenu();
-        } else if ("gacha_menu".equals(option)) {
-            // If coming from help, route to gacha handler
-            main.gacha.handle(option);
-        } else if ("play".equals(option)) {
-            // If coming from help, route to poker handler
-            main.poker.handle(option);
-        } else if ("arena_lobby".equals(option)) {
-            // If coming from help, route to arena handler
-            main.arena.handle(option);
-        } else {
-            // Default fallback - show main menu
-            main.showMenu();
+        OptionHandler handler = handlers.get(option);
+        if (handler != null) {
+            handler.handle(option);
+            return;
         }
+        
+        // Default fallback - show main menu
+        main.showMenu();
+    }
+
+    /**
+     * Displays the introductory page for the handbook
+     */
+    public void showIntroPage() {
+        main.options.clearOptions();
+        main.textPanel.addParagraph("--- Interastral Peace Casino Handbook ---", Color.CYAN);
+        main.textPanel.addParagraph("Welcome to the IPC Casino!");
+        main.textPanel.addParagraph("This handbook will guide you through all the available games and features.");
+        main.textPanel.addParagraph("");
+        main.textPanel.addParagraph("Games Available:", Color.YELLOW);
+        main.textPanel.addParagraph("- Texas Hold'em Poker: Classic card game with strategic betting");
+        main.textPanel.addParagraph("- Spiral Abyss Arena: Battle royale-style arena combat");
+        main.textPanel.addParagraph("- Tachy-Impact Gacha: Collect ships and equipment with pity system");
+        main.textPanel.addParagraph("");
+        main.textPanel.addParagraph("Currency & Economy:", Color.YELLOW);
+        main.textPanel.addParagraph("- Stargems are the local currency (1 Gem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits)");
+        main.textPanel.addParagraph("- VIP Pass grants exclusive reputation bonuses");
+        main.textPanel.addParagraph("");
+        main.textPanel.addParagraph("Click 'How to Play' anytime for detailed game rules and tips.");
+        main.options.addOption("Continue to Casino", "back_menu");
+    }
+
+    /**
+     * Displays the main help menu with links to specific game help
+     */
+    public void showMainMenu() {
+        showGeneralHelp();
     }
 
     /**
@@ -149,5 +181,10 @@ public class HelpHandler {
         main.textPanel.addParagraph("- Featured ships rotate bi-weekly. Pity carries over between rotations!", Color.GREEN);
         
         main.options.addOption("Back", "gacha_menu"); // Go back to gacha menu
+    }
+    
+    @FunctionalInterface
+    private interface OptionHandler {
+        void handle(String option);
     }
 }

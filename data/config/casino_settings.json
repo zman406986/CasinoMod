@@ -1,7 +1,7 @@
 {
     "economy": {
-        "stargemExchangeRate": 10.0,
-        "shipTradeRate": 10.0,
+        "stargemExchangeRate": 100.0,
+        "shipTradeRate": 100.0,
         "vipPassCost": 9999,
         "vipPassDays": 30,
         "vipDailyGemReward": 100,

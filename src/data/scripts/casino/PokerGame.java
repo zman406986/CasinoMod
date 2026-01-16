@@ -29,13 +29,12 @@ public class PokerGame {
             public final Suit suit;
             public Card(Rank r, Suit s) { rank = r; suit = s; }
             @Override public String toString() {
-                String s = "";
-                switch(suit) {
-                    case SPADES: s = "Spades"; break;
-                    case HEARTS: s = "Hearts"; break;
-                    case DIAMONDS: s = "Diamonds"; break;
-                    case CLUBS: s = "Clubs"; break;
-                }
+                String s = switch(suit) {
+                    case SPADES -> "Spades";
+                    case HEARTS -> "Hearts";
+                    case DIAMONDS -> "Diamonds";
+                    case CLUBS -> "Clubs";
+                };
                 return "[" + rank.symbol + " of " + s + "]";
             }
         }
@@ -72,11 +71,9 @@ public class PokerGame {
         public static HandScore evaluate(List<Card> holeCards, List<Card> communityCards) {
             List<Card> all = new ArrayList<>(holeCards);
             all.addAll(communityCards);
-            if (all.size() < 5) return new HandScore(HandRank.HIGH_CARD, new ArrayList<Integer>());
+            if (all.size() < 5) return new HandScore(HandRank.HIGH_CARD, new ArrayList<>());
 
-            Collections.sort(all, new Comparator<Card>() {
-                @Override public int compare(Card o1, Card o2) { return Integer.compare(o2.rank.value, o1.rank.value); } 
-            });
+            all.sort((o1, o2) -> Integer.compare(o2.rank.value, o1.rank.value));
 
             return analyzeHand(all);
         }
@@ -88,14 +85,14 @@ public class PokerGame {
                  for(Card c : sevenCards) if(c.suit == s) suitCards.add(c);
                  if(suitCards.size() >= 5) { 
                      flushCards = suitCards; 
-                     Collections.sort(flushCards, new Comparator<Card>() { @Override public int compare(Card o1, Card o2) { return Integer.compare(o2.rank.value, o1.rank.value); }});
+                     flushCards.sort((o1, o2) -> Integer.compare(o2.rank.value, o1.rank.value));
                      break; 
                  }
             }
             
             List<Integer> ranks = new ArrayList<>();
             for(Card c : sevenCards) if(!ranks.contains(c.rank.value)) ranks.add(c.rank.value);
-            Collections.sort(ranks, Collections.reverseOrder());
+            ranks.sort(Collections.reverseOrder());
             if (ranks.contains(14)) ranks.add(1); 
             
             List<Integer> straightHigh = null;
@@ -212,7 +209,7 @@ public class PokerGame {
     }
 
     public static class SimplePokerAI {
-        private Random random = new Random();
+        private final Random random = new Random();
         public enum Action { FOLD, CALL, RAISE, CHECK }
         public enum Personality { TIGHT, AGGRESSIVE, CALCULATED }
         
@@ -222,7 +219,7 @@ public class PokerGame {
             public AIResponse(Action a, int amt) { action=a; raiseAmount=amt; }
         }
 
-        private Personality personality;
+        private final Personality personality;
         
         // Track player aggression patterns
         private int consecutiveRaises = 0;
@@ -302,7 +299,7 @@ public class PokerGame {
         
         private float calculateEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, int stackSize, int opponentStackSize) {
             // Basic equity calculation based on hand strength and draws
-            if (communityCards.size() == 0) {
+            if (communityCards.isEmpty()) { // Changed from communityCards.size() == 0
                 // Pre-flop equity estimation
                 return estimatePreFlopEquity(holeCards);
             } else {
@@ -332,7 +329,7 @@ public class PokerGame {
             int v1 = Math.max(c1.rank.value, c2.rank.value);
             int v2 = Math.min(c1.rank.value, c2.rank.value);
             
-            float equity = 0;
+            float equity = 35; // Default value instead of redundant initialization
             
             // Premium pairs
             if (v1 == v2) {
@@ -358,9 +355,7 @@ public class PokerGame {
             else if (v1 >= 11) {
                 equity = 50; // At least one face card
             }
-            else {
-                equity = 35; // Weak hands
-            }
+            // Weak hands are covered by default value
             
             return equity;
         }
@@ -368,18 +363,17 @@ public class PokerGame {
 
 
         private float getStrengthPercentage(PokerGameLogic.HandScore hand) {
-            float base = 0;
-            switch(hand.rank) {
-                case HIGH_CARD: base = 10; break;
-                case PAIR: base = 35; break;
-                case TWO_PAIR: base = 55; break;
-                case THREE_OF_A_KIND: base = 70; break;
-                case STRAIGHT: base = 85; break;
-                case FLUSH: base = 90; break;
-                case FULL_HOUSE: base = 95; break;
-                case FOUR_OF_A_KIND: base = 99; break;
-                case STRAIGHT_FLUSH: base = 100; break;
-            }
+            float base = switch(hand.rank) {
+                case HIGH_CARD -> 10;
+                case PAIR -> 35;
+                case TWO_PAIR -> 55;
+                case THREE_OF_A_KIND -> 70;
+                case STRAIGHT -> 85;
+                case FLUSH -> 90;
+                case FULL_HOUSE -> 95;
+                case FOUR_OF_A_KIND -> 99;
+                case STRAIGHT_FLUSH -> 100;
+            };
             if (!hand.tieBreakers.isEmpty()) {
                 base += (hand.tieBreakers.get(0) / 14f) * 5f;
             }
@@ -414,22 +408,6 @@ public class PokerGame {
                 }
             }
             return maxSeq >= 4; 
-        }
-        
-        private int scoreHoleCards(List<PokerGameLogic.Card> cards) {
-            PokerGameLogic.Card c1 = cards.get(0);
-            PokerGameLogic.Card c2 = cards.get(1);
-            int v1 = Math.max(c1.rank.value, c2.rank.value);
-            int v2 = Math.min(c1.rank.value, c2.rank.value);
-            
-            int score = 0;
-            if (v1 == v2) score = v1 + 6; 
-            else {
-                score += v1;
-                if (c1.suit == c2.suit) score += 2; 
-                if (v1 - v2 == 1) score += 1; 
-            }
-            return score;
         }
         
         /**
@@ -471,13 +449,6 @@ public class PokerGame {
          */
         public int getConsecutivePlayerRaises() {
             return consecutiveRaises;
-        }
-        
-        /**
-         * Get the number of consecutive folds by player
-         */
-        public int getConsecutivePlayerFolds() {
-            return consecutiveFoldsByPlayer;
         }
     }
 }

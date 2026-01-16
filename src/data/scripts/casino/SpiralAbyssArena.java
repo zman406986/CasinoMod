@@ -22,7 +22,7 @@ import java.util.*;
  * - Keeps track of multiple units in combat simultaneously
  */
 public class SpiralAbyssArena {
-    private Random random = new Random();
+    private final Random random = new Random();
     
     // Tracking flavor text history to avoid repeating the same line twice in a row.
     private String lastAttack = "";
@@ -62,7 +62,7 @@ public class SpiralAbyssArena {
         public ActiveEvent(ChaosEventType t, int d) { type=t; duration=d; }
     }
 
-    private List<ActiveEvent> activeEvents = new ArrayList<>(); // Currently active events
+    private final List<ActiveEvent> activeEvents = new ArrayList<>(); // Currently active events
     private String lastEventMessage = ""; // Last event message displayed
 
     /**
@@ -96,6 +96,7 @@ public class SpiralAbyssArena {
         public String hullName;  // e.g., "Hammerhead"
         public String affix;     // e.g., "of the Void"
         public String fullName;
+        public String shortName; // Name without prefix and affix
         public int hp;
         public int maxHp;
         public int power;        // Base damage
@@ -110,6 +111,7 @@ public class SpiralAbyssArena {
             this.hullName = hullName;
             this.affix = affix;
             this.fullName = prefix + " " + hullName + " " + affix;
+            this.shortName = hullName; // Just the hull name without prefix/affix
             this.hp = hp;
             this.maxHp = hp;
             this.power = power;
@@ -158,8 +160,8 @@ public class SpiralAbyssArena {
             
             // Apply prefix effects based on index
             float multP = posPrefix ? CasinoConfig.ARENA_PREFIX_MULT_STRONG : CasinoConfig.ARENA_PREFIX_MULT_WEAK;
-            if (prefixIdx == 0) hp *= multP;  // "Giant"/"Tiny" affects HP
-            else if (prefixIdx == 1) power *= multP;  // "Strong"/"Weak" affects Power
+            if (prefixIdx == 0) hp = (int)(hp * multP);  // "Giant"/"Tiny" affects HP
+            else if (prefixIdx == 1) power = (int)(power * multP);  // "Strong"/"Weak" affects Power
             else if (prefixIdx == 2) agility = posPrefix ? agility + CasinoConfig.ARENA_PREFIX_AGILITY_BONUS : Math.max(0, agility - CasinoConfig.ARENA_PREFIX_AGILITY_BONUS);  // "Swift"/"Clumsy" affects Agility
             else bravery = posPrefix ? bravery + CasinoConfig.ARENA_PREFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_PREFIX_BRAVERY_BONUS);  // "Fierce"/"Cowardly" affects Bravery
             
@@ -182,8 +184,8 @@ public class SpiralAbyssArena {
             
             // Apply affix effects based on index
             float multA = posAffix ? CasinoConfig.ARENA_AFFIX_MULT_STRONG : CasinoConfig.ARENA_AFFIX_MULT_WEAK;
-            if (affixIdx == 0) hp *= multA;  // "Large"/"Small" affects HP
-            else if (affixIdx == 1) power *= multA;  // "of Might"/"of Frailty" affects Power
+            if (affixIdx == 0) hp = (int)(hp * multA);  // "Large"/"Small" affects HP
+            else if (affixIdx == 1) power = (int)(power * multA);  // "of Might"/"of Frailty" affects Power
             else if (affixIdx == 2) agility = posAffix ? agility + CasinoConfig.ARENA_AFFIX_AGILITY_BONUS : Math.max(0, agility - CasinoConfig.ARENA_AFFIX_AGILITY_BONUS);  // "of Speed"/"of Slowness" affects Agility
             else bravery = posAffix ? bravery + CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS);  // "of Courage"/"of Fear" affects Bravery
             
@@ -211,11 +213,7 @@ public class SpiralAbyssArena {
         }
 
         // Cleanup
-        Iterator<ActiveEvent> it = activeEvents.iterator();
-        while (it.hasNext()) {
-            ActiveEvent e = it.next();
-            if (e.duration <= 0) it.remove();
-        }
+        activeEvents.removeIf(e -> e.duration <= 0);
 
         // Filter for ships that aren't scrap metal yet
         List<SpiralGladiator> alive = new ArrayList<>();
@@ -256,10 +254,10 @@ public class SpiralAbyssArena {
                 if (e.type == ChaosEventType.HULL_BREACH) {
                     int dmg = (int)(attacker.maxHp * CasinoConfig.ARENA_HULL_BREACH_DAMAGE_PERCENT);
                     attacker.hp -= dmg;
-                    log.add("💥 " + attacker.fullName + " suffered a Hull Breach! (-" + dmg + " HP)");
+                    log.add("💥 " + attacker.shortName + " suffered a Hull Breach! (-" + dmg + " HP)");
                     if (attacker.hp <= 0) {
                         attacker.isDead = true;
-                        log.add("💀 " + attacker.fullName + " was lost to space decompression.");
+                        log.add("💀 " + attacker.shortName + " was lost to space decompression.");
                         break; // Skip attack if attacker died from hull breach
                     }
                 }
@@ -282,7 +280,7 @@ public class SpiralAbyssArena {
                 if (crit) lastCrit = flavor; else lastAttack = flavor;
                 
                 // LEARNERS: We use .replace() to inject variables into our flavor text templates.
-                log.add(flavor.replace("$attacker", attacker.fullName).replace("$target", target.fullName).replace("$dmg", ""+dmg));
+                log.add(flavor.replace("$attacker", attacker.shortName).replace("$target", target.shortName).replace("$dmg", ""+dmg));
                 
                 // Mark for retaliation
                 if (random.nextFloat() < target.bravery) {
@@ -295,13 +293,13 @@ public class SpiralAbyssArena {
                     attacker.kills++;
                     String kill = getFlavor(CasinoConfig.ARENA_KILL_FLAVOR_TEXTS, lastKill);
                     lastKill = kill;
-                    log.add(kill.replace("$attacker", attacker.fullName).replace("$target", target.fullName));
+                    log.add(kill.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
                 }
             } else {
                 // It's a miss!
                 String miss = getFlavor(CasinoConfig.ARENA_MISS_FLAVOR_TEXTS, lastMiss);
                 lastMiss = miss;
-                log.add(miss.replace("$attacker", attacker.fullName).replace("$target", target.fullName));
+                log.add(miss.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
             }
         }
 
@@ -310,7 +308,4 @@ public class SpiralAbyssArena {
         
         return log;
     }
-
-    public String getLastEventMessage() { return lastEventMessage; }
-    public void resetEvents() { activeEvents.clear(); }
 }

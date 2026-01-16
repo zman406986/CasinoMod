@@ -8,322 +8,62 @@ import org.json.JSONObject;
 import java.util.*;
 
 /**
- * CasinoConfig
- * 
- * ROLE: Centralizes all configurable values for the casino mod.
- * Allows easy balancing and configuration without changing code.
- * 
- * MOD DEVELOPMENT NOTES FOR BEGINNERS:
- * - Use this class to store all modifiable values (rates, costs, probabilities, etc.)
- * - Load settings from external JSON files to allow configuration without recompilation
- * - Define constants with descriptive names to make code more readable
- * - Use static fields to make values accessible throughout the mod
+ * CasinoConfig - Centralizes all configurable values for the casino mod
  */
 public class CasinoConfig {
     public static final String SETTINGS_FILE = "data/config/casino_settings.json";
 
     // Economy
-    /**
-     * Exchange rate between credits and stargems
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Controls how many credits are needed to buy one stargem
-     * - Lower values make stargems more valuable
-     * - Higher values make stargems cheaper
-     */
-    public static float STARGEM_EXCHANGE_RATE = 10.0f;
-    
-    /**
-     * Rate for converting ships to stargems
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Controls how many stargems players get per credit value of ship
-     * - Higher values make ship trading more profitable
-     * - Lower values make ship trading less profitable
-     */
-    public static float SHIP_TRADE_RATE = 10.0f;
-    
-    /**
-     * Cost of VIP pass in credits
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Price for purchasing a VIP subscription
-     * - Affects how accessible VIP benefits are
-     */
-    public static int VIP_PASS_COST = 9999;
-    
-    /**
-     * Duration of VIP pass in days
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Number of days VIP benefits last after purchase
-     * - Balances value of VIP pass with duration
-     */
-    public static int VIP_PASS_DAYS = 30;
-    
-    /**
-     * Daily reward for VIP subscribers
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Amount of stargems given to VIP subscribers each day
-     * - Provides incentive for purchasing VIP membership
-     */
-    public static int VIP_DAILY_REWARD = 100;
+    public static float STARGEM_EXCHANGE_RATE = 10.0f; // Credits per stargem
+    public static float SHIP_TRADE_RATE = 10.0f;       // Stargems per credit value of ship
+    public static int VIP_PASS_COST = 9999;            // Cost in credits
+    public static int VIP_PASS_DAYS = 30;              // Duration in days
+    public static int VIP_DAILY_REWARD = 100;          // Daily stargems for VIP
     
     public static String MUSIC_POKER = "casino_poker_track";
     public static String MUSIC_ARENA = "casino_arena_track";
     public static String MUSIC_GACHA = "casino_gacha_track";
     public static String MUSIC_AMBIENT = "casino_ambient_track";
 
-    /**
-     * Container class for gem package definitions
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Defines a package of gems that players can purchase
-     * - Contains both the number of gems and the cost in credits
-     * - Used to create various purchase options in the financial menu
-     */
     public static class GemPackage {
         public int gems;  // Number of stargems in the package
         public int cost; // Cost of the package in credits
         public GemPackage(int g, int c) { gems=g; cost=c; }
     }
     
-    /**
-     * List of available gem packages for purchase
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Initialized in static block after loading from JSON
-     * - Contains different value propositions for players
-     * - Larger packages typically offer better value per gem
-     */
     public static List<GemPackage> GEM_PACKAGES = new ArrayList<>();
 
     // Gacha
-    /**
-     * Cost of a single gacha pull
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects accessibility and profitability of gacha system
-     * - Balance against rarity rates to create desired economy impact
-     */
-    public static int GACHA_COST = 160;
-    
-    /**
-     * Probability of getting a 5-star item (capital ships)
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Keep low to maintain rarity and excitement
-     * - Standard gacha rates are typically 0.5-1%
-     * - Balance with pity mechanics to ensure reasonable acquisition times
-     */
-    public static float PROB_5_STAR = 0.006f;
-    
-    /**
-     * Probability of getting a 4-star item (cruisers)
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Higher than 5-star probability to provide more frequent rewards
-     * - Standard gacha rates are typically 5-6%
-     */
-    public static float PROB_4_STAR = 0.051f;
-    
-    /**
-     * Hard pity threshold for 5-star items
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Guarantees a 5-star item after this many pulls without one
-     * - Prevents extreme bad luck scenarios
-     * - Standard is typically 90 in most gacha games
-     */
-    public static int PITY_HARD_5 = 90;
-    
-    /**
-     * Hard pity threshold for 4-star items
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Guarantees a 4-star item after this many pulls without one
-     * - Prevents frustration with too many 3-star drops
-     * - Standard is typically 10 in most gacha games
-     */
-    public static int PITY_HARD_4 = 10;
-    
-    /**
-     * Soft pity start for 5-star items
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Point at which the probability of 5-star starts increasing
-     * - Creates anticipation and improves player experience
-     * - Increases probability gradually until hard pity threshold
-     */
-    public static int PITY_SOFT_START_5 = 74;
+    public static int GACHA_COST = 160;              // Cost per pull
+    public static float PROB_5_STAR = 0.006f;        // 5-star probability
+    public static float PROB_4_STAR = 0.051f;        // 4-star probability
+    public static int PITY_HARD_5 = 90;              // Guaranteed 5-star after this many pulls
+    public static int PITY_HARD_4 = 10;              // Guaranteed 4-star after this many pulls
+    public static int PITY_SOFT_START_5 = 74;        // Soft pity starts at this pull count
 
     // Poker
-    /**
-     * Small blind amount in poker games
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Sets the baseline betting amount for poker games
-     * - Affects the risk/reward ratio for players
-     */
     public static int POKER_SMALL_BLIND = 100;
-    
-    /**
-     * Big blind amount in poker games
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Usually double the small blind
-     * - Sets the minimum bet for entering a hand
-     */
     public static int POKER_BIG_BLIND = 200;
-    
-    /**
-     * Available raise amounts in poker games
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Defines the possible raise amounts for the poker raise menu
-     * - Should be multiples of the blinds to maintain consistent betting
-     */
     public static int[] POKER_RAISE_AMOUNTS = {200, 400, 1000, 5000};
-    
-    /**
-     * Chance that AI will bluff in poker games
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Adds unpredictability to AI behavior
-     * - Higher values make AI more aggressive and challenging
-     * - Lower values make AI more predictable
-     * NOTE: The poker AI now adapts to player aggression patterns and uses equity-based calculations instead of simple threshold checks
-     */
     public static float POKER_AI_BLUFF_CHANCE = 0.1f;
 
     // Arena
-    /**
-     * Entry fee for arena battles
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Cost to participate in an arena match
-     * - Should be balanced with potential rewards
-     */
-    public static int ARENA_ENTRY_FEE = 100;
-    
-    /**
-     * Multiplier for survival rewards in arena
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects how much players earn for keeping their champion alive
-     * - Higher values increase reward potential
-     */
-    public static float ARENA_SURVIVAL_REWARD_MULT = 2.0f;
-    
-    /**
-     * Reward per turn survived in arena
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Amount of gems earned per turn survived
-     * - Higher values increase reward potential for survival
-     */
-    public static int ARENA_SURVIVAL_REWARD_PER_TURN = 10;
-    
-    /**
-     * Reward per kill in arena
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Amount of gems earned per enemy killed
-     * - Higher values increase reward potential for aggressive play
-     */
-    public static int ARENA_KILL_REWARD_PER_KILL = 20;
-    
-    /**
-     * Number of ships in each arena battle
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Determines complexity and duration of battles
-     * - More ships = longer battles and more strategic depth
-     */
-    public static int ARENA_SHIP_COUNT = 6;
-    
-    /**
-     * Maximum agility value to prevent ships from becoming unhittable
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Caps the agility stat to maintain game balance
-     * - Prevents lower-tier ships from becoming impossible to hit
-     */
-    public static float ARENA_AGILITY_CAP = 0.9f;
-    
+    public static int ARENA_ENTRY_FEE = 100;                   // Cost to enter arena
+    public static float ARENA_SURVIVAL_REWARD_MULT = 2.0f;     // Survival reward multiplier
+    public static int ARENA_SURVIVAL_REWARD_PER_TURN = 10;     // Gems earned per turn survived
+    public static int ARENA_KILL_REWARD_PER_KILL = 20;         // Gems earned per kill
+    public static int ARENA_SHIP_COUNT = 6;                    // Ships per arena battle
+    public static float ARENA_AGILITY_CAP = 0.9f;              // Max agility to prevent unhittable ships
+
     // Arena Modifiers (loaded from config)
-    /**
-     * Multiplier for strong prefixes on ships
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects how much stronger positively-modified ships become
-     * - Balances the power gap between modified ships
-     */
-    public static float ARENA_PREFIX_MULT_STRONG = 1.2f;
-    
-    /**
-     * Multiplier for weak prefixes on ships
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects how much weaker negatively-modified ships become
-     * - Balances the weakness gap between modified ships
-     */
-    public static float ARENA_PREFIX_MULT_WEAK = 0.8f;
-    
-    /**
-     * Agility bonus for positive agility prefixes
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Bonus agility added to ships with positive agility modifiers
-     * - Careful with values to avoid making ships unhittable
-     */
-    public static float ARENA_PREFIX_AGILITY_BONUS = 0.2f;
-    
-    /**
-     * Bravery bonus for positive bravery prefixes
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Bonus bravery added to ships with positive bravery modifiers
-     * - Affects critical hit chances and retaliation behavior
-     */
-    public static float ARENA_PREFIX_BRAVERY_BONUS = 0.2f;
-    
-    /**
-     * Multiplier for strong affixes on ships
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects how much stronger positively-modified ships become
-     * - Similar to prefix multipliers but for suffix-type modifiers
-     */
-    public static float ARENA_AFFIX_MULT_STRONG = 1.1f;
-    
-    /**
-     * Multiplier for weak affixes on ships
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Affects how much weaker negatively-modified ships become
-     * - Similar to prefix multipliers but for suffix-type modifiers
-     */
-    public static float ARENA_AFFIX_MULT_WEAK = 0.9f;
-    
-    /**
-     * Agility bonus for positive agility affixes
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Bonus agility added to ships with positive agility affixes
-     * - Careful with values to avoid making ships unhittable
-     */
-    public static float ARENA_AFFIX_AGILITY_BONUS = 0.1f;
-    
-    /**
-     * Bravery bonus for positive bravery affixes
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Bonus bravery added to ships with positive bravery affixes
-     * - Affects critical hit chances and retaliation behavior
-     */
-    public static float ARENA_AFFIX_BRAVERY_BONUS = 0.1f;
+    public static float ARENA_PREFIX_MULT_STRONG = 1.2f;       // Strong prefix multiplier
+    public static float ARENA_PREFIX_MULT_WEAK = 0.8f;         // Weak prefix multiplier
+    public static float ARENA_PREFIX_AGILITY_BONUS = 0.2f;     // Agility bonus for positive prefixes
+    public static float ARENA_PREFIX_BRAVERY_BONUS = 0.2f;     // Bravery bonus for positive prefixes
+    public static float ARENA_AFFIX_MULT_STRONG = 1.1f;        // Strong affix multiplier
+    public static float ARENA_AFFIX_MULT_WEAK = 0.9f;          // Weak affix multiplier
+    public static float ARENA_AFFIX_AGILITY_BONUS = 0.1f;      // Agility bonus for positive affixes
+    public static float ARENA_AFFIX_BRAVERY_BONUS = 0.1f;      // Bravery bonus for positive affixes
 
     public static class ArenaStat {
         public int hp;
@@ -339,36 +79,36 @@ public class CasinoConfig {
     public static List<String> ARENA_AFFIX_NEG = new ArrayList<>(Arrays.asList("of Frailty", "of Weakness", "of Sluggishness", "of Timidness"));
     
     // VIP System
-    public static float VIP_INTEREST_RATE = 0.05f; // 5% monthly interest
-    public static int VIP_DEBT_HUNTER_THRESHOLD = -10000; // Debt threshold for spawning hunters
+    public static float VIP_INTEREST_RATE = 0.05f;                           // 5% monthly interest
+    public static int VIP_DEBT_HUNTER_THRESHOLD = -10000;                    // Debt threshold for spawning hunters
     
     // Market Interaction
-    public static int MARKET_SIZE_MIN_FOR_PLAYER_CASINO = 6; // Minimum size for player markets to get casino option
-    public static int MARKET_SIZE_MIN_FOR_GENERAL_CASINO = 7; // Minimum size for general markets to get casino option
+    public static int MARKET_SIZE_MIN_FOR_PLAYER_CASINO = 6;                 // Minimum size for player markets
+    public static int MARKET_SIZE_MIN_FOR_GENERAL_CASINO = 7;                // Minimum size for general markets
     
     // Poker AI Configuration
-    public static float POKER_AI_TIGHT_THRESHOLD_FOLD = 6f;      // Threshold for tight AI to fold
-    public static float POKER_AI_TIGHT_THRESHOLD_RAISE = 12f;   // Threshold for tight AI to raise
-    public static float POKER_AI_NORMAL_THRESHOLD_FOLD = 4f;     // Threshold for normal AI to fold
-    public static float POKER_AI_NORMAL_THRESHOLD_RAISE = 10f;   // Threshold for normal AI to raise
-    public static float POKER_AI_AGGRESSIVE_THRESHOLD_FOLD = 2f; // Threshold for aggressive AI to fold
-    public static float POKER_AI_AGGRESSIVE_THRESHOLD_RAISE = 8f;// Threshold for aggressive AI to raise
-    public static int POKER_AI_MIN_RAISE_VALUE = 200;            // Minimum raise value
-    public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION = 200;  // Maximum random addition to raise
-    public static float POKER_AI_STACK_PERCENT_FOLD_TIGHT = 0.3f; // Percentage of stack for tight AI to consider folding
-    public static float POKER_AI_STACK_PERCENT_CALL_LIMIT = 0.05f; // Percentage of stack for considering calls
-    public static float POKER_AI_STRENGTH_HIGH = 80f;            // High strength threshold
-    public static float POKER_AI_STRENGTH_MEDIUM = 40f;          // Medium strength threshold
-    public static float POKER_AI_STACK_PERCENT_CALL_MEDIUM = 0.5f; // Percentage of stack for medium strength calls
-    public static float POKER_AI_POT_PERCENT_CALL_DRAW = 0.4f;    // Percentage of pot for draw calls
-    public static float POKER_AI_BLUFF_STRENGTH_BOOST = 30f;      // Strength boost from bluffing
-    public static float POKER_AI_DRAW_CHANCE = 0.2f;             // Chance for draw plays
-    public static float POKER_AI_CHECK_RAISE_CHANCE = 0.3f;      // Chance for check-raise
-    public static float POKER_AI_BLUFF_FOLD_CHANCE = 0.1f;       // Chance for bluff-fold on river
+    public static float POKER_AI_TIGHT_THRESHOLD_FOLD = 6f;                  // Tight AI fold threshold
+    public static float POKER_AI_TIGHT_THRESHOLD_RAISE = 12f;                // Tight AI raise threshold
+    public static float POKER_AI_NORMAL_THRESHOLD_FOLD = 4f;                 // Normal AI fold threshold
+    public static float POKER_AI_NORMAL_THRESHOLD_RAISE = 10f;               // Normal AI raise threshold
+    public static float POKER_AI_AGGRESSIVE_THRESHOLD_FOLD = 2f;             // Aggressive AI fold threshold
+    public static float POKER_AI_AGGRESSIVE_THRESHOLD_RAISE = 8f;            // Aggressive AI raise threshold
+    public static int POKER_AI_MIN_RAISE_VALUE = 200;                        // Minimum raise value
+    public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION = 200;              // Max random addition to raise
+    public static float POKER_AI_STACK_PERCENT_FOLD_TIGHT = 0.3f;            // Tight AI stack percentage for folding
+    public static float POKER_AI_STACK_PERCENT_CALL_LIMIT = 0.05f;           // Call limit percentage of stack
+    public static float POKER_AI_STRENGTH_HIGH = 80f;                        // High strength threshold
+    public static float POKER_AI_STRENGTH_MEDIUM = 40f;                      // Medium strength threshold
+    public static float POKER_AI_STACK_PERCENT_CALL_MEDIUM = 0.5f;           // Medium strength call percentage
+    public static float POKER_AI_POT_PERCENT_CALL_DRAW = 0.4f;               // Draw call percentage of pot
+    public static float POKER_AI_BLUFF_STRENGTH_BOOST = 30f;                 // Bluff strength boost
+    public static float POKER_AI_DRAW_CHANCE = 0.2f;                         // Draw play chance
+    public static float POKER_AI_CHECK_RAISE_CHANCE = 0.3f;                  // Check-raise chance
+    public static float POKER_AI_BLUFF_FOLD_CHANCE = 0.1f;                   // Bluff-fold chance on river
     
     // Arena Configuration
-    public static float ARENA_CHAOS_EVENT_CHANCE = 0.15f;          // Chance of chaos event per step
-    public static float ARENA_HULL_BREACH_DAMAGE_PERCENT = 0.2f;   // Hull breach damage as percentage of max HP
+    public static float ARENA_CHAOS_EVENT_CHANCE = 0.15f;                    // Chance of chaos event per step
+    public static float ARENA_HULL_BREACH_DAMAGE_PERCENT = 0.2f;             // Hull breach damage percentage
 
     // Strings
     public static List<String> VIP_ADS = new ArrayList<>();
