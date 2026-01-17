@@ -104,11 +104,11 @@ public class FinHandler {
             if (currentDays > 0) {
                 message += " (Current VIP: " + currentDays + " days remaining)";
             }
-            main.getTextPanel().addPara(message, Color.YELLOW);
+            main.textPanel.addPara(message, Color.YELLOW);
             main.getOptions().addOption("Confirm Purchase", "confirm_buy_vip");
         } else {
             CasinoConfig.GemPackage pack = CasinoConfig.GEM_PACKAGES.get(index);
-            main.getTextPanel().addPara("Purchase " + pack.gems + " Gems for " + pack.cost + " Credits?", Color.YELLOW);
+            main.textPanel.addPara("Purchase " + pack.gems + " Gems for " + pack.cost + " Credits?", Color.YELLOW);
             main.getOptions().addOption("Confirm Purchase", "confirm_buy_pack_" + index);
         }
         main.getOptions().addOption("Cancel", "financial_menu");
@@ -119,13 +119,13 @@ public class FinHandler {
      */
     private void purchaseGemPack(int gems, int cost) {
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
-            main.getTextPanel().addPara("Insufficient Credits!", Color.RED);
+            main.textPanel.addPara("Insufficient Credits!", Color.RED);
             showTopUpMenu();
             return;
         }
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
         CasinoVIPManager.addStargems(gems);
-        main.getTextPanel().addPara("Purchased " + gems + " Stargems.", Color.GREEN);
+        main.textPanel.addPara("Purchased " + gems + " Stargems.", Color.GREEN);
         showTopUpMenu();
     }
     
@@ -135,13 +135,13 @@ public class FinHandler {
     private void purchaseVIPPass() {
         int cost = CasinoConfig.VIP_PASS_COST;
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
-            main.getTextPanel().addPara("Insufficient Credits!", Color.RED);
+            main.textPanel.addPara("Insufficient Credits!", Color.RED);
             showTopUpMenu();
             return;
         }
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
         CasinoVIPManager.addSubscriptionDays(30);
-        main.getTextPanel().addPara("VIP Status Activated! Enjoy your benefits.", Color.CYAN);
+        main.textPanel.addPara("VIP Status Activated! Enjoy your benefits.", Color.CYAN);
         showTopUpMenu();
     }
 
@@ -151,14 +151,14 @@ public class FinHandler {
     private void performCashOut() {
         int totalGems = CasinoVIPManager.getStargems();
         if (totalGems <= 0) {
-            main.getTextPanel().addPara("No Stargems to cash out!", Color.RED);
+            main.textPanel.addPara("No Stargems to cash out!", Color.RED);
             main.getOptions().clearOptions();
             main.getOptions().addOption("Back", "financial_menu");
             return;
         }
         
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("Select amount of Stargems to cash out", Color.ORANGE);
+        main.textPanel.addPara("Select amount of Stargems to cash out", Color.ORANGE);
         
         // Create fixed cashout options based on available gems - following same pattern as betting menus
         if (totalGems >= 100) {
@@ -193,14 +193,14 @@ public class FinHandler {
     private void confirmCashOut(int gemsToCashOut) {
         int currentGems = CasinoVIPManager.getStargems();
         if (gemsToCashOut <= 0) {
-            main.getTextPanel().addPara("No Stargems selected for cash out!", Color.RED);
+            main.textPanel.addPara("No Stargems selected for cash out!", Color.RED);
             main.getOptions().clearOptions();
             main.getOptions().addOption("Back", "financial_menu");
             return;
         }
         
         if (gemsToCashOut > currentGems) {
-            main.getTextPanel().addPara("Not enough Stargems! You only have " + currentGems + ".", Color.RED);
+            main.textPanel.addPara("Not enough Stargems! You only have " + currentGems + ".", Color.RED);
             main.getOptions().clearOptions();
             main.getOptions().addOption("Back", "financial_menu");
             return;
@@ -210,7 +210,7 @@ public class FinHandler {
         Global.getSector().getPlayerFleet().getCargo().getCredits().add(credits);
         CasinoVIPManager.addStargems(-gemsToCashOut); // Subtract the cashed-out gems
         
-        main.getTextPanel().addPara("Cashed out " + gemsToCashOut + " Stargems for " + (int)credits + " Credits.", Color.GREEN);
+        main.textPanel.addPara("Cashed out " + gemsToCashOut + " Stargems for " + (int)credits + " Credits.", Color.GREEN);
         main.getOptions().clearOptions();
         main.getOptions().addOption("Back", "financial_menu");
     }

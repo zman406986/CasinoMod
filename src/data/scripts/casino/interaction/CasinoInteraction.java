@@ -2,10 +2,11 @@ package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
+import com.fs.starfarer.api.campaign.InteractionDialogPlugin;
 import com.fs.starfarer.api.campaign.TextPanelAPI;
 import com.fs.starfarer.api.campaign.OptionPanelAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
-import com.fs.starfarer.api.util.IntervalUtil;
+import com.fs.starfarer.api.combat.EngagementResultAPI;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.CasinoMusicPlugin;
@@ -15,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class CasinoInteraction {
+public class CasinoInteraction implements InteractionDialogPlugin {
     // Enum for tracking current state
     public enum State {
         MAIN_MENU, POKER, ARENA, GACHA, FINANCIAL, HELP
@@ -62,7 +63,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -97,7 +98,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -105,8 +106,7 @@ public class CasinoInteraction {
             // Check if there's a suspended game and warn the player
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
             if (mem.contains("$ipc_suspended_game_type")) {
-                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one.", Color.RED);
-                textPanel.addPara("Would you like to continue?", Color.YELLOW);
+                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one. Would you like to continue?", Color.RED);
                 options.clearOptions();
                 options.addOption("Continue with New Game", "confirm_new_poker");
                 options.addOption("Resume Suspended Game", "resume_game");
@@ -120,7 +120,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -138,7 +138,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -149,7 +149,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -160,7 +160,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -171,7 +171,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -179,8 +179,7 @@ public class CasinoInteraction {
             // Check if there's a suspended game and warn the player
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
             if (mem.contains("$ipc_suspended_game_type")) {
-                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one.", Color.RED);
-                textPanel.addPara("Would you like to continue?", Color.YELLOW);
+                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one. Would you like to continue?", Color.RED);
                 options.clearOptions();
                 options.addOption("Continue with New Game", "confirm_new_arena");
                 options.addOption("Resume Suspended Game", "resume_game");
@@ -194,7 +193,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -212,7 +211,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -223,7 +222,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -234,7 +233,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -245,7 +244,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -256,7 +255,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -267,7 +266,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -278,7 +277,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -289,7 +288,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -300,7 +299,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -311,7 +310,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -322,7 +321,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -333,7 +332,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -344,7 +343,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -355,7 +354,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -366,7 +365,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -377,7 +376,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -409,7 +408,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -420,7 +419,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
             }
@@ -433,7 +432,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
             }
@@ -444,7 +443,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
             }
@@ -455,7 +454,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
             }
@@ -466,7 +465,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
             }
@@ -477,7 +476,7 @@ public class CasinoInteraction {
             int gems = CasinoVIPManager.getStargems();
             int ceiling = CasinoVIPManager.getDebtCeiling();
             if (gems < -ceiling) {
-                textPanel.addParagraph("Corporate Reconciliation Team is waiting for you...", Color.RED);
+                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
             }
@@ -507,8 +506,7 @@ public class CasinoInteraction {
     
     public void showMenu() {
         options.clearOptions();
-        textPanel.addPara("Welcome to the Intergalactic Casino!");
-        textPanel.addPara("Choose your entertainment:");
+        textPanel.addPara("Welcome to the Intergalactic Casino! Choose your entertainment:", Color.WHITE);
         
         options.addOption("Poker Table", "play");
         options.addOption("Arena Combat", "arena_lobby");
@@ -524,7 +522,72 @@ public class CasinoInteraction {
      * Static method to start the casino interaction from rule commands
      */
     public static void startCasinoInteraction(InteractionDialogAPI dialog) {
-        new CasinoInteraction(dialog).showMenu();
+        CasinoInteraction interaction = new CasinoInteraction(dialog);
+        // Start casino music when entering
+        data.scripts.CasinoMusicPlugin.startCasinoMusic();
+        dialog.setPlugin(interaction);
+        interaction.showMenu();
+    }
+    
+    // ============================================================
+    // InteractionDialogPlugin interface implementation
+    // ============================================================
+    
+    @Override
+    public void init(InteractionDialogAPI dialog) {
+        // Already initialized in constructor, but we can reinitialize if needed
+        this.dialog = dialog;
+        this.textPanel = dialog.getTextPanel();
+        this.options = dialog.getOptionPanel();
+    }
+    
+    @Override
+    public void optionSelected(String optionText, Object optionData) {
+        if (optionData == null) return;
+        
+        String option = optionData.toString();
+        
+        // Try exact match handlers first
+        OptionHandler handler = handlers.get(option);
+        if (handler != null) {
+            handler.handle(option);
+            return;
+        }
+        
+        // Try state-dependent handlers
+        for (Map.Entry<Predicate<String>, OptionHandler> entry : predicateHandlers.entrySet()) {
+            if (entry.getKey().test(option)) {
+                entry.getValue().handle(option);
+                return;
+            }
+        }
+        
+        // If no handler found, log a warning
+        Global.getLogger(this.getClass()).warn("No handler found for option: " + option);
+    }
+    
+    @Override
+    public void optionMousedOver(String optionText, Object optionData) {
+        // Optional: implement hover behavior if needed
+    }
+    
+    @Override
+    public void advance(float amount) {
+        // Optional: implement per-frame updates if needed
+    }
+    
+    @Override
+    public void backFromEngagement(EngagementResultAPI battleResult) {
+        // Handle returning from combat if needed
+    }
+    
+    @Override
+    public Object getContext() {
+        return null; // Not using context
+    }
+    
+    @Override
+    public Map<String, MemoryAPI> getMemoryMap() {
+        return null; // Not using custom memory map
     }
 }
-

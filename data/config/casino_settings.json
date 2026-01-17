@@ -26,7 +26,15 @@
         "prob4Star": 0.051,
         "pityHard5": 90,
         "pityHard4": 10,
-        "pitySoftStart5": 74
+        "pitySoftStart5": 74,
+        "_BLACKLIST_COMMENT": "Ships listed here will never appear in the gacha pool. Add hull IDs of boss ships, stations, or unwanted ships.",
+        "shipBlacklist": [
+            "obelisk_elder",
+            "obelisk_younger", 
+            "ziggurat",
+            "invictus_LastCrusader",
+            "facet_endbringer_Prime"
+        ]
     },
     "poker": {
         "smallBlind": 100,

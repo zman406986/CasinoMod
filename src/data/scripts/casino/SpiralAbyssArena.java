@@ -104,7 +104,10 @@ public class SpiralAbyssArena {
         public float bravery;    // Crit/Retaliate chance
         public boolean isDead = false;
         public int kills = 0;
+        public float odds;       // Betting odds (e.g., 1:2.5)
         public SpiralGladiator retaliateTarget = null;
+        public boolean isEnraged = false;  // Whether the ship is in an enraged state
+        public SpiralGladiator targetOfRage = null;  // The ship the current ship is angry at
         
         public SpiralGladiator(String prefix, String hullName, String affix, int hp, int power, float agility, float bravery) {
             this.prefix = prefix;
@@ -117,6 +120,58 @@ public class SpiralAbyssArena {
             this.power = power;
             this.agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
             this.bravery = bravery;
+            this.odds = calculateOdds(prefix, affix); // Calculate odds based on perks
+        }
+        
+        /**
+         * Calculates the betting odds for this gladiator based on their perks.
+         * More positive perks = lower returns (lower odds), more negative perks = higher returns (higher odds)
+         */
+        private float calculateOdds(String prefix, String affix) {
+            // Base odds is 1:2 (meaning you get 2x your bet back if you win)
+            float baseOdds = 2.0f;
+            
+            // Count positive and negative prefixes
+            boolean isPrefixPositive = CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(prefix);
+            boolean isPrefixNegative = CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(prefix);
+            
+            // Count positive and negative affixes
+            boolean isAffixPositive = CasinoConfig.ARENA_AFFIX_POS.contains(affix);
+            boolean isAffixNegative = CasinoConfig.ARENA_AFFIX_NEG.contains(affix);
+            
+            // Adjust odds based on perks
+            if (isPrefixPositive || isAffixPositive) {
+                // Positive perks make the ship stronger, so lower the odds (less return)
+                baseOdds *= 0.8f; // Reduce odds by 20% for each positive perk
+            }
+            if (isPrefixNegative || isAffixNegative) {
+                // Negative perks make the ship weaker, so increase the odds (higher return)
+                baseOdds *= 1.3f; // Increase odds by 30% for each negative perk
+            }
+            
+            // Ensure minimum odds of 1.2 (you always get at least 1.2x return)
+            return Math.max(1.2f, baseOdds);
+        }
+        
+        /**
+         * Gets the formatted odds string for display (e.g., "1:2.5")
+         */
+        public String getOddsString() {
+            return "1:" + String.format("%.1f", odds);
+        }
+        
+        /**
+         * Gets the status string for this gladiator showing HP and enraged state
+         */
+        public String getStatusString() {
+            StringBuilder status = new StringBuilder();
+            status.append(shortName).append(": ").append(hp).append("/").append(maxHp).append(" HP");
+            
+            if (isEnraged && targetOfRage != null) {
+                status.append(" (angry at ").append(targetOfRage.shortName).append(")");
+            }
+            
+            return status.toString();
         }
     }
     
@@ -246,7 +301,20 @@ public class SpiralAbyssArena {
             // Retaliation Logic: If a ship was hit recently, it might focus its fire on the aggressor.
             if (attacker.retaliateTarget != null && !attacker.retaliateTarget.isDead) {
                 target = attacker.retaliateTarget;
+                attacker.isEnraged = true;
+                attacker.targetOfRage = attacker.retaliateTarget;
                 attacker.retaliateTarget = null;
+            } else if (attacker.retaliateTarget != null && attacker.retaliateTarget.isDead) {
+                // Clear retaliation target if it's dead
+                attacker.retaliateTarget = null;
+                attacker.isEnraged = false;
+                attacker.targetOfRage = null;
+            }
+            
+            // Also check if the rage target is dead and clear it
+            if (attacker.targetOfRage != null && attacker.targetOfRage.isDead) {
+                attacker.isEnraged = false;
+                attacker.targetOfRage = null;
             }
 
             // 4. Detailed Event Logic for this specific attacker
@@ -257,6 +325,8 @@ public class SpiralAbyssArena {
                     log.add("💥 " + attacker.shortName + " suffered a Hull Breach! (-" + dmg + " HP)");
                     if (attacker.hp <= 0) {
                         attacker.isDead = true;
+                        attacker.isEnraged = false;
+                        attacker.targetOfRage = null;
                         log.add("💀 " + attacker.shortName + " was lost to space decompression.");
                         break; // Skip attack if attacker died from hull breach
                     }
@@ -285,11 +355,15 @@ public class SpiralAbyssArena {
                 // Mark for retaliation
                 if (random.nextFloat() < target.bravery) {
                     target.retaliateTarget = attacker;
+                    target.isEnraged = true;
+                    target.targetOfRage = attacker;
                 }
                 
                 // Check for death
                 if (target.hp <= 0) {
                     target.isDead = true;
+                    target.isEnraged = false;
+                    target.targetOfRage = null;
                     attacker.kills++;
                     String kill = getFlavor(CasinoConfig.ARENA_KILL_FLAVOR_TEXTS, lastKill);
                     lastKill = kill;
@@ -305,6 +379,21 @@ public class SpiralAbyssArena {
 
         // Duration tick
         for (ActiveEvent e : activeEvents) e.duration--;
+        
+        // Add status of all remaining ships to the log
+        List<SpiralGladiator> remainingShips = new ArrayList<>();
+        for (SpiralGladiator g : combatants) {
+            if (!g.isDead) {
+                remainingShips.add(g);
+            }
+        }
+        
+        if (!remainingShips.isEmpty()) {
+            log.add("--- SHIP STATUS ---");
+            for (SpiralGladiator g : remainingShips) {
+                log.add(g.getStatusString());
+            }
+        }
         
         return log;
     }

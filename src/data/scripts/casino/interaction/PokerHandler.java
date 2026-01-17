@@ -68,6 +68,7 @@ public class PokerHandler {
     /**
      * Player's remaining chip stack
      */
+    protected int playerWallet; // Player's total money outside the current game
     protected int playerStack; 
     
     /**
@@ -128,6 +129,13 @@ public class PokerHandler {
             int amt = Integer.parseInt(option.replace("poker_raise_", ""));
             performRaise(amt);
         });
+        
+        // Stack selection handlers
+        predicateHandlers.put(option -> option.startsWith("poker_stack_"), option -> {
+            String stackStr = option.replace("poker_stack_", "");
+            int stackSize = "all".equals(stackStr) ? CasinoVIPManager.getStargems() : Integer.parseInt(stackStr);
+            setupGame(stackSize);
+        });
     }
 
     /**
@@ -157,8 +165,29 @@ public class PokerHandler {
      */
     public void showPokerConfirm() {
         main.options.clearOptions();
-        main.textPanel.addPara("The IPC Dealer prepares to deal. Ante up " + bigBlind + " Stargems?", Color.YELLOW);
-        main.options.addOption("Ante Up & Start Hand", "confirm_poker_ante");
+        main.textPanel.addPara("The IPC Dealer prepares to deal. How big of a stack would you like to bring to the table?", Color.YELLOW);
+        
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        // Offer different stack sizes based on player's available gems
+        if (currentGems >= 1000) {
+            main.options.addOption("Small Stack (1,000 Stargems)", "poker_stack_1000");
+        }
+        if (currentGems >= 5000) {
+            main.options.addOption("Medium Stack (5,000 Stargems)", "poker_stack_5000");
+        }
+        if (currentGems >= 10000) {
+            main.options.addOption("Large Stack (10,000 Stargems)", "poker_stack_10000");
+        }
+        if (currentGems >= 25000) {
+            main.options.addOption("Huge Stack (25,000 Stargems)", "poker_stack_25000");
+        }
+        
+        // Add custom stack option if player has gems
+        if (currentGems > 0) {
+            main.options.addOption("Bring All My Stargems (" + currentGems + ")", "poker_stack_all");
+        }
+        
         main.options.addOption("How to Play Poker", "how_to_poker");  // Add help option
         main.options.addOption("Wait... (Cancel)", "back_menu");
         main.setState(CasinoInteraction.State.POKER);
@@ -168,8 +197,18 @@ public class PokerHandler {
      * Sets up a new poker hand with fresh cards and initial bets
      */
     public void setupGame() {
+        // Default to 10000 stack if called without parameters
+        setupGame(10000);
+    }
+    
+    public void setupGame(int stackSize) {
         deck = new PokerGameLogic.Deck();
         deck.shuffle();
+        
+        // Play shuffle cards sound
+        // Removed sound effect as it was removed from sounds.json
+// Global.getSoundPlayer().playUISound("shuffle_cards", 1f, 1f);
+        
         playerHand = new ArrayList<>();
         opponentHand = new ArrayList<>();
         communityCards = new ArrayList<>();
@@ -179,9 +218,21 @@ public class PokerHandler {
         playerHand.add(deck.draw());
         opponentHand.add(deck.draw());
         
-        int currentGems = CasinoVIPManager.getStargems();
-        playerStack = Math.min(currentGems, 100000); 
-        opponentStack = playerStack; 
+        playerWallet = CasinoVIPManager.getStargems();
+        
+        // Check if player has enough in wallet for the desired stack
+        if (playerWallet < stackSize) {
+            main.textPanel.addPara("Not enough Stargems in wallet! You have " + playerWallet + " but requested " + stackSize + ".", Color.RED);
+            showPokerConfirm(); // Return to the confirmation screen
+            return;
+        }
+        
+        // Deduct the stack from wallet and set it as player's stack
+        CasinoVIPManager.addStargems(-stackSize);
+        playerStack = stackSize;
+        
+        // Ensure opponent has at least 10k gems regardless of player's situation
+        opponentStack = Math.max(10000, playerStack); 
         
         potSize = 0;
         currentBetToCall = 0;
@@ -193,16 +244,18 @@ public class PokerHandler {
         // Check if player has enough gems for blinds before setting up the game
         if (playerIsDealer) {
             // Player is dealer, so they post small blind, opponent posts big blind
-            if (currentGems < smallBlind) {
-                main.textPanel.addPara("Not enough Stargems for small blind! You need " + smallBlind + " but only have " + currentGems + ".", Color.RED);
+            if (playerStack < smallBlind) {
+                main.textPanel.addPara("Not enough Stargems in stack for small blind! You need " + smallBlind + " but only have " + playerStack + ".", Color.RED);
+                returnStacks();
                 showPokerConfirm(); // Return to the confirmation screen
                 return;
             }
-            CasinoVIPManager.addStargems(-smallBlind); 
+            playerStack -= smallBlind; 
             playerBet = smallBlind;
             
             if (opponentStack < bigBlind) {
                 main.textPanel.addPara("Opponent doesn't have enough for big blind! Game cannot continue.", Color.RED);
+                returnStacks();
                 showPokerConfirm(); // Return to the confirmation screen
                 return;
             }
@@ -212,18 +265,20 @@ public class PokerHandler {
             // Opponent is dealer, so opponent posts small blind, player posts big blind
             if (opponentStack < smallBlind) {
                 main.textPanel.addPara("Opponent doesn't have enough for small blind! Game cannot continue.", Color.RED);
+                returnStacks();
                 showPokerConfirm(); // Return to the confirmation screen
                 return;
             }
             opponentStack -= smallBlind; 
             opponentBet = smallBlind;
             
-            if (currentGems < bigBlind) {
-                main.textPanel.addPara("Not enough Stargems for big blind! You need " + bigBlind + " but only have " + currentGems + ".", Color.RED);
+            if (playerStack < bigBlind) {
+                main.textPanel.addPara("Not enough Stargems in stack for big blind! You need " + bigBlind + " but only have " + playerStack + ".", Color.RED);
+                returnStacks();
                 showPokerConfirm(); // Return to the confirmation screen
                 return;
             }
-            CasinoVIPManager.addStargems(-bigBlind); 
+            playerStack -= bigBlind;
             playerBet = bigBlind;
         }
         
@@ -252,19 +307,32 @@ public class PokerHandler {
         main.getTextPanel().addPara("Your Hand: ");
         displayColoredCards(playerHand); // This now adds the colored cards directly to the panel
         if (!communityCards.isEmpty()) {
-            main.getTextPanel().addPara("\nCommunity: ");
+            main.getTextPanel().addPara("Community: ");
             displayColoredCards(communityCards); // This now adds the colored cards directly to the panel
         }
         
         int callAmount = opponentBet - playerBet;
         if (callAmount > 0) {
-            main.getOptions().addOption("Call (" + callAmount + ")", "poker_call");
+            // Check if player can cover the full call amount
+            if (playerStack >= callAmount) {
+                main.getOptions().addOption("Call (" + callAmount + ")", "poker_call");
+            } else if (playerStack > 0) {
+                // Player can't call full amount but has some chips - show all-in option
+                main.getOptions().addOption("Call All-In (" + playerStack + " Stargems)", "poker_call");
+            } else {
+                // Player has no chips left
+                main.getOptions().addOption("Call (0 Stargems)", "poker_call");
+            }
             main.getOptions().addOption("Fold", "poker_fold");
         } else {
             main.getOptions().addOption("Check", "poker_check");
         }
         
-        main.getOptions().addOption("Raise", "poker_raise_menu");
+        // Only show raise option if player has chips and the opponent hasn't gone all-in with a huge bet
+        if (playerStack > 0 && opponentBet - playerBet < playerStack) {
+            main.getOptions().addOption("Raise", "poker_raise_menu");
+        }
+        
         main.getOptions().addOption("How to Play Poker", "how_to_poker");  // Add help option during gameplay
         main.getOptions().addOption("Back to Poker Menu", "poker_back_to_menu"); // Add option to return to poker menu
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
@@ -276,16 +344,13 @@ public class PokerHandler {
     public void handlePokerCall() {
         int callAmount = opponentBet - playerBet;
         
-        // Check if player has enough gems to call
-        if (CasinoVIPManager.getStargems() < callAmount) {
-            main.textPanel.addPara("Not enough Stargems to call! You need " + callAmount + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
-            updateUI(); // Refresh the UI to allow different actions
-            return;
-        }
+        // Calculate how much the player can actually call
+        int actualCallAmount = Math.min(callAmount, playerStack);
         
-        CasinoVIPManager.addStargems(-callAmount);
-        playerBet += callAmount;
-        potSize += callAmount;
+        // Deduct the actual call amount from player's stack
+        playerStack -= actualCallAmount;
+        playerBet += actualCallAmount;
+        potSize += actualCallAmount;
 
         // Track player action (not a raise, not a fold)
         ai.trackPlayerAction(false, false);
@@ -315,7 +380,7 @@ public class PokerHandler {
                             opponentStack -= callAmount;
                             opponentBet += callAmount;
                             potSize += callAmount;
-                            main.getTextPanel().addParagraph("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
+                            main.getTextPanel().addPara("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
                         }
                     }
                     // In all-in situations, we should still advance to next street
@@ -325,7 +390,7 @@ public class PokerHandler {
                     advanceStreet();
                 }
             } else {
-                main.getTextPanel().addParagraph("Opponent folds! You win.", Color.CYAN);
+                main.getTextPanel().addPara("Opponent folds! You win.", Color.CYAN);
                 endHand(true);
             }
         } else if (res.action == PokerGame.SimplePokerAI.Action.RAISE) {
@@ -335,7 +400,7 @@ public class PokerHandler {
                 opponentStack -= raiseAmount;
                 opponentBet += raiseAmount;
                 potSize += raiseAmount;
-                main.getTextPanel().addParagraph("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
+                main.getTextPanel().addPara("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
                 updateUI(); // Now player must respond to the raise
             } else {
                 // If AI can't raise, they effectively check
@@ -348,17 +413,17 @@ public class PokerHandler {
                 opponentStack -= callAmount;
                 opponentBet += callAmount;
                 potSize += callAmount;
-                main.getTextPanel().addParagraph("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
+                main.getTextPanel().addPara("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
             }
             advanceStreet(); // Both players checked, move to next street
         } else if (res.action == PokerGame.SimplePokerAI.Action.CHECK) {
-            main.getTextPanel().addParagraph("Opponent checks.", Color.YELLOW);
+            main.getTextPanel().addPara("Opponent checks.", Color.YELLOW);
             advanceStreet(); // Both players checked, move to next street
         }
     }
     
     public void handlePokerFold() {
-        main.getTextPanel().addParagraph("You fold. The IPC Dealer scoops the pot.", Color.GRAY);
+        main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot.", Color.GRAY);
         // Track player fold action
         ai.trackPlayerAction(false, true);
         endHand(false);
@@ -388,7 +453,7 @@ public class PokerHandler {
                                 opponentStack -= callAmount;
                                 opponentBet += callAmount;
                                 potSize += callAmount;
-                                main.getTextPanel().addParagraph("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
+                                main.getTextPanel().addPara("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
                             }
                         }
                         // In all-in situations, we should still advance to next street
@@ -398,7 +463,7 @@ public class PokerHandler {
                         advanceStreet();
                     }
                 } else {
-                    main.getTextPanel().addParagraph("Opponent folds! You win.", Color.CYAN);
+                    main.getTextPanel().addPara("Opponent folds! You win.", Color.CYAN);
                     endHand(true);
                 }
             } else if (res.action == PokerGame.SimplePokerAI.Action.RAISE) {
@@ -408,7 +473,7 @@ public class PokerHandler {
                     opponentStack -= raiseAmount;
                     opponentBet += raiseAmount;
                     potSize += raiseAmount;
-                    main.getTextPanel().addParagraph("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
+                    main.getTextPanel().addPara("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
                     updateUI(); // Now player must respond to the raise
                 } else {
                     // If AI can't raise, they effectively check
@@ -421,15 +486,15 @@ public class PokerHandler {
                     opponentStack -= callAmount;
                     opponentBet += callAmount;
                     potSize += callAmount;
-                    main.getTextPanel().addParagraph("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
+                    main.getTextPanel().addPara("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
                 }
                 advanceStreet();
             } else if (res.action == PokerGame.SimplePokerAI.Action.CHECK) {
-                main.getTextPanel().addParagraph("Opponent checks.", Color.YELLOW);
+                main.getTextPanel().addPara("Opponent checks.", Color.YELLOW);
                 advanceStreet(); // Both players checked, move to next street
             }
         } else if ("poker_fold".equals(option)) {
-            main.getTextPanel().addParagraph("You fold. The IPC Dealer scoops the pot.", Color.GRAY);
+            main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot.", Color.GRAY);
             // Track player fold action
             ai.trackPlayerAction(false, true);
             endHand(false);
@@ -456,36 +521,42 @@ public class PokerHandler {
         main.getOptions().clearOptions();
         
         // Use consistent betting amounts (100, 500, 2000) plus percentage options
-        int playerBalance = CasinoVIPManager.getStargems();
+        // Use player's current stack instead of wallet
+        int playerStackAvailable = playerStack;
         
-        if (playerBalance >= 100) {
+        if (playerStackAvailable >= 100) {
             main.getOptions().addOption("Raise 100", "poker_raise_100");
         }
-        if (playerBalance >= 500) {
+        if (playerStackAvailable >= 500) {
             main.getOptions().addOption("Raise 500", "poker_raise_500");
         }
-        if (playerBalance >= 2000) {
+        if (playerStackAvailable >= 2000) {
             main.getOptions().addOption("Raise 2000", "poker_raise_2000");
         }
         
         // Add percentage-based options
-        int tenPercent = (playerBalance * 10) / 100;
-        if (tenPercent > 0 && playerBalance >= tenPercent) {
-            main.getOptions().addOption("Raise " + tenPercent + " (10% of account)", "poker_raise_" + tenPercent);
+        int tenPercent = (playerStackAvailable * 10) / 100;
+        if (tenPercent > 0 && playerStackAvailable >= tenPercent) {
+            main.getOptions().addOption("Raise " + tenPercent + " (10% of stack)", "poker_raise_" + tenPercent);
         }
         
-        int fiftyPercent = (playerBalance * 50) / 100;
-        if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
-            main.getOptions().addOption("Raise " + fiftyPercent + " (50% of account)", "poker_raise_" + fiftyPercent);
+        int fiftyPercent = (playerStackAvailable * 50) / 100;
+        if (fiftyPercent > 0 && playerStackAvailable >= fiftyPercent) {
+            main.getOptions().addOption("Raise " + fiftyPercent + " (50% of stack)", "poker_raise_" + fiftyPercent);
         }
         
         // Also include the original configured raise amounts for variety
         for (int r : CasinoConfig.POKER_RAISE_AMOUNTS) {
             if (r != 100 && r != 500 && r != 2000) { // Avoid duplicates
-                if (playerBalance >= r) {
+                if (playerStackAvailable >= r) {
                     main.getOptions().addOption("Raise " + r, "poker_raise_" + r);
                 }
             }
+        }
+        
+        // Add all-in option if player has remaining stack
+        if (playerStackAvailable > 0) {
+            main.getOptions().addOption("All-In (" + playerStackAvailable + " Stargems)", "poker_raise_" + playerStackAvailable);
         }
         
         main.getOptions().addOption("Back", "poker_back_action");
@@ -495,16 +566,13 @@ public class PokerHandler {
      * Performs a raise action with specified amount
      */
     private void performRaise(int amt) {
-        // Check if player has enough gems to raise
-        if (CasinoVIPManager.getStargems() < amt) {
-            main.textPanel.addPara("Not enough Stargems to raise! You need " + amt + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
-            updateUI(); // Refresh the UI to allow different actions
-            return;
-        }
+        // Calculate how much the player can actually raise
+        int actualRaiseAmount = Math.min(amt, playerStack);
         
-        CasinoVIPManager.addStargems(-amt);
-        playerBet += amt;
-        potSize += amt;
+        // Deduct the actual raise amount from player's stack
+        playerStack -= actualRaiseAmount;
+        playerBet += actualRaiseAmount;
+        potSize += actualRaiseAmount;
         
         // Track player raise action
         ai.trackPlayerAction(true, false);
@@ -526,7 +594,7 @@ public class PokerHandler {
                             opponentStack -= callAmount;
                             opponentBet += callAmount;
                             potSize += callAmount;
-                            main.getTextPanel().addParagraph("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
+                            main.getTextPanel().addPara("Opponent calls (all-in) with " + callAmount + " Stargems.", Color.YELLOW);
                         }
                     }
                     // In all-in situations, we should still advance to next street
@@ -536,7 +604,7 @@ public class PokerHandler {
                     advanceStreet();
                 }
             } else {
-                main.getTextPanel().addParagraph("Opponent folds! You win.", Color.CYAN);
+                main.getTextPanel().addPara("Opponent folds! You win.", Color.CYAN);
                 endHand(true);
             }
         } else if (res.action == PokerGame.SimplePokerAI.Action.RAISE) {
@@ -546,7 +614,7 @@ public class PokerHandler {
                 opponentStack -= raiseAmount;
                 opponentBet += raiseAmount;
                 potSize += raiseAmount;
-                main.getTextPanel().addParagraph("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
+                main.getTextPanel().addPara("Opponent raises by " + raiseAmount + " Stargems.", Color.YELLOW);
                 updateUI(); // Now player must respond again
             } else {
                 // AI can't raise, so they call
@@ -555,7 +623,7 @@ public class PokerHandler {
                     opponentStack -= callAmount;
                     opponentBet += callAmount;
                     potSize += callAmount;
-                    main.getTextPanel().addParagraph("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
+                    main.getTextPanel().addPara("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
                 }
                 advanceStreet(); // Betting round complete
             }
@@ -566,7 +634,7 @@ public class PokerHandler {
                 opponentStack -= callAmount;
                 opponentBet += callAmount;
                 potSize += callAmount;
-                main.getTextPanel().addParagraph("Opponent calls your raise with " + callAmount + " Stargems.", Color.YELLOW);
+                main.getTextPanel().addPara("Opponent calls your raise with " + callAmount + " Stargems.", Color.YELLOW);
             }
             advanceStreet(); // Betting round complete
         } else if (res.action == PokerGame.SimplePokerAI.Action.CHECK) {
@@ -591,7 +659,7 @@ public class PokerHandler {
         mem.set("$ipc_poker_opponent_stack", opponentStack);
         mem.set("$ipc_poker_player_is_dealer", playerIsDealer);
         
-        main.getTextPanel().addParagraph("The Dealer nods. 'The cards will stay as they are. Don't be long.'", Color.YELLOW);
+        main.getTextPanel().addPara("The Dealer nods. 'The cards will stay as they are. Don't be long.'", Color.YELLOW);
         main.getOptions().clearOptions();
         main.getOptions().addOption("Leave", "leave_now");
     }
@@ -712,23 +780,11 @@ public class PokerHandler {
     private void displayColoredCards(List<PokerGame.PokerGameLogic.Card> cards) {
         main.textPanel.setFontInsignia();
         
-        // Add all cards as one string to avoid line breaks
+        // Add each card separately to ensure proper highlighting
         StringBuilder cardText = new StringBuilder();
         for (int i = 0; i < cards.size(); i++) {
             PokerGame.PokerGameLogic.Card c = cards.get(i);
             
-            // Add the card string to the builder
-            cardText.append(c.toString());
-            if (i < cards.size() - 1) {
-                cardText.append(" "); // Add space between cards
-            }
-        }
-        
-        // Add the entire string as one paragraph
-        main.textPanel.addPara(cardText.toString());
-        
-        // Now highlight each card with its appropriate color based on suit
-        for (PokerGame.PokerGameLogic.Card c : cards) {
             // Determine color based on suit (distinct colors for better visibility in game)
             Color suitColor;
             switch (c.suit) {
@@ -747,11 +803,29 @@ public class PokerHandler {
                     break;
             }
             
-            // Highlight the specific card with its color
-            main.textPanel.highlightInLastPara(suitColor, c.toString());
+            // Add the card with its specific color
+            cardText.setLength(0); // Clear the StringBuilder
+            cardText.append(c.toString());
+            if (i < cards.size() - 1) {
+                cardText.append(" "); // Add space between cards except for the last one
+            }
+            
+            // Add the card text with its specific color
+            main.textPanel.addPara(cardText.toString(), suitColor);
         }
     }
 
+    /**
+     * Returns all remaining stacks to the player's wallet
+     */
+    private void returnStacks() {
+        // Return player's remaining stack to wallet
+        CasinoVIPManager.addStargems(playerStack);
+        
+        // Note: opponent's stack doesn't get returned to wallet
+        // since it's the AI's own chips
+    }
+    
     /**
      * Ends the current hand and shows options for next action
      */
@@ -761,9 +835,16 @@ public class PokerHandler {
             main.getTextPanel().addPara("You win the pot of " + potSize + " Stargems!", Color.CYAN);
         }
         
+        // Return both players' remaining stacks to their respective wallets/pools
+        returnStacks();
+        
         // Ensure stack values don't go negative
         if (playerStack < 0) playerStack = 0;
         if (opponentStack < 0) opponentStack = 0;
+        
+        // Play game complete sound
+        // Removed sound effect as it was removed from sounds.json
+// Global.getSoundPlayer().playUISound("game_complete", 1f, 1f);
         
         main.getOptions().clearOptions();
         main.getOptions().addOption("Next Hand", "next_hand");

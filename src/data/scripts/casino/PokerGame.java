@@ -212,6 +212,7 @@ public class PokerGame {
         private final Random random = new Random();
         public enum Action { FOLD, CALL, RAISE, CHECK }
         public enum Personality { TIGHT, AGGRESSIVE, CALCULATED }
+        public enum PlayerStyle { UNKNOWN, PASSIVE, BALANCED, AGGRESSIVE }
         
         public static class AIResponse {
             public Action action;
@@ -221,80 +222,291 @@ public class PokerGame {
 
         private final Personality personality;
         
-        // Track player aggression patterns
-        private int consecutiveRaises = 0;
-        private int consecutiveFoldsByPlayer = 0;
+        // Core AI state variables
+        private float aggressionMeter = 0.5f;                    // 0.0 (passive) to 1.0 (aggressive)
+        private float[] aggressionHistory = new float[10];      // Circular buffer for smoothing
+        private int historyIndex = 0;                            // Index for circular buffer
+        private int playerStyle = 0;                             // 0: unknown, 1: passive, 2: balanced, 3: aggressive
+        private int handCount = 0;                               // Total hands played this session
+        private boolean sawFlop = false;                         // Track if flop was reached
+        
+        // Track player actions
         private int totalPlayerActions = 0;
-        private int aggressiveActions = 0;
-        private float playerAggressionLevel = 0.0f; // 0.0 to 1.0
+        private int aggressiveActions = 0;                       // Number of raises/bets by player
 
         public SimplePokerAI() {
             Personality[] p = Personality.values();
             this.personality = p[random.nextInt(p.length)];
+            // Initialize aggression history array
+            for (int i = 0; i < aggressionHistory.length; i++) {
+                aggressionHistory[i] = 0.5f;
+            }
+        }
+        
+        private String estimatePlayerRange() {
+            // Default range for unknown players
+            String baseRange = "random";
+            
+            switch(PlayerStyle.values()[playerStyle]) {
+                case PASSIVE:
+                    return "tight_range";  // 25% of hands
+                case AGGRESSIVE:
+                    return "wide_range";   // 60% of hands
+                case BALANCED:
+                    return "standard_range";  // 40% of hands
+                default:
+                    return baseRange;  // Unknown player
+            }
+        }
+        
+        private int calculateBetSize(float equity, int potSize, float aggressionFactor, int stackSize) {
+            // Value bet sizing
+            if (equity > 0.65f) {
+                int bet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f))); // Add small random variation
+                return Math.min(bet, stackSize); // Don't bet more than we have
+            }
+            
+            // Medium strength
+            if (equity > 0.45f) {
+                int bet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f))); // Add small random variation
+                return Math.min(bet, stackSize);
+            }
+            
+            // Bluff sizing
+            int bet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f))); // Add small random variation
+            return Math.min(bet, stackSize);
+        }
+        
+        private AIResponse randomDeviation(float equity, float potOdds, int stackSize, int potSize) {
+            int deviationType = random.nextInt(4) + 1; // 1-4
+            
+            switch(deviationType) {
+                case 1: // Hero call
+                    if (equity > potOdds * 0.8f) {
+                        return new AIResponse(Action.CALL, 0);
+                    }
+                    break;
+                case 2: // Bluff raise
+                    if (equity < 0.4f && random.nextFloat() < 0.3f) {
+                        int bluffRaise = (int)(potSize * 0.5f);
+                        bluffRaise = Math.min(bluffRaise, stackSize);
+                        return new AIResponse(Action.RAISE, bluffRaise);
+                    }
+                    break;
+                case 3: // Check with strong hand
+                    if (equity > 0.7f) {
+                        return new AIResponse(Action.CALL, 0); // Slow play - just call
+                    }
+                    break;
+                case 4: // Overbet
+                    if (equity > 0.75f) {
+                        int overbet = (int)(potSize * 1.5f);
+                        overbet = Math.min(overbet, stackSize);
+                        return new AIResponse(Action.RAISE, overbet);
+                    }
+                    break;
+            }
+            
+            // Default decision if no condition met
+            if (equity > potOdds) {
+                return new AIResponse(Action.CALL, 0);
+            } else {
+                return new AIResponse(Action.FOLD, 0);
+            }
         }
         
         public AIResponse decide(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, 
                                 int currentBetToCall, int potSize, int stackSize, int opponentStackSize) {
             
-            // Calculate equity-based decisions instead of simple threshold checks
-            float equity = calculateEquity(holeCards, communityCards, stackSize, opponentStackSize);
-            
-            // Consider pot odds
-            float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
-            
-            // Adjust behavior based on player aggression
-            float aggressionAdjustment = 1.0f;
-            float playerAggression = getPlayerAggressionLevel();
-            int consecutivePlayerRaises = getConsecutivePlayerRaises();
-            
-            // If player has been very aggressive (bluffing/raising frequently), adjust AI to call/raise more often
-            if (playerAggression > 0.6f) { // Player is aggressive
-                // If AI has decent equity, it should be more willing to call or raise
-                if (equity > 40) { // If AI has reasonable hand strength
-                    aggressionAdjustment = 1.3f; // Be more aggressive against player bluffs
-                }
-            } else if (consecutivePlayerRaises >= 2) { // Player raised multiple times in a row
-                // This could indicate strength or bluffing - adjust based on AI's hand strength
-                if (equity > 50) { // If AI has strong hand, fight back
-                    aggressionAdjustment = 1.4f; // Call or raise more aggressively
-                } else if (equity > 30) { // If marginal hand, might call to catch bluffs
-                    aggressionAdjustment = 1.2f;
-                }
+            // Determine if this is pre-flop or post-flop
+            if (communityCards.isEmpty()) {
+                return preFlopDecision(holeCards, currentBetToCall, potSize, stackSize);
+            } else {
+                return postFlopDecision(holeCards, communityCards, currentBetToCall, potSize, stackSize);
             }
+        }
+        
+        private AIResponse preFlopDecision(List<PokerGameLogic.Card> holeCards, int currentBetToCall, int potSize, int stackSize) {
+            // Calculate pre-flop equity
+            float equity = calculatePreflopEquity(holeCards);
             
-            // Personality adjustments
-            float personalityModifier = 1.0f;
-            if (personality == Personality.TIGHT) personalityModifier = 0.7f;
-            else if (personality == Personality.AGGRESSIVE) personalityModifier = 1.3f;
-            
-            // Combine aggression adjustment with personality
-            float aggressionModifier = personalityModifier * aggressionAdjustment;
-            
-            // Decision logic based on equity vs pot odds
-            if (equity < potOdds * 0.7f) { // Much higher threshold to fold - be more willing to call
-                if (currentBetToCall == 0) return new AIResponse(Action.CHECK, 0);
-                // If already all-in, can't fold
-                if (stackSize <= 0) return new AIResponse(Action.CALL, 0);
-                return new AIResponse(Action.FOLD, 0);
-            } else if (equity > potOdds * 1.2f) { // Raise if equity is significantly higher than pot odds
-                int maxRaise = Math.max(0, stackSize - currentBetToCall);
-                if (maxRaise > 0) {
-                    // Calculate raise amount based on equity, pot size, and aggression
-                    int raiseAmount = (int)(potSize * (equity - potOdds) * aggressionModifier);
-                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, 
-                                          Math.min(maxRaise, raiseAmount));
+            // If player didn't raise (checked or limped), always continue
+            if (currentBetToCall == 0) {
+                // Player checked or limped - always continue
+                if (random.nextFloat() < 0.3 && equity >= 0.5f) { // MEDIUM strength threshold
+                    // Small raise sometimes
+                    int raiseAmount = Math.min(stackSize / 20, stackSize - currentBetToCall);
+                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
                     return new AIResponse(Action.RAISE, raiseAmount);
                 } else {
-                    return new AIResponse(Action.CALL, 0); // All-in
+                    return new AIResponse(Action.CALL, 0); // Call to see flop
                 }
-            } else { // Equity close to pot odds - call
-                if (currentBetToCall == 0) return new AIResponse(Action.CHECK, 0);
-                // If player is aggressive and AI has decent equity, be more willing to call
-                if (playerAggression > 0.6f && equity > 35) {
+            } else {
+                // Player bet/raised - use equity-based decision
+                float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
+                
+                // Adjusted thresholds for heads-up play
+                if (equity > 0.55) {
+                    int raiseAmount = (int)(currentBetToCall * 2.5f);
+                    raiseAmount = Math.min(stackSize - currentBetToCall, raiseAmount);
+                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    return new AIResponse(Action.RAISE, raiseAmount);
+                } else if (equity > 0.35) {
                     return new AIResponse(Action.CALL, 0);
+                } else if (equity < 0.25 && random.nextFloat() > 0.15) {
+                    return new AIResponse(Action.FOLD, 0);
                 }
+                
+                // Default: call with marginal hands (heads-up adjustment)
                 return new AIResponse(Action.CALL, 0);
             }
+        }
+        
+        private AIResponse postFlopDecision(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, 
+                                          int currentBetToCall, int potSize, int stackSize) {
+            // Estimate player range based on history and aggression
+            String playerRange = estimatePlayerRange();
+            
+            // Calculate current equity against estimated range
+            float equity = calculateEquityMonteCarlo(holeCards, communityCards, playerRange);
+            float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
+            
+            return postFlopDecisionLogic(equity, potOdds, stackSize, potSize);
+        }
+        
+        private AIResponse postFlopDecisionLogic(float equity, float potOdds, int stackSize, int potSize) {
+            // Base decision on equity adjusted by aggression meter
+            float aggressionFactor = aggressionMeter;
+            
+            // Call threshold: adjust based on opponent aggression
+            float callThreshold = potOdds * (1.0f - aggressionFactor * 0.15f);
+            
+            // Raise threshold: higher vs passive players
+            float raiseThreshold = potOdds + 0.2f + (aggressionFactor * 0.1f);
+            
+            // Bluff threshold: bluff more vs passive players
+            float bluffThreshold = 0.25f - (aggressionFactor * 0.1f);
+            
+            // Random deviation (10% chance)
+            if (random.nextFloat() < 0.1f) {
+                return randomDeviation(equity, potOdds, stackSize, potSize);
+            }
+            
+            // Decision logic
+            if (equity < callThreshold) {
+                // Consider bluff catching or folding
+                if (equity > bluffThreshold && random.nextFloat() < 0.3f) {
+                    return new AIResponse(Action.CALL, 0); // Bluff catch
+                }
+                return new AIResponse(Action.FOLD, 0);
+            }
+            
+            if (equity >= raiseThreshold) {
+                // Value raise
+                int betSize = calculateBetSize(equity, potSize, aggressionFactor, stackSize);
+                return new AIResponse(Action.RAISE, betSize);
+            }
+            
+            // Default: call with equity advantage
+            return new AIResponse(Action.CALL, 0);
+        }
+        
+        private float calculatePreflopEquity(List<PokerGameLogic.Card> holeCards) {
+            // Simplified pre-flop equity calculation based on hand strength
+            PokerGameLogic.Card c1 = holeCards.get(0);
+            PokerGameLogic.Card c2 = holeCards.get(1);
+            int v1 = Math.max(c1.rank.value, c2.rank.value);
+            int v2 = Math.min(c1.rank.value, c2.rank.value);
+            
+            float equity = 0.35f; // Default value
+            
+            // Premium pairs
+            if (v1 == v2) {
+                if (v1 >= 11) equity = 0.80f; // J, Q, K, A
+                else if (v1 >= 8) equity = 0.70f; // Strong pairs
+                else equity = 0.55f; // Small pairs
+            }
+            // Suited connectors
+            else if (c1.suit == c2.suit && Math.abs(v1 - v2) == 1) {
+                equity = 0.65f; // Suited connectors
+            }
+            // Other suited
+            else if (c1.suit == c2.suit) {
+                if (v1 == 14) equity = 0.60f; // Suited ace
+                else if (v1 >= 11) equity = 0.55f; // Suited face cards
+                else equity = 0.45f; // Other suited
+            }
+            // Offsuit connectors
+            else if (Math.abs(v1 - v2) == 1) {
+                equity = 0.50f; // Connectors
+            }
+            // High cards
+            else if (v1 >= 11) {
+                equity = 0.50f; // At least one face card
+            }
+            
+            return equity;
+        }
+        
+        private float calculateEquityMonteCarlo(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, String playerRange) {
+            // Simplified Monte Carlo simulation with limited samples
+            int wins = 0;
+            int samples = 50; // Limited to 50 samples for performance
+            
+            for (int i = 0; i < samples; i++) {
+                // Create temporary deck without known cards
+                PokerGameLogic.Deck tempDeck = new PokerGameLogic.Deck();
+                // Remove known cards from deck
+                tempDeck.cards.removeAll(holeCards);
+                tempDeck.cards.removeAll(communityCards);
+                
+                // Shuffle and complete the board
+                Collections.shuffle(tempDeck.cards, random);
+                List<PokerGameLogic.Card> completeBoard = new ArrayList<>(communityCards);
+                
+                // Add remaining cards to complete board (if needed)
+                int cardsNeeded = 5 - communityCards.size();
+                for (int j = 0; j < cardsNeeded && !tempDeck.cards.isEmpty(); j++) {
+                    completeBoard.add(tempDeck.cards.remove(0));
+                }
+                
+                // Generate a random opponent hand from range
+                List<PokerGameLogic.Card> opponentHand = generateRandomOpponentHand(playerRange, tempDeck);
+                
+                // Evaluate hands
+                PokerGameLogic.HandScore ourScore = PokerGameLogic.evaluate(holeCards, completeBoard);
+                PokerGameLogic.HandScore oppScore = PokerGameLogic.evaluate(opponentHand, completeBoard);
+                
+                if (ourScore.compareTo(oppScore) > 0) {
+                    wins++;
+                } else if (ourScore.compareTo(oppScore) == 0) {
+                    wins += 0.5f; // Split pot
+                }
+            }
+            
+            return (float)wins / samples;
+        }
+        
+        private List<PokerGameLogic.Card> generateRandomOpponentHand(String playerRange, PokerGameLogic.Deck deck) {
+            // Generate a random hand based on the player's range
+            List<PokerGameLogic.Card> hand = new ArrayList<>();
+            
+            // For simplicity, pick two random cards from the remaining deck
+            if (deck.cards.size() >= 2) {
+                hand.add(deck.cards.remove(0));
+                hand.add(deck.cards.remove(0));
+            } else if (deck.cards.size() == 1) {
+                hand.add(deck.cards.remove(0));
+                // Add another random card if possible
+                PokerGameLogic.Deck backupDeck = new PokerGameLogic.Deck();
+                backupDeck.cards.removeAll(hand);
+                backupDeck.cards.removeAll(deck.cards);
+                if (!backupDeck.cards.isEmpty()) {
+                    hand.add(backupDeck.cards.get(random.nextInt(backupDeck.cards.size())));
+                }
+            }
+            
+            return hand;
         }
         
         private float calculateEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, int stackSize, int opponentStackSize) {
@@ -418,37 +630,69 @@ public class PokerGame {
             
             if (isRaise) {
                 aggressiveActions++;
-                consecutiveRaises++;
-                consecutiveFoldsByPlayer = 0; // Reset consecutive folds counter
-            } else if (isFold) {
-                consecutiveFoldsByPlayer++;
-                consecutiveRaises = 0; // Reset consecutive raises counter
-            } else {
-                consecutiveRaises = 0; // Reset when player doesn't raise
-                consecutiveFoldsByPlayer = 0; // Reset when player doesn't fold
             }
             
-            // Calculate aggression level as percentage of aggressive actions
-            if (totalPlayerActions > 0) {
-                playerAggressionLevel = (float)aggressiveActions / totalPlayerActions;
+            // Update aggression meter based on player actions
+            updateAggressionMeter(isRaise);
+            
+            // Classify player style after sufficient hands
+            if (totalPlayerActions > 5) {
+                if (aggressionMeter < 0.3f) {
+                    playerStyle = 1; // PASSIVE
+                } else if (aggressionMeter > 0.7f) {
+                    playerStyle = 3; // AGGRESSIVE
+                } else {
+                    playerStyle = 2; // BALANCED
+                }
+            }
+        }
+        
+        private void updateAggressionMeter(boolean isRaise) {
+            // Track last 10 actions with exponential decay
+            float recentAggression = 0;
+            float weight = 1.0f;
+            
+            // Add the current action to the history
+            float currentActionWeight = isRaise ? 1.0f : 0.3f; // Raises are more aggressive than calls
+            aggressionHistory[historyIndex] = currentActionWeight;
+            historyIndex = (historyIndex + 1) % aggressionHistory.length; // Move to next index
+            
+            // Calculate weighted average of recent actions
+            for (int i = 0; i < aggressionHistory.length; i++) {
+                recentAggression += weight * aggressionHistory[i];
+                weight *= 0.8f; // Decay older actions
             }
             
-            // Cap the aggression level at 1.0
-            playerAggressionLevel = Math.min(1.0f, playerAggressionLevel);
+            // Normalize by the sum of weights
+            float totalWeight = 0;
+            weight = 1.0f;
+            for (int i = 0; i < aggressionHistory.length; i++) {
+                totalWeight += weight;
+                weight *= 0.8f;
+            }
+            
+            if (totalWeight > 0) {
+                recentAggression /= totalWeight;
+            }
+            
+            // Update meter with smoothing
+            aggressionMeter = 0.7f * aggressionMeter + 0.3f * recentAggression;
         }
         
         /**
          * Get the current player aggression level
          */
         public float getPlayerAggressionLevel() {
-            return playerAggressionLevel;
+            return aggressionMeter;
         }
         
         /**
          * Get the number of consecutive raises by player
          */
         public int getConsecutivePlayerRaises() {
-            return consecutiveRaises;
+            // This method is not directly used in the new implementation
+            // but keeping for compatibility
+            return 0;
         }
     }
 }

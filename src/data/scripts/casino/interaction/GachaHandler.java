@@ -7,6 +7,8 @@ import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.GachaAnimation;
+import data.scripts.casino.GachaAnimationDialogDelegate;
 import data.scripts.CasinoUIPanels;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -24,6 +26,10 @@ public class GachaHandler {
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
+    
+    // Track if we just completed a gacha pull animation
+    private boolean justCompletedPull = false;
+    private List<FleetMemberAPI> pendingShipsForConversion = new ArrayList<>();
     
     public GachaHandler(CasinoInteraction main) {
         this.main = main;
@@ -44,6 +50,15 @@ public class GachaHandler {
             int rounds = Integer.parseInt(option.replace("confirm_pull_", ""));
             performGachaPull(rounds);
         });
+    }
+    
+    /**
+     * Checks if a transaction would be within the player's debt ceiling
+     */
+    private boolean canAffordTransaction(int cost) {
+        int currentGems = CasinoVIPManager.getStargems();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
+        return (currentGems - cost) >= -debtCeiling; // Can go into debt but not beyond ceiling
     }
 
     /**
@@ -70,6 +85,27 @@ public class GachaHandler {
      */
     public void showGachaMenu() {
         main.options.clearOptions();
+        
+        // Check if we just completed a pull and need to show results
+        if (justCompletedPull && !pendingShipsForConversion.isEmpty()) {
+            justCompletedPull = false; // Reset the flag
+            
+            // Show ship picker for ships they don't want to convert
+            showConvertSelectionPicker(pendingShipsForConversion);
+            return; // Don't continue with normal menu display
+        } else if (justCompletedPull) {
+            // If we just completed a pull but got no ships, show normal menu
+            justCompletedPull = false;
+            
+            main.textPanel.addPara("Gacha Results:", Color.CYAN);
+            main.textPanel.addPara("No ships obtained from your pull.", Color.GRAY);
+            
+            main.options.addOption("Pull Again", "gacha_menu");
+            main.options.addOption("Back to Main Menu", "back_menu");
+            return;
+        }
+        
+        // Normal menu display continues here
         main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.GachaUIPanel());
         
         main.textPanel.addPara("Tachy-Impact Warp Beacon Protocol", Color.CYAN);
@@ -88,12 +124,11 @@ public class GachaHandler {
         main.textPanel.addPara("- 5* Pity: " + data.pity5 + "/" + CasinoConfig.PITY_HARD_5);
         main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
         
-        // Only show 1x and 10x pull options as requested
-        int gems = CasinoVIPManager.getStargems();
-        if (gems >= CasinoConfig.GACHA_COST) {
+        // Show pull options if player can afford them within their debt ceiling
+        if (canAffordTransaction(CasinoConfig.GACHA_COST)) {
             main.options.addOption("Pull 1x (" + CasinoConfig.GACHA_COST + " Gems)", "pull_1");
         }
-        if (gems >= (CasinoConfig.GACHA_COST * 10)) {
+        if (canAffordTransaction(CasinoConfig.GACHA_COST * 10)) {
             main.options.addOption("Pull 10x (" + (CasinoConfig.GACHA_COST * 10) + " Gems)", "pull_10");
         }
         
@@ -121,9 +156,10 @@ public class GachaHandler {
     private void performGachaPull(int times) {
         int cost = times * CasinoConfig.GACHA_COST;
         int currentGems = CasinoVIPManager.getStargems();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
         
-        if (currentGems < cost) {
-            main.textPanel.addPara("Insufficient Stargems!", Color.RED);
+        if ((currentGems - cost) < -debtCeiling) { // Check if transaction would exceed debt ceiling
+            main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
             showGachaMenu();
             return;
         }
@@ -131,6 +167,10 @@ public class GachaHandler {
         CasinoVIPManager.addStargems(-cost);
         CasinoGachaManager manager = new CasinoGachaManager();
         main.textPanel.addPara("Initiating Warp Sequence...", Color.CYAN);
+        
+        // Play gacha pull sound
+        // Removed sound effect as it was removed from sounds.json
+// Global.getSoundPlayer().playUISound("gacha_pull", 1f, 1f);
         
         // Collect ships that were obtained from the pulls
         List<FleetMemberAPI> obtainedShips = new ArrayList<>();
@@ -142,21 +182,74 @@ public class GachaHandler {
             pullResults.add(result);
         }
         
-        // Process results directly without animation
+        // Show the gacha animation before displaying results
+        showGachaAnimation(pullResults, obtainedShips);
+    }
+    
+    /**
+     * Shows the gacha animation for the pull results
+     */
+    private void showGachaAnimation(List<String> pullResults, List<FleetMemberAPI> obtainedShips) {
+        // Create gacha items for animation
+        List<GachaAnimation.GachaItem> itemsToAnimate = new ArrayList<>();
+        
         for (String result : pullResults) {
-            main.textPanel.addPara(" > " + result);
+            // Parse the result to create gacha items
+            // This is a simplified approach - in a real implementation you'd parse the actual results
+            int rarity = 3; // Default to 3 stars for demonstration
+            if (result.contains("5*") || result.toLowerCase().contains("legendary")) {
+                rarity = 5;
+            } else if (result.contains("4*") || result.toLowerCase().contains("rare")) {
+                rarity = 4;
+            } else if (result.contains("3*") || result.toLowerCase().contains("uncommon")) {
+                rarity = 3;
+            } else if (result.contains("2*") || result.toLowerCase().contains("common")) {
+                rarity = 2;
+            }
+            
+            GachaAnimation.GachaItem item = new GachaAnimation.GachaItem(
+                "item_" + System.currentTimeMillis() + "_" + itemsToAnimate.size(),
+                result,
+                rarity
+            );
+            itemsToAnimate.add(item);
         }
         
-        // If no ships were obtained, just show the normal options
-        if (obtainedShips.isEmpty()) {
-            main.options.clearOptions(); // Clear any previous options to prevent UI confusion
-            main.options.addOption("Pull Again", "gacha_menu");
-            main.options.addOption("Back to Main Menu", "back_menu");
-            return;
-        }
+        // Store the obtained ships for processing after animation
+        this.pendingShipsForConversion.clear();
+        this.pendingShipsForConversion.addAll(obtainedShips);
         
-        // Show ship picker for ships they don't want to convert
-        showConvertSelectionPicker(obtainedShips);
+        // Create the animation
+        GachaAnimation animation = new GachaAnimation(itemsToAnimate, new GachaAnimation.GachaAnimationCallback() {
+            @Override
+            public void onAnimationComplete(List<GachaAnimation.GachaItem> results) {
+                // Mark that we just completed a pull so we know to show results next
+                justCompletedPull = true;
+                
+                // The animation dialog will dismiss itself, and the results will be shown
+                // when the user returns to the gacha menu
+            }
+        });
+        
+        // Show the animation in a custom dialog
+        GachaAnimationDialogDelegate delegate = new GachaAnimationDialogDelegate(null, animation, main.getDialog(), null);
+        
+        // Show the custom visual dialog
+        main.getDialog().showCustomVisualDialog(600f, 400f, delegate);
+    }
+    
+    /**
+     * Shows the pull results after animation completes
+     */
+    private void showPullResults(List<GachaAnimation.GachaItem> animatedResults, List<FleetMemberAPI> obtainedShips) {
+        // This method may still be called directly in some cases, but we'll handle it by
+        // storing the results and redirecting to the gacha menu which will show them
+        this.pendingShipsForConversion.clear();
+        this.pendingShipsForConversion.addAll(obtainedShips);
+        this.justCompletedPull = true;
+        
+        // Redirect to gacha menu which will handle showing the results
+        showGachaMenu();
     }
     
     /**
@@ -231,6 +324,7 @@ public class GachaHandler {
                             Global.getSector().getPlayerFleet().getFleetData().addFleetMember(ship);
                         }
                     }
+                    // Show the post-pull options after cancellation
                     showPostPullOptions();
                 }
             });

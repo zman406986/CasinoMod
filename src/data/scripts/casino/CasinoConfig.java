@@ -86,6 +86,9 @@ public class CasinoConfig {
     public static int MARKET_SIZE_MIN_FOR_PLAYER_CASINO = 6;                 // Minimum size for player markets
     public static int MARKET_SIZE_MIN_FOR_GENERAL_CASINO = 7;                // Minimum size for general markets
     
+    // Gacha Ship Filtering
+    public static Set<String> GACHA_SHIP_BLACKLIST = new HashSet<>();        // Ship hull IDs to exclude from gacha pool
+    
     // Poker AI Configuration
     public static float POKER_AI_TIGHT_THRESHOLD_FOLD = 6f;                  // Tight AI fold threshold
     public static float POKER_AI_TIGHT_THRESHOLD_RAISE = 12f;                // Tight AI raise threshold
@@ -148,6 +151,15 @@ public class CasinoConfig {
                  PITY_HARD_5 = gacha.optInt("pityHard5", 90);
                  PITY_HARD_4 = gacha.optInt("pityHard4", 10);
                  PITY_SOFT_START_5 = gacha.optInt("pitySoftStart5", 74);
+                                 
+                 // Load gacha ship blacklist
+                 GACHA_SHIP_BLACKLIST.clear();
+                 if (gacha.has("shipBlacklist")) {
+                     JSONArray blacklist = gacha.getJSONArray("shipBlacklist");
+                     for (int i = 0; i < blacklist.length(); i++) {
+                         GACHA_SHIP_BLACKLIST.add(blacklist.getString(i));
+                     }
+                 }
                  
                  // Poker
                  JSONObject poker = json.getJSONObject("poker");

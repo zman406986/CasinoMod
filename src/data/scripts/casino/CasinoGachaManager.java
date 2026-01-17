@@ -3,13 +3,14 @@ package data.scripts.casino;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
+import com.fs.starfarer.api.combat.ShipHullSpecAPI.ShipTypeHints;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
 import com.fs.starfarer.api.impl.campaign.ids.Tags;
 import com.fs.starfarer.api.impl.campaign.ids.Items;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,28 +59,105 @@ public class CasinoGachaManager {
     }
     
     /**
+     * Disallowed hull ID prefixes - ships with these prefixes are typically special/boss ships
+     * Similar to Nexerelin's Prism Shop DISALLOWED_PREFIXES
+     */
+    private static final Set<String> DISALLOWED_PREFIXES = new HashSet<>(Arrays.asList(
+        "tem_",      // Templars (special faction)
+        "vayra_",    // Vayra's Sector unique bounty ships
+        "swp_",      // Ship/Weapon Pack boss ships
+        "apex_",     // Apex Design Collective
+        "tahlan_",   // Tahlan Shipworks special ships
+        "uw_",       // Underworld special ships
+        "rat_",      // Roider special
+        "dcp_",      // Domain Convergence Project
+        "mso_",      // Mysterious Ship Overhaul
+        "xiv_"       // XIV Battlegroup (special Hegemony ships)
+    ));
+    
+    /**
+     * Minimum fleet points required for each hull size to ensure quality ships
+     * Based on Nexerelin's Prism Shop FP thresholds
+     */
+    private int getMinimumFleetPoints(ShipAPI.HullSize size) {
+        switch (size) {
+            case CAPITAL_SHIP: return 20;
+            case CRUISER: return 14;
+            case DESTROYER: return 8;
+            case FRIGATE: return 4;
+            default: return 5;
+        }
+    }
+    
+    /**
      * Checks if a ship hull spec is allowed in the gacha pool
-     * Based on similar logic to Nexerelin's Prism Shop
+     * Based on comprehensive logic from Nexerelin's Prism Shop
      */
     public boolean isShipAllowed(ShipHullSpecAPI spec) {
-        // Skip d-hulls
+        // Safety check for null spec
+        if (spec == null) return false;
+        
+        // Skip d-hulls (damaged hulls)
         if (spec.isDHull()) return false;
         
         // Skip ships with no-sell tags (using same tags as Prism Shop)
-        if (spec.hasTag(Tags.NO_SELL) || spec.hasTag(Tags.RESTRICTED) || spec.hasTag(Items.TAG_NO_DEALER)) return false;
+        if (spec.hasTag(Tags.NO_SELL)) return false;
+        if (spec.hasTag(Tags.RESTRICTED)) return false;
+        if (spec.hasTag(Items.TAG_NO_DEALER)) return false;
         
-        // Skip station modules
-        if (spec.getHints().contains(ShipHullSpecAPI.ShipTypeHints.STATION)) return false;
+        // Skip station/module hulls - these are not standalone ships
+        if (spec.getHints().contains(ShipTypeHints.STATION)) return false;
+        if (spec.getHints().contains(ShipTypeHints.MODULE)) return false;
         
-        // Skip fighters
+        // Skip hulls that should be hidden (usually secret/special ships)
+        if (spec.getHints().contains(ShipTypeHints.HIDE_IN_CODEX)) return false;
+        
+        // Skip fighters - not valid for gacha
         if (spec.getHullSize() == ShipAPI.HullSize.FIGHTER) return false;
         
-        // Skip ships that start with restricted prefixes
+        // Check hull ID against disallowed prefixes
         String hullId = spec.getHullId();
-        if (hullId.startsWith("tem_")) return false;
+        if (hullId == null) return false;
         
-        // Skip high FP ships that might be boss/secret ships
-        if (spec.getFleetPoints() > 50) return false;
+        for (String prefix : DISALLOWED_PREFIXES) {
+            if (hullId.startsWith(prefix)) return false;
+        }
+        
+        // Check for ships in the configured blacklist
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
+        
+        // Skip extremely high FP ships (likely bosses/uniques)
+        if (spec.getFleetPoints() > 60) return false;
+        
+        // Quality check: Skip very low FP ships for their size (poor quality)
+        int minFP = getMinimumFleetPoints(spec.getHullSize());
+        if (spec.getFleetPoints() < minFP) return false;
+        
+        // Only allow base hulls (not skins/variants) to avoid duplicates
+        // Skins have a different base hull ID
+        if (!spec.isBaseHull() && !spec.getHullId().equals(spec.getBaseHullId())) {
+            // This is a skin - skip it, we'll use the base hull instead
+            return false;
+        }
+        
+        // Skip Remnant ships (automated, usually dangerous/special)
+        if (spec.hasTag(Tags.SHIP_REMNANTS)) return false;
+        
+        // Skip ships marked as unrecoverable (usually very special)
+        if (spec.hasTag(Tags.UNRECOVERABLE)) return false;
+        
+        // Skip Omega ships (extremely rare/special)
+        if (spec.hasTag(Tags.OMEGA)) return false;
+        
+        // Skip Threat ships (abyssal entities)
+        if (spec.hasTag(Tags.THREAT)) return false;
+        
+        // Skip Dweller ships (abyssal entities)
+        if (spec.hasTag(Tags.DWELLER)) return false;
+        
+        // Skip Fragment ships (abyssal entities)
+        if (spec.hasTag(Tags.FRAGMENT)) return false;
         
         return true;
     }
