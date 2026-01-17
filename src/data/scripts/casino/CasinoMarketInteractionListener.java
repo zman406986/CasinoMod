@@ -9,12 +9,6 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
 
     private static final String CASINO_OPTION_ID = "visit_casino";
     
-    /**
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - ColonyInteractionListener monitors when players interact with markets
-     * - reportPlayerOpenedMarket() is called when the player opens a market screen
-     * - This is the right place to add custom options to the market interface
-     */
     @Override
     public void reportPlayerOpenedMarket(MarketAPI market) {
         // Check if this market is suitable for the casino interaction
@@ -24,25 +18,11 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
         }
     }
 
-    /**
-     * Called when the player closes the market interface
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Use this method for cleanup if needed
-     * - Typically not required unless you're storing temporary data
-     */
     @Override
     public void reportPlayerClosedMarket(MarketAPI market) {
         // Cleanup if needed when player closes the market
     }
     
-    /**
-     * Called after the cargo/market data has been updated
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - This ensures the market data is fully loaded before adding options
-     * - Sometimes needed because the market data might not be ready in reportPlayerOpenedMarket()
-     */
     @Override
     public void reportPlayerOpenedMarketAndCargoUpdated(MarketAPI market) {
         // This is called after cargo is updated, we can add the option here too
@@ -51,26 +31,11 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
         }
     }
     
-    /**
-     * Called when the player completes a transaction at the market
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Use this to track player purchases or sales
-     * - Good place to trigger conditional logic based on what the player bought/sold
-     */
     @Override
     public void reportPlayerMarketTransaction(PlayerMarketTransaction transaction) {
         // Handle transaction events if needed
     }
     
-    /**
-     * Determines if the casino option should be available at this market
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - MarketAPI provides access to market properties (faction, size, industries, etc.)
-     * - This method defines the conditions under which your mod's features appear
-     * - Be strategic about placement to make sense in the game world
-     */
     private boolean shouldAddCasinoOption(MarketAPI market) {
         // Check if market meets criteria for casino
         // Add casino option to Tritachyon faction markets (since they are tech-oriented)
@@ -78,8 +43,8 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
             return true;
         }
         
-        // Or to player markets of size 3+
-        if ("player".equals(market.getFactionId()) && market.getSize() >= 3) {
+        // Or to player markets (no size requirement)
+        if ("player".equals(market.getFactionId())) {
             return true;
         }
         
@@ -95,19 +60,10 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
             }
         }
         
-        // Or to markets of size 3+ in general
-        return market.getSize() >= 3; // Make it available in most markets (size 3+)
+        // Or to any market (no size requirement)
+        return true; // Make it available in all markets regardless of size
     }
 
-    /**
-     * Adds the casino option to the market interaction dialog
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Global.getSector().getCampaignUI().getCurrentInteractionDialog() gets the active UI
-     * - OptionPanelAPI.addOption() adds clickable options to the dialog
-     * - MemoryAPI helps track state to avoid duplicate options
-     * - Use unique keys when storing data in memory to avoid conflicts
-     */
     private void addCasinoOptionToMarket(MarketAPI market) {
         // Get the interaction dialog for this market
         InteractionDialogAPI dialog = Global.getSector().getCampaignUI().getCurrentInteractionDialog();

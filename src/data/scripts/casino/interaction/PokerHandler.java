@@ -16,84 +16,38 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * Manages the Texas Hold'em interaction flow
- * Now includes player aggression tracking for AI adaptation
- */
 public class PokerHandler {
 
     private final CasinoInteraction main;
     
     // State
-    /**
-     * The deck of cards used for the game
-     */
     protected PokerGameLogic.Deck deck;
     
-    /**
-     * Cards in the player's hand
-     */
     protected List<PokerGameLogic.Card> playerHand;
     
-    /**
-     * Cards in the opponent's (AI's) hand
-     */
     protected List<PokerGameLogic.Card> opponentHand;
     
-    /**
-     * Community cards shared by both players
-     */
     protected List<PokerGameLogic.Card> communityCards;
     
-    /**
-     * Current size of the pot
-     */
     protected int potSize;
     
-    /**
-     * Player's total bet in the current round
-     */
     protected int playerBet;
     
-    /**
-     * Opponent's total bet in the current round
-     */
     protected int opponentBet;
     
-    /**
-     * Amount needed to call the current bet
-     */
     protected int currentBetToCall; 
     
-    /**
-     * Player's remaining chip stack
-     */
     protected int playerWallet; // Player's total money outside the current game
     protected int playerStack; 
     
-    /**
-     * Opponent's remaining chip stack
-     */
     protected int opponentStack; 
     
-    /**
-     * AI opponent that makes decisions
-     */
     protected PokerGame.SimplePokerAI ai;
     
-    /**
-     * Big blind amount from config
-     */
     protected int bigBlind = CasinoConfig.POKER_BIG_BLIND;
     
-    /**
-     * Small blind amount from config
-     */
     protected int smallBlind = CasinoConfig.POKER_SMALL_BLIND;
     
-    /**
-     * Tracks which player is the dealer
-     */
     protected boolean playerIsDealer;
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -138,9 +92,6 @@ public class PokerHandler {
         });
     }
 
-    /**
-     * Handles poker game options including ante, actions, and navigation
-     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -160,9 +111,6 @@ public class PokerHandler {
         handlePokerAction(option);
     }
 
-    /**
-     * Shows confirmation dialog for poker ante
-     */
     public void showPokerConfirm() {
         main.options.clearOptions();
         main.textPanel.addPara("The IPC Dealer prepares to deal. How big of a stack would you like to bring to the table?", Color.YELLOW);
@@ -193,9 +141,6 @@ public class PokerHandler {
         main.setState(CasinoInteraction.State.POKER);
     }
 
-    /**
-     * Sets up a new poker hand with fresh cards and initial bets
-     */
     public void setupGame() {
         // Default to 10000 stack if called without parameters
         setupGame(10000);
@@ -212,11 +157,6 @@ public class PokerHandler {
         playerHand = new ArrayList<>();
         opponentHand = new ArrayList<>();
         communityCards = new ArrayList<>();
-        
-        playerHand.add(deck.draw());
-        opponentHand.add(deck.draw());
-        playerHand.add(deck.draw());
-        opponentHand.add(deck.draw());
         
         playerWallet = CasinoVIPManager.getStargems();
         
@@ -294,9 +234,6 @@ public class PokerHandler {
         updateUI();
     }
 
-    /**
-     * Updates the poker UI with current game state
-     */
     public void updateUI() {
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("------------------------------------------------");
@@ -534,15 +471,30 @@ public class PokerHandler {
             main.getOptions().addOption("Raise 2000", "poker_raise_2000");
         }
         
-        // Add percentage-based options
-        int tenPercent = (playerStackAvailable * 10) / 100;
-        if (tenPercent > 0 && playerStackAvailable >= tenPercent) {
-            main.getOptions().addOption("Raise " + tenPercent + " (10% of stack)", "poker_raise_" + tenPercent);
-        }
-        
-        int fiftyPercent = (playerStackAvailable * 50) / 100;
-        if (fiftyPercent > 0 && playerStackAvailable >= fiftyPercent) {
-            main.getOptions().addOption("Raise " + fiftyPercent + " (50% of stack)", "poker_raise_" + fiftyPercent);
+        // Add percentage-based options based on player's available credit (remaining debt capacity) if in debt
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        if (availableCredit > 0) {
+            // Player has available credit, show percentage options based on that
+            int tenPercent = (availableCredit * 10) / 100;
+            if (tenPercent > 0 && playerStackAvailable >= tenPercent) {
+                main.getOptions().addOption("Raise " + tenPercent + " (10% of remaining credit)", "poker_raise_" + tenPercent);
+            }
+            
+            int fiftyPercent = (availableCredit * 50) / 100;
+            if (fiftyPercent > 0 && playerStackAvailable >= fiftyPercent) {
+                main.getOptions().addOption("Raise " + fiftyPercent + " (50% of remaining credit)", "poker_raise_" + fiftyPercent);
+            }
+        } else {
+            // Player has no available credit, show percentage options based on current stack
+            int tenPercent = (playerStackAvailable * 10) / 100;
+            if (tenPercent > 0 && playerStackAvailable >= tenPercent) {
+                main.getOptions().addOption("Raise " + tenPercent + " (10% of stack)", "poker_raise_" + tenPercent);
+            }
+            
+            int fiftyPercent = (playerStackAvailable * 50) / 100;
+            if (fiftyPercent > 0 && playerStackAvailable >= fiftyPercent) {
+                main.getOptions().addOption("Raise " + fiftyPercent + " (50% of stack)", "poker_raise_" + fiftyPercent);
+            }
         }
         
         // Also include the original configured raise amounts for variety
@@ -623,7 +575,7 @@ public class PokerHandler {
                     opponentStack -= callAmount;
                     opponentBet += callAmount;
                     potSize += callAmount;
-                    main.getTextPanel().addPara("Opponent calls with " + callAmount + " Stargems.", Color.YELLOW);
+                    main.getTextPanel().addPara("Opponent calls your raise with " + callAmount + " Stargems.", Color.YELLOW);
                 }
                 advanceStreet(); // Betting round complete
             }
@@ -643,9 +595,6 @@ public class PokerHandler {
         }
     }
     
-    /**
-     * Suspends the current game to resume later
-     */
     private void suspendGame() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
         mem.set("$ipc_suspended_game_type", "Poker");
@@ -664,9 +613,6 @@ public class PokerHandler {
         main.getOptions().addOption("Leave", "leave_now");
     }
 
-    /**
-     * Restores a suspended poker game from memory
-     */
     public void restoreSuspendedGame() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
         
@@ -714,9 +660,6 @@ public class PokerHandler {
         }
     }
 
-    /**
-     * Advances the game to next street (flop, turn, river)
-     */
     private void advanceStreet() {
         // Reset betting round tracking for the new street
         playerBet = 0;
@@ -735,9 +678,6 @@ public class PokerHandler {
         updateUI();
     }
 
-    /**
-     * Determines the winner of the current hand
-     */
     private void determineWinner() {
         PokerGame.PokerGameLogic.HandScore playerResult = PokerGame.PokerGameLogic.evaluate(playerHand, communityCards);
         PokerGame.PokerGameLogic.HandScore opponentResult = PokerGame.PokerGameLogic.evaluate(opponentHand, communityCards);
@@ -765,18 +705,12 @@ public class PokerHandler {
         }
     }
 
-    /**
-     * Converts card list to string representation
-     */
     private String getCardsString(List<PokerGame.PokerGameLogic.Card> cards) {
         StringBuilder sb = new StringBuilder();
         for (PokerGame.PokerGameLogic.Card c : cards) sb.append(c.toString()).append(" ");
         return sb.toString();
     }
     
-    /**
-     * Displays cards with color coding for suits
-     */
     private void displayColoredCards(List<PokerGame.PokerGameLogic.Card> cards) {
         main.textPanel.setFontInsignia();
         
@@ -815,9 +749,6 @@ public class PokerHandler {
         }
     }
 
-    /**
-     * Returns all remaining stacks to the player's wallet
-     */
     private void returnStacks() {
         // Return player's remaining stack to wallet
         CasinoVIPManager.addStargems(playerStack);
@@ -826,9 +757,6 @@ public class PokerHandler {
         // since it's the AI's own chips
     }
     
-    /**
-     * Ends the current hand and shows options for next action
-     */
     private void endHand(boolean playerWon) {
         if (playerWon) {
             CasinoVIPManager.addStargems(potSize);

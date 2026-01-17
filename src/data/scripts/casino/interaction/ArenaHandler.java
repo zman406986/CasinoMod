@@ -13,58 +13,29 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * Manages the Spiral Abyss Arena interaction flow.
- * Interfaces with the SpiralAbyssArena simulation engine.
- * Supports bet increase functionality and percentage-based custom bet amounts.
- */
 public class ArenaHandler {
 
     private final CasinoInteraction main;
     
     // State
-    /**
-     * The active arena instance running the battle simulation
-     */
     protected SpiralAbyssArena activeArena;
     
-    /**
-     * List of ships participating in the current battle
-     */
     protected List<SpiralAbyssArena.SpiralGladiator> arenaCombatants;
     
-    /**
-     * The player's chosen champion ship
-     */
     protected SpiralAbyssArena.SpiralGladiator chosenChampion;
     
-    /**
-     * Number of opponents defeated in the current battle
-     */
     protected int opponentsDefeated;
     
-    /**
-     * Number of turns the player's champion has survived
-     */
     protected int turnsSurvived;
     
-    /**
-     * Current bet amount selected by the player
-     */
     protected int currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
     
-    /**
-     * Information about bets placed during the arena battle
-     */
     public static class BetInfo {
         public int amount;      // Amount bet
         public float multiplier; // Current multiplier
         public BetInfo(int a, float m) { amount = a; multiplier = m; }
     }
     
-    /**
-     * List of all bets placed in the current battle
-     */
     protected List<BetInfo> arenaBets = new ArrayList<>();
     
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -152,9 +123,6 @@ public class ArenaHandler {
         });
     }
 
-    /**
-     * Handles arena menu options including lobby, betting, and battle simulation
-     */
     public void handle(String option) {
         // Try exact match handlers first
         OptionHandler handler = handlers.get(option);
@@ -172,9 +140,6 @@ public class ArenaHandler {
         }
     }
 
-    /**
-     * Displays the arena lobby with ship selection and betting options
-     */
     public void showArenaLobby() {
         main.options.clearOptions();
         
@@ -260,9 +225,6 @@ public class ArenaHandler {
     }
 
 
-    /**
-     * Shows confirmation dialog for arena battle
-     */
     private void showArenaConfirm(int idx) {
         main.options.clearOptions();
         SpiralAbyssArena.SpiralGladiator g = arenaCombatants.get(idx);
@@ -301,9 +263,6 @@ public class ArenaHandler {
         showAddBetMenu();
     }
     
-    /**
-     * Adds an incremental bet to the current arena battle
-     */
     private void addIncrementalBet(int additionalAmount) {
         if (CasinoVIPManager.getStargems() < additionalAmount) {
             main.textPanel.addPara("Not enough Stargems! You only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
@@ -326,9 +285,6 @@ public class ArenaHandler {
         showArenaStatus();
     }
     
-    /**
-     * Shows incremental bet addition menu
-     */
     private void showAddBetMenu() {
         main.options.clearOptions();
         main.textPanel.addPara("Add to your bet:", Color.YELLOW);
@@ -348,15 +304,30 @@ public class ArenaHandler {
             main.options.addOption("Add 2000 Stargems", "arena_add_bet_2000");
         }
         
-        // Add percentage-based options
-        int tenPercent = (playerBalance * 10) / 100;
-        if (tenPercent > 0 && playerBalance >= tenPercent) {
-            main.options.addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_add_bet_" + tenPercent);
-        }
-        
-        int fiftyPercent = (playerBalance * 50) / 100;
-        if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
-            main.options.addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_add_bet_" + fiftyPercent);
+        // Add percentage-based options based on player's available credit (remaining debt capacity) if in debt
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        if (availableCredit > 0) {
+            // Player has available credit, show percentage options based on that
+            int tenPercent = (availableCredit * 10) / 100;
+            if (tenPercent > 0 && playerBalance >= tenPercent) {
+                main.options.addOption("Add " + tenPercent + " Stargems (10% of remaining credit)", "arena_add_bet_" + tenPercent);
+            }
+            
+            int fiftyPercent = (availableCredit * 50) / 100;
+            if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+                main.options.addOption("Add " + fiftyPercent + " Stargems (50% of remaining credit)", "arena_add_bet_" + fiftyPercent);
+            }
+        } else {
+            // Player has no available credit, show percentage options based on current balance
+            int tenPercent = (playerBalance * 10) / 100;
+            if (tenPercent > 0 && playerBalance >= tenPercent) {
+                main.options.addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_add_bet_" + tenPercent);
+            }
+            
+            int fiftyPercent = (playerBalance * 50) / 100;
+            if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+                main.options.addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_add_bet_" + fiftyPercent);
+            }
         }
         
         // Add option to start battle with current bet amount
@@ -367,9 +338,6 @@ public class ArenaHandler {
         main.options.addOption("Cancel & Return to Arena Lobby", "arena_lobby");
     }
     
-    /**
-     * Confirms the selected incremental bet amount with the player
-     */
     private void confirmAddBet(int additionalAmount) {
         main.options.clearOptions();
         main.textPanel.addPara("Confirm additional bet amount:", Color.YELLOW);
@@ -381,9 +349,6 @@ public class ArenaHandler {
         main.options.addOption("Cancel", "arena_add_bet_menu");
     }
 
-    /**
-     * Starts the arena battle with selected champion
-     */
     private void startArenaBattle(int chosenIdx) {
         // Make sure we have a valid champion
         if (chosenIdx >= 0 && chosenIdx < arenaCombatants.size()) {
@@ -441,9 +406,6 @@ public class ArenaHandler {
         simulateArenaStep();
     }
 
-    /**
-     * Simulates one step of the arena battle
-     */
     private boolean simulateArenaStep() {
         if (!chosenChampion.isDead) turnsSurvived++;
         List<String> logEntries = activeArena.simulateStep(arenaCombatants);
@@ -471,9 +433,6 @@ public class ArenaHandler {
         return true;
     }
 
-    /**
-     * Shows arena status with options to continue battle
-     */
     private void showArenaStatus() {
         main.getOptions().clearOptions();
         main.getOptions().addOption("Watch Next Round", "arena_watch_next");
@@ -481,9 +440,6 @@ public class ArenaHandler {
         main.getOptions().addOption("Add Bet to Champion", "arena_add_another_bet");
     }
 
-    /**
-     * Processes the end of arena battle and calculates rewards
-     */
     private void finishArenaBattle() {
         main.getOptions().clearOptions();
         
@@ -620,9 +576,6 @@ public class ArenaHandler {
         main.getOptions().addOption("Back to Main Menu", "back_menu");
     }
     
-    /**
-     * Shows menu for switching to a different champion
-     */
     private void showArenaSwitchMenu() {
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("Select a new champion to switch to:", Color.YELLOW);
@@ -668,9 +621,6 @@ public class ArenaHandler {
         main.getOptions().addOption("Cancel", "arena_lobby");
     }
     
-    /**
-     * Performs the champion switch with penalties
-     */
     private void performChampionSwitch(int newChampionIndex) {
         // Calculate switching penalty
         int penaltyFee = (int)(arenaBets.get(arenaBets.size()-1).amount * 0.5);
@@ -698,9 +648,6 @@ public class ArenaHandler {
         showArenaStatus();
     }
     
-    /**
-     * Shows menu for selecting bet amount after choosing a champion
-     */
     private void showBetAmountSelection(int championIndex) {
         // Store the selected champion for betting
         SpiralAbyssArena.SpiralGladiator selectedChampion = arenaCombatants.get(championIndex);
@@ -747,23 +694,35 @@ public class ArenaHandler {
             main.getOptions().addOption("Add 2000 Stargems", "arena_confirm_add_bet_to_champ_" + championIndex + "_2000");
         }
         
-        // Add percentage-based options
-        int tenPercent = (playerBalance * 10) / 100;
-        if (tenPercent > 0 && playerBalance >= tenPercent) {
-            main.getOptions().addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + tenPercent);
-        }
-        
-        int fiftyPercent = (playerBalance * 50) / 100;
-        if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
-            main.getOptions().addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + fiftyPercent);
+        // Add percentage-based options based on player's available credit (remaining debt capacity) if in debt
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        if (availableCredit > 0) {
+            // Player has available credit, show percentage options based on that
+            int tenPercent = (availableCredit * 10) / 100;
+            if (tenPercent > 0 && playerBalance >= tenPercent) {
+                main.getOptions().addOption("Add " + tenPercent + " Stargems (10% of remaining credit)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + tenPercent);
+            }
+            
+            int fiftyPercent = (availableCredit * 50) / 100;
+            if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+                main.getOptions().addOption("Add " + fiftyPercent + " Stargems (50% of remaining credit)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + fiftyPercent);
+            }
+        } else {
+            // Player has no available credit, show percentage options based on current balance
+            int tenPercent = (playerBalance * 10) / 100;
+            if (tenPercent > 0 && playerBalance >= tenPercent) {
+                main.getOptions().addOption("Add " + tenPercent + " Stargems (10% of account)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + tenPercent);
+            }
+            
+            int fiftyPercent = (playerBalance * 50) / 100;
+            if (fiftyPercent > 0 && playerBalance >= fiftyPercent) {
+                main.getOptions().addOption("Add " + fiftyPercent + " Stargems (50% of account)", "arena_confirm_add_bet_to_champ_" + championIndex + "_" + fiftyPercent);
+            }
         }
         
         main.getOptions().addOption("Back to Champion Selection", "arena_add_another_bet");
     }
     
-    /**
-     * Processes battle log entry with appropriate formatting
-     */
     private void processLogEntry(String logEntry) {
         // Parse the log entry to identify attacker, target, and damage values
         // Use regex to find patterns like "$attacker hits $target for $dmg!"
@@ -941,9 +900,6 @@ public class ArenaHandler {
         }
     }
     
-    /**
-     * Shows menu for adding another bet during battle - first choose champion, then amount
-     */
     private void showAddAnotherBetMenu() {
         // First, show champions to bet on
         main.getOptions().clearOptions();
@@ -998,9 +954,6 @@ public class ArenaHandler {
         return total;
     }
     
-    /**
-     * Performs adding another bet on the current champion
-     */
     private void performAddAnotherBet(int additionalAmount) {
         // Check if player has enough gems to add another bet
         if (CasinoVIPManager.getStargems() < additionalAmount) {
@@ -1019,9 +972,6 @@ public class ArenaHandler {
         showArenaStatus();
     }
     
-    /**
-     * Performs adding a bet to a specific champion
-     */
     private void performAddBetToChampion(int championIndex, int additionalAmount) {
         // Check if player has enough gems to add another bet
         if (CasinoVIPManager.getStargems() < additionalAmount) {
@@ -1048,9 +998,6 @@ public class ArenaHandler {
         showArenaStatus();
     }
     
-    /**
-     * Shows custom add another bet menu
-     */
     private void showCustomAddAnotherBetMenu() {
         main.options.clearOptions();
         main.textPanel.addPara("Enter Custom Bet Amount:", Color.YELLOW);
@@ -1080,17 +1027,21 @@ public class ArenaHandler {
         main.options.addOption("Back to Add Another Bet Menu", "arena_add_another_bet");
     }
     
-    /**
-     * Confirms adding another bet amount with the player
-     */
     private void confirmAddAnotherBet(int additionalAmount) {
-        main.options.clearOptions();
-        main.textPanel.addPara("Confirm adding another bet amount:", Color.YELLOW);
-        main.textPanel.addPara("Additional Bet: " + additionalAmount + " Stargems", Color.CYAN);
-        main.textPanel.addPara("Total Bet after addition: " + (getCurrentTotalBet() + additionalAmount) + " Stargems", Color.CYAN);
-        main.textPanel.addPara("Balance after bet: " + (CasinoVIPManager.getStargems() - additionalAmount) + " Stargems", Color.CYAN);
+        // Check if player has enough gems to add another bet
+        if (CasinoVIPManager.getStargems() < additionalAmount) {
+            main.getTextPanel().addPara("Not enough Stargems! You need " + additionalAmount + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+            showArenaStatus(); // Return to the arena status menu
+            return;
+        }
         
-        main.options.addOption("Confirm Addition", "confirm_arena_add_another_bet_" + additionalAmount);
-        main.options.addOption("Cancel", "arena_add_another_bet");
+        // Deduct the additional bet amount from player's gems
+        CasinoVIPManager.addStargems(-additionalAmount);
+        
+        // Add a new bet with a base multiplier of 1.0 - each bet is locked in separately like horse betting
+        arenaBets.add(new BetInfo(additionalAmount, 1.0f));
+        
+        main.getTextPanel().addPara("Added another bet of " + additionalAmount + " Stargems.", Color.YELLOW);
+        showArenaStatus();
     }
 }

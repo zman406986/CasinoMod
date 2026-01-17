@@ -17,9 +17,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * Manages the gacha interaction flow including pulls, pity system, and ship conversion
- */
 public class GachaHandler {
 
     private final CasinoInteraction main;
@@ -52,18 +49,11 @@ public class GachaHandler {
         });
     }
     
-    /**
-     * Checks if a transaction would be within the player's debt ceiling
-     */
     private boolean canAffordTransaction(int cost) {
-        int currentGems = CasinoVIPManager.getStargems();
-        int debtCeiling = CasinoVIPManager.getDebtCeiling();
-        return (currentGems - cost) >= -debtCeiling; // Can go into debt but not beyond ceiling
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        return availableCredit >= 0; // Player can afford if they have enough gems or available credit
     }
 
-    /**
-     * Routes different gacha-related options to appropriate methods
-     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -80,9 +70,6 @@ public class GachaHandler {
         }
     }
 
-    /**
-     * Displays the main gacha menu with options for pulls and auto-conversion settings
-     */
     public void showGachaMenu() {
         main.options.clearOptions();
         
@@ -124,7 +111,7 @@ public class GachaHandler {
         main.textPanel.addPara("- 5* Pity: " + data.pity5 + "/" + CasinoConfig.PITY_HARD_5);
         main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
         
-        // Show pull options if player can afford them within their debt ceiling
+        // Show pull options if player can afford them within their available credit
         if (canAffordTransaction(CasinoConfig.GACHA_COST)) {
             main.options.addOption("Pull 1x (" + CasinoConfig.GACHA_COST + " Gems)", "pull_1");
         }
@@ -138,9 +125,6 @@ public class GachaHandler {
         main.setState(CasinoInteraction.State.GACHA);
     }
     
-    /**
-     * Shows confirmation dialog for gacha pull
-     */
     private void showGachaConfirm(int times) {
         main.options.clearOptions();
         int cost = times * CasinoConfig.GACHA_COST;
@@ -150,21 +134,30 @@ public class GachaHandler {
         main.options.addOption("Cancel", "gacha_menu");
     }
     
-    /**
-     * Performs gacha pull(s) and shows ship conversion picker for obtained ships
-     */
     private void performGachaPull(int times) {
         int cost = times * CasinoConfig.GACHA_COST;
         int currentGems = CasinoVIPManager.getStargems();
-        int debtCeiling = CasinoVIPManager.getDebtCeiling();
         
-        if ((currentGems - cost) < -debtCeiling) { // Check if transaction would exceed debt ceiling
-            main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
-            showGachaMenu();
-            return;
+        // Check if player has enough gems or available credit
+        if (currentGems < cost) {
+            // Check if they have enough available credit to go into debt
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < cost) {
+                main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
+                showGachaMenu();
+                return;
+            }
+            
+            // Player can afford by going into debt
+            // Add debt equal to the difference
+            int debtToAdd = cost - currentGems;
+            CasinoVIPManager.addDebt(debtToAdd);
+            CasinoVIPManager.addStargems(-currentGems); // Spend all available gems
+        } else {
+            // Player has enough gems to cover the cost
+            CasinoVIPManager.addStargems(-cost);
         }
         
-        CasinoVIPManager.addStargems(-cost);
         CasinoGachaManager manager = new CasinoGachaManager();
         main.textPanel.addPara("Initiating Warp Sequence...", Color.CYAN);
         
@@ -186,9 +179,6 @@ public class GachaHandler {
         showGachaAnimation(pullResults, obtainedShips);
     }
     
-    /**
-     * Shows the gacha animation for the pull results
-     */
     private void showGachaAnimation(List<String> pullResults, List<FleetMemberAPI> obtainedShips) {
         // Create gacha items for animation
         List<GachaAnimation.GachaItem> itemsToAnimate = new ArrayList<>();
@@ -238,9 +228,6 @@ public class GachaHandler {
         main.getDialog().showCustomVisualDialog(600f, 400f, delegate);
     }
     
-    /**
-     * Shows the pull results after animation completes
-     */
     private void showPullResults(List<GachaAnimation.GachaItem> animatedResults, List<FleetMemberAPI> obtainedShips) {
         // This method may still be called directly in some cases, but we'll handle it by
         // storing the results and redirecting to the gacha menu which will show them
@@ -252,9 +239,6 @@ public class GachaHandler {
         showGachaMenu();
     }
     
-    /**
-     * Shows fleet member picker to select ships for conversion
-     */
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {
         // Get the auto-convert settings to handle ships that are already flagged for auto-convert
         CasinoGachaManager manager = new CasinoGachaManager();
@@ -330,18 +314,12 @@ public class GachaHandler {
             });
     }
     
-    /**
-     * Shows options after pull is complete
-     */
     private void showPostPullOptions() {
         main.options.clearOptions();
         main.options.addOption("Pull Again", "gacha_menu");
         main.options.addOption("Back to Main Menu", "back_menu");
     }
     
-    /**
-     * Opens fleet member picker to select ships for auto-conversion
-     */
     private void openAutoConvertPicker() {
         CasinoGachaManager manager = new CasinoGachaManager();
         List<FleetMemberAPI> potentialDrops = manager.getPotentialDrops();

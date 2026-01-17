@@ -11,9 +11,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * Manages Stargem top-ups, ship trades, and cashing out
- */
 public class FinHandler {
 
     private final CasinoInteraction main;
@@ -49,9 +46,6 @@ public class FinHandler {
         });
     }
 
-    /**
-     * Handles financial menu options including top-ups, ship sales, and cashouts
-     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -68,9 +62,6 @@ public class FinHandler {
         }
     }
 
-    /**
-     * Displays financial services menu with gem packages, ship sales, and VIP options
-     */
     public void showTopUpMenu() {
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("Financial Services Terminal", Color.GREEN);
@@ -93,9 +84,6 @@ public class FinHandler {
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
     
-    /**
-     * Shows confirmation dialog for gem pack or VIP purchase
-     */
     private void showTopUpConfirm(int index, boolean isVIP) {
         main.getOptions().clearOptions();
         if (isVIP) {
@@ -114,9 +102,6 @@ public class FinHandler {
         main.getOptions().addOption("Cancel", "financial_menu");
     }
     
-    /**
-     * Processes gem pack purchase transaction
-     */
     private void purchaseGemPack(int gems, int cost) {
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
             main.textPanel.addPara("Insufficient Credits!", Color.RED);
@@ -129,9 +114,6 @@ public class FinHandler {
         showTopUpMenu();
     }
     
-    /**
-     * Processes VIP subscription purchase
-     */
     private void purchaseVIPPass() {
         int cost = CasinoConfig.VIP_PASS_COST;
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
@@ -145,9 +127,6 @@ public class FinHandler {
         showTopUpMenu();
     }
 
-    /**
-     * Shows cashout selection screen with fixed options
-     */
     private void performCashOut() {
         int totalGems = CasinoVIPManager.getStargems();
         if (totalGems <= 0) {
@@ -174,10 +153,20 @@ public class FinHandler {
             main.getOptions().addOption(option3 + " Stargems", "cash_out_2000");
         }
         
-        // Add option to cash out 10% of available gems to match betting pattern
-        int tenPercent = (totalGems * 10) / 100;
-        if (tenPercent > 0) {
-            main.getOptions().addOption(tenPercent + " Stargems (10% of account)", "cash_out_ten_percent");
+        // Add option to cash out percentage of available gems based on available credit (remaining debt capacity) if in debt
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        if (availableCredit > 0) {
+            // Player has available credit, show percentage options based on that
+            int tenPercent = (availableCredit * 10) / 100;
+            if (tenPercent > 0) {
+                main.getOptions().addOption(tenPercent + " Stargems (10% of remaining credit)", "cash_out_ten_percent");
+            }
+        } else {
+            // Player has no available credit, show percentage options based on current balance
+            int tenPercent = (totalGems * 10) / 100;
+            if (tenPercent > 0) {
+                main.getOptions().addOption(tenPercent + " Stargems (10% of account)", "cash_out_ten_percent");
+            }
         }
         
         // Add option to cash out all available gems
@@ -187,9 +176,6 @@ public class FinHandler {
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
     
-    /**
-     * Processes cash out transaction after confirmation
-     */
     private void confirmCashOut(int gemsToCashOut) {
         int currentGems = CasinoVIPManager.getStargems();
         if (gemsToCashOut <= 0) {
@@ -229,7 +215,13 @@ public class FinHandler {
         } else if ("cash_out_2000".equals(option)) {
             gemsToCashOut = Math.min(totalGems, 2000);
         } else if ("cash_out_ten_percent".equals(option)) {
-            gemsToCashOut = (totalGems * 10) / 100;
+            // Use available credit if in debt, otherwise use current gems
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit > 0) {
+                gemsToCashOut = (availableCredit * 10) / 100;
+            } else {
+                gemsToCashOut = (totalGems * 10) / 100;
+            }
         } else if ("cash_out_all".equals(option)) {
             gemsToCashOut = totalGems;
         }
@@ -237,9 +229,6 @@ public class FinHandler {
         confirmCashOut(gemsToCashOut);
     }
     
-    /**
-     * Opens fleet member picker to sell ships for stargems
-     */
     private void openShipTradePicker() {
         main.getDialog().showFleetMemberPickerDialog("Select ships to sell for Stargems:", "Trade for Gems", "Cancel", 10, 7, 88, true, true, Global.getSector().getPlayerFleet().getFleetData().getMembersListCopy(), 
             new FleetMemberPickerListener() {

@@ -622,9 +622,6 @@ public class PokerGame {
             return maxSeq >= 4; 
         }
         
-        /**
-         * Track player behavior for adaptation
-         */
         public void trackPlayerAction(boolean isRaise, boolean isFold) {
             totalPlayerActions++;
             
@@ -679,16 +676,10 @@ public class PokerGame {
             aggressionMeter = 0.7f * aggressionMeter + 0.3f * recentAggression;
         }
         
-        /**
-         * Get the current player aggression level
-         */
         public float getPlayerAggressionLevel() {
             return aggressionMeter;
         }
         
-        /**
-         * Get the number of consecutive raises by player
-         */
         public int getConsecutivePlayerRaises() {
             // This method is not directly used in the new implementation
             // but keeping for compatibility

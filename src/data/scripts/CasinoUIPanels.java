@@ -11,43 +11,10 @@ import data.scripts.casino.interaction.CasinoInteraction;
 import java.awt.Color;
 import java.util.List;
 
-/**
- * CasinoUIPanels
- * 
- * ROLE: This file contains all the custom UI definitions for the casino.
- * It uses the "LunaLib" library, which is a powerful tool for making high-quality
- * interactive UI in Starsector.
- * 
- * LEARNERS: Each class below extends LunaBaseCustomPanelPlugin. This is the 
- * standard way to tell LunaLib "Hey, here is a custom piece of UI I want to show."
- * 
- * MOD DEVELOPMENT NOTES FOR BEGINNERS:
- * - LunaLib is a popular library for creating advanced UI in Starsector mods
- * - Custom panels are displayed in interaction dialogs to enhance the player experience
- * - Each panel handles its own layout, rendering, and user interaction
- * - Properly implementing advance() allows for dynamic UI updates
- */
 public class CasinoUIPanels {
 
 
 
-    /**
-     * ArenaUIPanel
-     * 
-     * ROLE: This panel shows real-time battle information during arena matches.
-     * It displays all participating ships with their health bars and identifies
-     * the player's chosen champion.
-     * 
-     * LEARNERS: This is a great example of a "Live UI" that updates in real-time
-     * during gameplay. The advance() method is called every frame to update the
-     * displayed information based on the current game state.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Extends LunaBaseCustomPanelPlugin to use LunaLib's UI system
-     * - Uses LunaProgressBar elements to visualize health percentages
-     * - Dynamically updates based on current arena state
-     * - Identifies player champion with special styling
-     */
     public static class ArenaUIPanel extends LunaBaseCustomPanelPlugin {
         private CasinoInteraction interaction;
         private java.util.List<lunalib.lunaUI.elements.LunaProgressBar> hpBars = new java.util.ArrayList<>();
@@ -90,21 +57,6 @@ public class CasinoUIPanels {
         }
     }
     
-    /**
-     * ArenaWinnerAnnouncementPanel
-     * 
-     * ROLE: This panel announces the winner of an arena battle with a visually impressive popup.
-     * It displays the winning ship with special effects, battle statistics, and the player's earnings.
-     * 
-     * LEARNERS: This is a great example of a "Victory Screen" UI that celebrates player achievements.
-     * The panel appears at the end of arena matches to provide satisfying closure to the battle.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Extends LunaBaseCustomPanelPlugin to use LunaLib's UI system
-     * - Includes visual effects and animations for celebration
-     * - Displays key battle metrics and rewards
-     * - Provides options to return to lobby or exit
-     */
     public static class ArenaWinnerAnnouncementPanel extends LunaBaseCustomPanelPlugin {
         private final boolean playerWon;
         private final String winnerName;
@@ -210,21 +162,6 @@ public class CasinoUIPanels {
         }
     }
     
-    /**
-     * GachaUIPanel
-     * 
-     * ROLE: This panel provides visual representation for the gacha system,
-     * showing featured items, pity counters, and other relevant information
-     * for players considering gacha pulls.
-     * 
-     * LEARNERS: This is an example of a static UI panel that displays information
-     * related to the gacha system without requiring real-time updates.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Extends LunaBaseCustomPanelPlugin to use LunaLib's UI system
-     * - Displays important gacha information like pity counters and featured items
-     * - Provides visual feedback for gacha-related information
-     */
     public static class GachaUIPanel extends LunaBaseCustomPanelPlugin {
         private static final Color FEATURED_COLOR = new Color(255, 215, 0); // Gold color for featured items
 
@@ -290,20 +227,6 @@ public class CasinoUIPanels {
         }
     }
     
-    /**
-     * PokerUIPanel
-     * 
-     * ROLE: This panel provides visual representation for the poker game,
-     * showing player's hand, community cards, and game state.
-     * 
-     * LEARNERS: This is an example of a dynamic UI panel that updates
-     * based on the current poker game state.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Extends LunaBaseCustomPanelPlugin to use LunaLib's UI system
-     * - Displays important poker information like player hand and community cards
-     * - Provides visual feedback for poker-related information
-     */
     public static class PokerUIPanel extends LunaBaseCustomPanelPlugin {
         private CasinoInteraction interaction;
         

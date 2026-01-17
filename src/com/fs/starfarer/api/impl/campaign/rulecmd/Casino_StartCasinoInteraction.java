@@ -9,11 +9,6 @@ import data.scripts.casino.interaction.CasinoInteraction;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Rule Command to start the Casino Interaction
- * 
- * This can be called from rules.csv or other places to initiate the casino interaction
- */
 public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
 
     @Override

@@ -1,86 +1,30 @@
 package data.scripts.casino;
 
-import com.fs.starfarer.api.EveryFrameScript;
 import com.fs.starfarer.api.Global;
-import com.fs.starfarer.api.campaign.CampaignFleetAPI;
-import com.fs.starfarer.api.campaign.FleetAssignment;
-import com.fs.starfarer.api.impl.campaign.ids.FleetTypes;
-import com.fs.starfarer.api.impl.campaign.missions.FleetCreatorMission;
+import com.fs.starfarer.api.campaign.CampaignClockAPI;
+import com.fs.starfarer.api.impl.campaign.ids.Tags;
+import data.scripts.CasinoModPlugin;
+
 import java.awt.Color;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * CasinoVIPManager
- * 
- * ROLE: This is an "EveryFrameScript" which acts as a background service for the mod.
- * It handles persistent game logic like VIP daily rewards, debt interest, and spawning hunters.
- * 
- * LEARNERS: Notice how it uses Global.getSector().getPersistentData() to save state across saves.
- * 
- * MOD DEVELOPMENT NOTES FOR BEGINNERS:
- * - EveryFrameScript runs continuously while the game is active
- * - Use it for ongoing effects like timers, periodic rewards, or status checks
- * - Implement isDone() to return false to keep it running indefinitely
- * - Use runWhilePaused() to control if it runs when the game is paused
- * - advance() is called every frame, so optimize code to avoid performance issues
- * - PersistentData is the way to store data that survives game saves/reloads
- */
-public class CasinoVIPManager implements EveryFrameScript {
+public class CasinoVIPManager {
     private static final String DATA_KEY = "CasinoVIPData";
-    private static final String STARGEM_KEY = "CasinoStargems"; 
     
     // Performance: We track time to avoid running heavy logic every single frame.
     private float daysElapsed = 0;
     private float timer = 0f;
     private final Random random = new Random();
 
-    /**
-     * Data structure to hold VIP specific info. 
-     * Being static makes it easier to reference, but Starsector saves it as a Map entry.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - This class holds persistent data for the VIP system
-     * - daysRemaining: How many VIP days are left
-     * - totalTopUps: Total gems purchased by the player
-     */
     public static class VIPData {
         public int daysRemaining = 0;
-        public int totalTopUps = 0; 
     }
 
-    // EveryFrameScript requirements
-    /**
-     * Determines if the script should stop running
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Return false to keep the script running indefinitely
-     * - Return true to stop the script after the current frame
-     */
-    @Override 
     public boolean isDone() { return false; } // This script never finishes naturally
     
-    /**
-     * Determines if the script should run while the game is paused
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Return false to pause script execution when game is paused
-     * - Return true to continue running even when game is paused
-     */
-    @Override 
     public boolean runWhilePaused() { return false; } // Don't process time while paused
 
-    /**
-     * advance is called by the game engine every frame when the game is unpaused.
-     * @param amount The time in seconds that passed since the last frame.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - This method is called very frequently (60+ times per second)
-     * - Optimize code to avoid performance issues
-     * - Use throttling mechanisms to run logic less frequently
-     * - Global.getSector().getClock() provides access to game time
-     */
-    @Override
     public void advance(float amount) {
         // Optimization: Throttle the check so it only runs once per real-world second.
         timer += amount;
@@ -92,7 +36,7 @@ public class CasinoVIPManager implements EveryFrameScript {
         if (days != daysElapsed) {
             checkDaily();
             checkInterest();
-            checkDebtHunters();
+
             daysElapsed = days;
         }
     }
@@ -158,167 +102,176 @@ public class CasinoVIPManager implements EveryFrameScript {
         );
     }
     
-    /**
-     * Standard method to modify player balance.
-     * amount can be negative for losses/costs.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Uses PersistentData to store values that persist across saves
-     * - Updates the player's gem balance by adding the specified amount
-     * - Positive amounts increase balance, negative amounts decrease it
-     * - Also tracks total top-ups for credit limit calculation
-     * - Includes reputation adjustment for high-value transactions
-     */
-    public static void addStargems(int amount) {
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        int current = getStargems();
-        data.put(STARGEM_KEY, current + amount);
-        
-        // Dynamic Ceiling History: We only track positive gains that aren't interest.
-        if (amount > 0 && !Global.getSector().getMemoryWithoutUpdate().contains("$ipc_processing_interest")) {
-             VIPData vip = (VIPData) data.get(DATA_KEY);
-             if (vip == null) vip = new VIPData();
-             vip.totalTopUps += amount;
-             data.put(DATA_KEY, vip);
-        }
-
-        // Reputation Logic: Corporate entities love big spenders.
-        if (amount >= 10000) {
-            adjustTriTachRep((float) (0.01f * ((double) amount / 10000.0)), "Significant Stargem purchase");
-        }
-    }
-
-    /**
-     * Calculates the player's current credit limit.
-     * Formula: 10,000 + 10% of History + Reputation Bonus
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Credit limit determines how deep a player can go into debt
-     * - Based on their spending history and relationship with Tritachyon
-     * - Higher reputation with Tritachyon increases the limit
-     * - Uses totalTopUps (from addStargems) to calculate history bonus
-     */
-    public static int getDebtCeiling() {
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        VIPData vip = (VIPData) data.get(DATA_KEY);
-        int historyBonus = 0;
-        if (vip != null) {
-            historyBonus = (int) (vip.totalTopUps * 0.1f);
-        }
-        
-        // Reputation with Tri-Tachyon scales from -1.0 to +1.0
-        float rep = Global.getSector().getFaction("tritachyon").getRelationship("player");
-        int repBonus = (int) (rep * 50000); // Up to 50k bonus
-        
-        return 10000 + historyBonus + repBonus;
-    }
-    
-    /**
-     * Data Retrieval: Fetches the Stargem balance from PersistentData.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - PersistentData can store various data types (Integer, Float, Double)
-     * - Need to check the type and convert appropriately
-     * - Returns 0 if no stargem data exists yet
-     */
+    // Get player's stargem balance (credit wallet)
     public static int getStargems() {
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        if (data.containsKey(STARGEM_KEY)) {
-            // PersistentData usually stores integers as Doubles or Longs depending on source,
-            // but here we cast directly to (int).
-            Object val = data.get(STARGEM_KEY);
-            if (val instanceof Integer) return (int) val;
-            if (val instanceof Float) return ((Float) val).intValue();
-            if (val instanceof Double) return ((Double) val).intValue();
+        return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_stargems");
+    }
+
+    // Get player's debt amount (debt wallet)
+    public static int getDebt() {
+        return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_debt_amount");
+    }
+
+    // Get cumulative VIP passes bought
+    public static int getCumulativeVIPPurchases() {
+        return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_cumulative_vip_purchases");
+    }
+
+    // Get cumulative top-up amount (including ship sales)
+    public static int getCumulativeTopupAmount() {
+        return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_cumulative_topup_amount");
+    }
+
+    // Add to player's stargem balance (credit wallet)
+    public static void addStargems(int amount) {
+        int current = getStargems();
+        int newAmount = Math.max(0, current + amount); // Ensure non-negative balance
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_stargems", newAmount);
+        
+        // If adding gems and amount is positive, update cumulative topup amount
+        if (amount > 0) {
+            addCumulativeTopup(amount);
         }
-        return 0;
+        
+        // Check if player has paid off debt and reset debt collector flag if needed
+        checkDebtPayment();
     }
-    
-    /**
-     * Adds VIP subscription days to the player's account
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Increments the remaining VIP days by the specified amount
-     * - Creates VIPData if it doesn't exist yet
-     * - Used when purchasing VIP passes
-     */
-    public static void addSubscriptionDays(int days) {
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        VIPData vip = (VIPData) data.get(DATA_KEY);
-        if (vip == null) vip = new VIPData();
-        vip.daysRemaining += days;
-        data.put(DATA_KEY, vip);
+
+    // Add to player's debt amount (debt wallet)
+    public static void addDebt(int amount) {
+        int current = getDebt();
+        int newAmount = Math.max(0, current + amount); // Ensure non-negative debt value
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", newAmount);
     }
-    
-    /**
-     * Gets the number of VIP days remaining
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Returns 0 if no VIP data exists
-     * - Used to check if VIP benefits should be active
-     */
+
+    // Add to cumulative VIP purchases
+    public static void addCumulativeVIPPurchases(int passes) {
+        int current = getCumulativeVIPPurchases();
+        int newAmount = current + passes;
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_vip_purchases", newAmount);
+    }
+
+    // Add to cumulative top-up amount
+    public static void addCumulativeTopup(int amount) {
+        int current = getCumulativeTopupAmount();
+        int newAmount = current + amount;
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_topup_amount", newAmount);
+    }
+
+    // Get days remaining for VIP status
     public static int getDaysRemaining() {
-        VIPData vip = (VIPData) Global.getSector().getPersistentData().get(DATA_KEY);
-        return vip == null ? 0 : vip.daysRemaining;
+        CampaignClockAPI clock = Global.getSector().getClock();
+        int start = Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_vip_start_time");
+        int duration = Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_vip_duration");
+
+        if (duration <= 0) return 0;
+
+        int elapsed = clock.getDay() - start;
+        int remaining = duration - elapsed;
+        return Math.max(0, remaining);
     }
 
-    /**
-     * Interaction with Faction API.
-     */
-    public static void adjustTriTachRep(float amount, String reason) {
-        Global.getSector().getFaction("tritachyon").adjustRelationship("player", amount);
-        Global.getSector().getCampaignUI().addMessage("Tri-Tachyon reputation " + (amount > 0 ? "increased" : "decreased") + ": " + reason, 
-                amount > 0 ? Color.CYAN : Color.RED);
-    }
 
-    private void checkDebtHunters() {
-        // Only spawn debt hunters if the player's debt exceeds the threshold
-        // (i.e., if the stargem balance is less than the debt threshold)
-        if (getStargems() > CasinoConfig.VIP_DEBT_HUNTER_THRESHOLD) return;
+
+    // Add subscription days to VIP status
+    public static void addSubscriptionDays(int days) {
+        CampaignClockAPI clock = Global.getSector().getClock();
+        int newDuration;
+        if (getDaysRemaining() <= 0) {
+            // No current VIP, start fresh
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getDay());
+            newDuration = days;
+        } else {
+            // Extend current VIP
+            newDuration = getDaysRemaining() + days;
+        }
+
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_duration", newDuration);
         
-        // Use a daily chance to avoid spawning fleets every frame during the "Debt hunting window".
-        if (random.nextFloat() < 0.2f) {
-            spawnDebtHunter();
+        // Add to cumulative VIP purchases
+        addCumulativeVIPPurchases(1); // Count this as one VIP purchase
+    }
+
+    // Get the debt ceiling based on dynamic calculation
+    public static int getDebtCeiling() {
+        int baseCeiling = CasinoConfig.BASE_DEBT_CEILING;
+        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.VIP_PASS_CEILING_INCREASE;
+        int topupIncrease = (int) (getCumulativeTopupAmount() * CasinoConfig.TOPUP_CEILING_MULTIPLIER);
+        
+        return baseCeiling + vipIncrease + topupIncrease;
+    }
+
+    // Get available credit (ceiling - current debt)
+    public static int getAvailableCredit() {
+        int ceiling = getDebtCeiling();
+        int debt = getDebt();
+        return ceiling - debt;
+    }
+
+    // Apply monthly interest to debt
+    public static void applyInterest() {
+        int currentDebt = getDebt();
+        if (currentDebt > 0) {
+            float interestAmount = currentDebt * CasinoConfig.VIP_INTEREST_RATE;
+            addDebt((int) interestAmount);
         }
     }
-
-    private void spawnDebtHunter() {
-        // Show the warning message to the player
-        Global.getSector().getCampaignUI().addMessage("SIGNAL DETECTED: A Tri-Tachyon 'Asset Recovery' fleet has been dispatched to your location.", Color.RED);
-        Global.getLogger(this.getClass()).info("Debt Hunter Spawned due to high debt: " + getStargems());
+    
+    // Pay off debt using stargems
+    public static boolean payDebt(int amount) {
+        int currentStargems = getStargems();
+        int currentDebt = getDebt();
         
-        // Actually spawn the debt hunter fleet
-        CampaignFleetAPI playerFleet = Global.getSector().getPlayerFleet();
-        if (playerFleet != null) {
-            // Create a simple patrol fleet using FleetCreatorMission
-            FleetCreatorMission m = new FleetCreatorMission(new Random());
-            m.beginFleet();
-            
-            // Create a medium-sized fleet with moderate quality
-            m.createStandardFleet(5, "tritachyon", playerFleet.getLocationInHyperspace());
-            
-            // Set the fleet type to bounty hunter to make it aggressive
-            m.triggerSetFleetType(FleetTypes.MERC_BOUNTY_HUNTER);
-            
-            // Set aggressive behavior toward player
-            m.triggerSetStandardAggroPirateFlags();
-            
-            // Create the fleet
-            CampaignFleetAPI debtHunterFleet = m.createFleet();
-            
-            if (debtHunterFleet != null) {
-                // Set fleet name
-                debtHunterFleet.setName("Tri-Tachyon Asset Recovery Fleet");
-                
-                // Add the fleet to the hyperspace location
-                Global.getSector().getHyperspace().addEntity(debtHunterFleet);
-                
-                // Set intercept assignment to pursue the player
-                debtHunterFleet.addAssignment(FleetAssignment.INTERCEPT, playerFleet, 10f, "collecting debts");
-                
-                // Log the successful creation
-                Global.getLogger(this.getClass()).info("Debt Hunter fleet successfully created and deployed");
-            }
+        if (amount > currentStargems) {
+            return false; // Not enough stargems to pay
+        }
+        
+        if (amount > currentDebt) {
+            amount = currentDebt; // Can't pay more than debt
+        }
+        
+        addStargems(-amount);
+        subtractDebt(amount); // Subtract from debt
+        
+        // Check if player has paid off debt and reset debt collector flag if needed
+        checkDebtPayment();
+        
+        return true;
+    }
+    
+    // Helper method to subtract from debt (when paying)
+    public static void subtractDebt(int amount) {
+        int current = getDebt();
+        int newAmount = Math.max(0, current - amount); // Ensure non-negative debt value
+        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", newAmount);
+    }
+    
+    // Initialize the debt system if not already initialized
+    public static void initializeDebtSystem() {
+        // Initialize debt amount if not set
+        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_debt_amount")) {
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", 0);
+        }
+        
+        // Initialize cumulative VIP purchases if not set
+        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_cumulative_vip_purchases")) {
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_vip_purchases", 0);
+        }
+        
+        // Initialize cumulative topup amount if not set
+        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_cumulative_topup_amount")) {
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_topup_amount", 0);
+        }
+    }
+    
+    // Check if player has paid off their debt and reset the debt collector flag if needed
+    private static void checkDebtPayment() {
+        int availableCredit = getAvailableCredit();
+        
+        // If player has paid off their debt (available credit is positive again), reset the debt collector flag
+        if (availableCredit >= 0) {
+            // Reset the debt collectors active flag so they can be spawned again if player goes into debt
+            Global.getSector().getMemoryWithoutUpdate().unset("$ipc_debt_collectors_active");
         }
     }
 }

@@ -5,6 +5,9 @@
         "vipPassCost": 9999,
         "vipPassDays": 30,
         "vipDailyGemReward": 100,
+        "baseDebtCeiling": 10000,
+        "vipPassCeilingIncrease": 5000,
+        "topupCeilingMultiplier": 0.1,
         "gemPackages": [
             {
                 "gems": 1980,
@@ -128,8 +131,8 @@
         "debtHunterThreshold": -10000
     },
     "marketInteraction": {
-        "minSizeForPlayerCasino": 3,
-        "minSizeForGeneralCasino": 4
+        "minSizeForPlayerCasino": 0,
+        "minSizeForGeneralCasino": 0
     },
     "pokerAI": {
         "tightThresholdFold": 6.0,

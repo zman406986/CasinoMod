@@ -56,13 +56,15 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
     // Initialize handlers in constructor or init method
     private void initializeMainHandlers() {
+        // Initialize the debt system when the interaction starts
+        CasinoVIPManager.initializeDebtSystem();
+        
         // Exact match handlers
         handlers.put("visit_casino", option -> showMenu());
         handlers.put("resume_game", option -> {
             // Check debt before resuming any game
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -95,9 +97,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("play", option -> {
             // Check debt before entering poker
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -117,9 +118,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("confirm_new_poker", option -> {
             // Check debt before entering poker
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -135,9 +135,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("confirm_poker_ante", option -> {
             // Check debt before entering poker
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -146,9 +145,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("next_hand", option -> {
             // Check debt before entering poker
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -157,9 +155,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("how_to_poker", option -> {
             // Check debt before entering poker help
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -168,9 +165,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("arena_lobby", option -> {
             // Check debt before entering arena
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -190,9 +186,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("confirm_new_arena", option -> {
             // Check debt before entering arena
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -208,9 +203,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("arena_watch_next", option -> {
             // Check debt before continuing arena
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -219,9 +213,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("arena_skip", option -> {
             // Check debt before continuing arena
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -230,9 +223,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("arena_switch", option -> {
             // Check debt before continuing arena
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -241,9 +233,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("how_to_arena", option -> {
             // Check debt before entering arena help
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -252,9 +243,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("gacha_menu", option -> {
             // Check debt before entering gacha
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -263,9 +253,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("pull_1", option -> {
             // Check debt before entering gacha
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -274,9 +263,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("pull_10", option -> {
             // Check debt before entering gacha
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -285,9 +273,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("auto_convert", option -> {
             // Check debt before entering gacha
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -296,9 +283,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("how_to_gacha", option -> {
             // Check debt before entering gacha help
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -307,9 +293,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("financial_menu", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -318,9 +303,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("buy_chips", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -329,9 +313,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("cash_out", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -340,9 +323,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("buy_vip", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -351,9 +333,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("confirm_buy_vip", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -362,9 +343,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("buy_ship", option -> {
             // Check debt before entering financial menu
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -373,9 +353,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         handlers.put("how_to_play_main", option -> {
             // Check debt before entering help
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -405,9 +384,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // Predicate-based handlers for pattern matching
         predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
             // Check debt before financial transaction
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -416,9 +394,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         });
         predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
             // Check debt before financial transaction
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return;
@@ -429,9 +406,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // State-dependent handlers
         predicateHandlers.put(option -> {
             // Check debt before state-dependent handling
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
@@ -440,9 +416,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         }, option -> poker.handle(option));
         predicateHandlers.put(option -> {
             // Check debt before state-dependent handling
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
@@ -451,9 +426,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         }, option -> arena.handle(option));
         predicateHandlers.put(option -> {
             // Check debt before state-dependent handling
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
@@ -462,9 +436,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         }, option -> gacha.handle(option));
         predicateHandlers.put(option -> {
             // Check debt before state-dependent handling
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
@@ -473,9 +446,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         }, option -> fin.handle(option));
         predicateHandlers.put(option -> {
             // Check debt before state-dependent handling
-            int gems = CasinoVIPManager.getStargems();
-            int ceiling = CasinoVIPManager.getDebtCeiling();
-            if (gems < -ceiling) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < 0) {
                 textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
                 options.addOption("End Interaction", "leave_now");
                 return false;
@@ -518,9 +490,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         setState(State.MAIN_MENU);
     }
     
-    /**
-     * Static method to start the casino interaction from rule commands
-     */
     public static void startCasinoInteraction(InteractionDialogAPI dialog) {
         CasinoInteraction interaction = new CasinoInteraction(dialog);
         // Start casino music when entering

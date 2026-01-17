@@ -7,9 +7,6 @@ import org.json.JSONObject;
 
 import java.util.*;
 
-/**
- * CasinoConfig - Centralizes all configurable values for the casino mod
- */
 public class CasinoConfig {
     public static final String SETTINGS_FILE = "data/config/casino_settings.json";
 
@@ -19,6 +16,11 @@ public class CasinoConfig {
     public static int VIP_PASS_COST = 9999;            // Cost in credits
     public static int VIP_PASS_DAYS = 30;              // Duration in days
     public static int VIP_DAILY_REWARD = 100;          // Daily stargems for VIP
+    
+    // Debt system configuration
+    public static int BASE_DEBT_CEILING = 10000;       // Base debt ceiling amount
+    public static int VIP_PASS_CEILING_INCREASE = 5000; // Amount ceiling increases per VIP pass bought (cumulative)
+    public static float TOPUP_CEILING_MULTIPLIER = 0.1f; // Multiplier for total top-up amount for ceiling increase
     
     public static String MUSIC_POKER = "casino_poker_track";
     public static String MUSIC_ARENA = "casino_arena_track";
@@ -69,7 +71,7 @@ public class CasinoConfig {
         public int hp;
         public int power;
         public float agility;
-        public ArenaStat(int h, int p, float a) { hp=h; power=p; agility=a; }
+        ArenaStat(int h, int p, float a) { hp=h; power=p; agility=a; }
     }
     public static Map<ShipAPI.HullSize, ArenaStat> ARENA_BASE_STATS = new HashMap<>();
 
@@ -80,11 +82,11 @@ public class CasinoConfig {
     
     // VIP System
     public static float VIP_INTEREST_RATE = 0.05f;                           // 5% monthly interest
-    public static int VIP_DEBT_HUNTER_THRESHOLD = -10000;                    // Debt threshold for spawning hunters
+    public static int VIP_DEBT_HUNTER_THRESHOLD = -10000;                    // Debt threshold for spawning hunters (negative because it's a debt value)
     
     // Market Interaction
-    public static int MARKET_SIZE_MIN_FOR_PLAYER_CASINO = 6;                 // Minimum size for player markets
-    public static int MARKET_SIZE_MIN_FOR_GENERAL_CASINO = 7;                // Minimum size for general markets
+    public static int MARKET_SIZE_MIN_FOR_PLAYER_CASINO = 0;                 // Minimum size for player markets (0 = no restriction)
+    public static int MARKET_SIZE_MIN_FOR_GENERAL_CASINO = 0;                // Minimum size for general markets (0 = no restriction)
     
     // Gacha Ship Filtering
     public static Set<String> GACHA_SHIP_BLACKLIST = new HashSet<>();        // Ship hull IDs to exclude from gacha pool
@@ -135,6 +137,11 @@ public class CasinoConfig {
                  VIP_PASS_COST = eco.optInt("vipPassCost", 9999);
                  VIP_PASS_DAYS = eco.optInt("vipPassDays", 30);
                  VIP_DAILY_REWARD = eco.optInt("vipDailyGemReward", 100);
+                 
+                 // Load debt system configuration
+                 BASE_DEBT_CEILING = eco.optInt("baseDebtCeiling", 10000);
+                 VIP_PASS_CEILING_INCREASE = eco.optInt("vipPassCeilingIncrease", 5000);
+                 TOPUP_CEILING_MULTIPLIER = (float) eco.optDouble("topupCeilingMultiplier", 0.1);
                  
                  GEM_PACKAGES.clear();
                  JSONArray packs = eco.getJSONArray("gemPackages");

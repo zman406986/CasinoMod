@@ -6,9 +6,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-/**
- * Manages the educational handbook for all casino features
- */
 public class HelpHandler {
 
     private final CasinoInteraction main;
@@ -32,9 +29,6 @@ public class HelpHandler {
         handlers.put("arena_lobby", option -> main.arena.handle(option));
     }
 
-    /**
-     * Handles routing to different help topics
-     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -46,9 +40,6 @@ public class HelpHandler {
         main.showMenu();
     }
 
-    /**
-     * Displays the introductory page for the handbook
-     */
     public void showIntroPage() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -67,16 +58,10 @@ public class HelpHandler {
         main.options.addOption("Continue to Casino", "back_menu");
     }
 
-    /**
-     * Displays the main help menu with links to specific game help
-     */
     public void showMainMenu() {
         showGeneralHelp();
     }
 
-    /**
-     * Displays general casino information and mechanics
-     */
     public void showGeneralHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -100,9 +85,6 @@ public class HelpHandler {
         main.setState(CasinoInteraction.State.HELP);
     }
 
-    /**
-     * Displays poker rules and gameplay information
-     */
     public void showPokerHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TEXAS HOLD'EM GUIDE ---", Color.CYAN);
@@ -148,9 +130,6 @@ public class HelpHandler {
         main.options.addOption("Back", "play"); // Go back to poker menu
     }
 
-    /**
-     * Displays arena rules and gameplay information
-     */
     public void showArenaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- SPIRAL ABYSS ARENA: SURVIVAL ---", Color.CYAN);
@@ -165,9 +144,6 @@ public class HelpHandler {
         main.options.addOption("Back", "arena_lobby"); // Go back to arena menu
     }
 
-    /**
-     * Displays gacha mechanics and pity system information
-     */
     public void showGachaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TACHY-IMPACT: WARP PROTOCOL ---", Color.CYAN);

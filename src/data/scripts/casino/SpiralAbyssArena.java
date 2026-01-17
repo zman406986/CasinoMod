@@ -5,22 +5,6 @@ import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import java.util.*;
 
-/**
- * SpiralAbyssArena
- * 
- * ROLE: This class handles the logic for the "Spaceship Battle Royale" minigame.
- * It simulates combat between multiple ships using a simplified turn-based system.
- * 
- * LEARNERS: This is a great example of how to make a "Game within a Game".
- * It doesn't use the actual Starsector combat engine, but instead simulates
- * results through math and "Flavor Text".
- * 
- * MOD DEVELOPMENT NOTES FOR BEGINNERS:
- * - This creates a battle simulation without using the real combat engine
- * - Uses random events and calculations to determine outcomes
- * - Generates flavorful text descriptions for battle events
- * - Keeps track of multiple units in combat simultaneously
- */
 public class SpiralAbyssArena {
     private final Random random = new Random();
     
@@ -30,14 +14,6 @@ public class SpiralAbyssArena {
     private String lastCrit = "";
     private String lastKill = "";
 
-    /**
-     * Chaos Events are random modifiers that spice up the battle.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Adds randomness and excitement to battles
-     * - Different event types affect combat in various ways
-     * - Provides narrative variety to keep players engaged
-     */
     public enum ChaosEventType {
         SOLAR_FLARE("Solar Flare", "High radioactivity reduces all combatants' Agility!"),
         HULL_BREACH("Hull Breach", "Sudden decompression damages the hull!"),
@@ -48,14 +24,6 @@ public class SpiralAbyssArena {
         ChaosEventType(String n, String d) { name=n; description=d; }
     }
 
-    /**
-     * Represents a single instance of a Chaos Event currently happening in the arena.
-     * 
-     * MOD DEVELOPMENT NOTES FOR BEGINNERS:
-     * - Tracks active events and their remaining duration
-     * - Events expire after a certain number of rounds
-     * - Multiple events can be active simultaneously
-     */
     public static class ActiveEvent {
         public ChaosEventType type;    // Type of event
         public int duration;           // Remaining rounds for the event
@@ -65,10 +33,6 @@ public class SpiralAbyssArena {
     private final List<ActiveEvent> activeEvents = new ArrayList<>(); // Currently active events
     private String lastEventMessage = ""; // Last event message displayed
 
-    /**
-     * Helper to pick a random flavor text while ensuring variety.
-     * Ensures that the config lists are properly loaded before accessing them.
-     */
     private String getFlavor(List<String> source, String last) {
         // Ensure the config has been loaded properly
         if (source == null || source.isEmpty()) {
@@ -87,10 +51,6 @@ public class SpiralAbyssArena {
         return next;
     }
     
-    /**
-     * SpiralGladiator
-     * Represents a ship participating in the arena.
-     */
     public static class SpiralGladiator {
         public String prefix;    // e.g., "Mighty"
         public String hullName;  // e.g., "Hammerhead"
@@ -123,10 +83,6 @@ public class SpiralAbyssArena {
             this.odds = calculateOdds(prefix, affix); // Calculate odds based on perks
         }
         
-        /**
-         * Calculates the betting odds for this gladiator based on their perks.
-         * More positive perks = lower returns (lower odds), more negative perks = higher returns (higher odds)
-         */
         private float calculateOdds(String prefix, String affix) {
             // Base odds is 1:2 (meaning you get 2x your bet back if you win)
             float baseOdds = 2.0f;
@@ -153,16 +109,10 @@ public class SpiralAbyssArena {
             return Math.max(1.2f, baseOdds);
         }
         
-        /**
-         * Gets the formatted odds string for display (e.g., "1:2.5")
-         */
         public String getOddsString() {
             return "1:" + String.format("%.1f", odds);
         }
         
-        /**
-         * Gets the status string for this gladiator showing HP and enraged state
-         */
         public String getStatusString() {
             StringBuilder status = new StringBuilder();
             status.append(shortName).append(": ").append(hp).append("/").append(maxHp).append(" HP");
@@ -250,11 +200,6 @@ public class SpiralAbyssArena {
         return list;
     }
     
-    /**
-     * Executes one "Step" or "Round" of the battle.
-     * @param combatants The list of ships currently in the arena.
-     * @return A list of strings describing the events that happened in this round.
-     */
     public List<String> simulateStep(List<SpiralGladiator> combatants) {
         List<String> log = new ArrayList<>();
         lastEventMessage = "";

@@ -17,26 +17,16 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
-/**
- * Handles the gacha system for obtaining ships/weapons.
- * Implements pity system and featured item rotation.
- */
 public class CasinoGachaManager {
     
     private static final String DATA_KEY = "CasinoGachaData";
     
-    /**
-     * Rotation period for featured items in days
-     */
     private static final long ROTATION_PERIOD_DAYS = 14;
     
     private final Random random = new Random();
     
     // Genshin Rates - Using values from CasinoConfig
     
-    /**
-     * Persistent data for gacha system including pity counters and auto-convert settings
-     */
     public static class GachaData {
         public long lastRotationTimestamp;  // When the last featured rotation occurred
         public int pity5;                   // Counter for 5-star pity
@@ -58,10 +48,6 @@ public class CasinoGachaManager {
         return (GachaData) data.get(DATA_KEY);
     }
     
-    /**
-     * Disallowed hull ID prefixes - ships with these prefixes are typically special/boss ships
-     * Similar to Nexerelin's Prism Shop DISALLOWED_PREFIXES
-     */
     private static final Set<String> DISALLOWED_PREFIXES = new HashSet<>(Arrays.asList(
         "tem_",      // Templars (special faction)
         "vayra_",    // Vayra's Sector unique bounty ships
@@ -75,10 +61,6 @@ public class CasinoGachaManager {
         "xiv_"       // XIV Battlegroup (special Hegemony ships)
     ));
     
-    /**
-     * Minimum fleet points required for each hull size to ensure quality ships
-     * Based on Nexerelin's Prism Shop FP thresholds
-     */
     private int getMinimumFleetPoints(ShipAPI.HullSize size) {
         switch (size) {
             case CAPITAL_SHIP: return 20;
@@ -89,10 +71,6 @@ public class CasinoGachaManager {
         }
     }
     
-    /**
-     * Checks if a ship hull spec is allowed in the gacha pool
-     * Based on comprehensive logic from Nexerelin's Prism Shop
-     */
     public boolean isShipAllowed(ShipHullSpecAPI spec) {
         // Safety check for null spec
         if (spec == null) return false;
@@ -162,9 +140,6 @@ public class CasinoGachaManager {
         return true;
     }
     
-    /**
-     * Returns list of all possible ship hulls that can drop from gacha
-     */
     public List<FleetMemberAPI> getPotentialDrops() {
          List<FleetMemberAPI> list = new ArrayList<>();
          Set<String> uniqueHullIds = new HashSet<>(); // Track unique hull IDs to avoid duplicates
@@ -188,9 +163,6 @@ public class CasinoGachaManager {
          return list;
     }
 
-    /**
-     * Randomly selects featured items for the current rotation
-     */
     public void rotatePool(GachaData data) {
         data.lastRotationTimestamp = Global.getSector().getClock().getTimestamp();
         
@@ -217,9 +189,6 @@ public class CasinoGachaManager {
         }
     }
     
-    /**
-     * Checks if featured items need to be rotated based on time elapsed
-     */
     public void checkRotation() {
         GachaData data = getData();
         float days = Global.getSector().getClock().getElapsedDaysSince(data.lastRotationTimestamp);
@@ -228,9 +197,6 @@ public class CasinoGachaManager {
         }
     }
     
-    /**
-     * Performs a single gacha pull but collects ships without adding to fleet
-     */
     public String performPullDetailed(List<FleetMemberAPI> collectedShips) {
         GachaData data = getData();
         data.pity5++;
@@ -290,9 +256,6 @@ public class CasinoGachaManager {
         }
     }
     
-    /**
-     * Handles 5-star pull result with fleet addition
-     */
     private String handle5StarForNormalUsage(GachaData data) {
         String resultId;
         boolean isFeatured = false;
@@ -321,9 +284,6 @@ public class CasinoGachaManager {
         return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
     }
     
-    /**
-     * Handles 4-star pull result with fleet addition
-     */
     private String handle4StarForNormalUsage(GachaData data) {
         String resultId;
         boolean isFeatured = false;
@@ -352,9 +312,6 @@ public class CasinoGachaManager {
         return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
     }
     
-    /**
-     * Handles 5-star pull result without fleet addition
-     */
     private String handle5StarDetailed(GachaData data, List<FleetMemberAPI> collectedShips) {
         String resultId;
         boolean isFeatured = false;
@@ -385,9 +342,6 @@ public class CasinoGachaManager {
         return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
     }
     
-    /**
-     * Handles 4-star pull result without fleet addition
-     */
     private String handle4StarDetailed(GachaData data, List<FleetMemberAPI> collectedShips) {
         String resultId;
         boolean isFeatured = false;
@@ -418,10 +372,6 @@ public class CasinoGachaManager {
         return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
     }
     
-    /**
-     * Creates a fleet member from a hull ID with error handling
-     * Ensures proper ship name assignment and basic loadout
-     */
     public FleetMemberAPI createShip(String hullId) {
         try {
             // First try to create with the standard method
@@ -469,9 +419,6 @@ public class CasinoGachaManager {
         }
     }
 
-    /**
-     * Gets a random standard hull of specified size from the allowed pool
-     */
     public String getRandomStandardHull(ShipAPI.HullSize size, String excludeId) {
         List<String> list = new ArrayList<>();
         for (ShipHullSpecAPI spec : Global.getSettings().getAllShipHullSpecs()) {
@@ -494,9 +441,6 @@ public class CasinoGachaManager {
         return list.get(random.nextInt(list.size()));
     }
     
-    /**
-     * Gets a random hull of specified size from the allowed pool
-     */
     private String getRandomHull(ShipAPI.HullSize size) {
         List<String> list = new ArrayList<>();
         for (ShipHullSpecAPI spec : Global.getSettings().getAllShipHullSpecs()) {
