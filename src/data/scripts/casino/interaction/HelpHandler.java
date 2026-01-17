@@ -4,7 +4,6 @@ import data.scripts.casino.CasinoConfig;
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
 public class HelpHandler {
 
@@ -127,7 +126,12 @@ public class HelpHandler {
         main.textPanel.addPara("- Bankroll: Manage your stack carefully to stay competitive.");
         main.textPanel.addPara("- The IPC Dealer calculates pot odds. Don't let them bully you!", Color.ORANGE);
         
-        main.options.addOption("Back", "play"); // Go back to poker menu
+        // Check if we're in an active poker game (has cards dealt)
+        if (main.poker.playerHand != null && !main.poker.playerHand.isEmpty()) {
+            main.options.addOption("Back to Game", "poker_back_action"); // Return to active game
+        } else {
+            main.options.addOption("Back", "play"); // Go back to poker menu when not in a game
+        }
     }
 
     public void showArenaHelp() {
@@ -156,10 +160,5 @@ public class HelpHandler {
         main.textPanel.addPara("- Featured ships rotate bi-weekly. Pity carries over between rotations!", Color.GREEN);
         
         main.options.addOption("Back", "gacha_menu"); // Go back to gacha menu
-    }
-    
-    @FunctionalInterface
-    private interface OptionHandler {
-        void handle(String option);
     }
 }

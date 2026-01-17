@@ -62,11 +62,11 @@ public class CasinoVIPManager {
     private void checkInterest() {
         int day = Global.getSector().getClock().getDay();
         int month = Global.getSector().getClock().getMonth();
-        long timestamp = Global.getSector().getClock().getTimestamp();
+        int year = Global.getSector().getClock().getCycle();
         
         Map<String, Object> data = Global.getSector().getPersistentData();
-        // We create a unique key for this month/timestamp so interest only applies once.
-        String interestKey = "CasinoInterest_" + month + "_" + timestamp;
+        // We create a unique key for this year/month so interest only applies once per month.
+        String interestKey = "CasinoInterest_" + year + "_" + month;
         
         if (day == 15 && !data.containsKey(interestKey)) {
             int gems = getStargems();

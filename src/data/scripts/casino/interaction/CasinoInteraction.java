@@ -292,13 +292,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             gacha.handle(option);
         });
         handlers.put("financial_menu", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
+            // Financial menu should ALWAYS be accessible, even when in debt
+            // This allows players to cash out or sell ships to pay off debt
             fin.handle(option);
         });
         handlers.put("buy_chips", option -> {
@@ -352,14 +347,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             fin.handle(option);
         });
         handlers.put("how_to_play_main", option -> {
-            // Check debt before entering help
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
+            // Help should ALWAYS be accessible
             // Only show the intro page if it hasn't been shown yet
             if (!handbookIntroShown) {
                 help.showIntroPage();

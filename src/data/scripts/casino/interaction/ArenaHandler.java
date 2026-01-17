@@ -585,9 +585,14 @@ public class ArenaHandler {
         for (int i = 0; i < arenaCombatants.size(); i++) {
             SpiralAbyssArena.SpiralGladiator g = arenaCombatants.get(i);
             if (!g.isDead && g != chosenChampion) {
-                // Apply the switching penalty: 50% fee and halved multiplier
-                float penaltyFee = arenaBets.get(arenaBets.size()-1).amount * 0.5f;
-                float newMultiplier = arenaBets.get(arenaBets.size()-1).multiplier * 0.5f;
+                // Check if there are any bets before applying switching penalty
+                float penaltyFee = 0f;
+                float newMultiplier = 1.0f;
+                if (!arenaBets.isEmpty()) {
+                    // Apply the switching penalty: 50% fee and halved multiplier
+                    penaltyFee = arenaBets.get(arenaBets.size()-1).amount * 0.5f;
+                    newMultiplier = arenaBets.get(arenaBets.size()-1).multiplier * 0.5f;
+                }
                 
                 main.textPanel.setFontInsignia();
                 
@@ -619,10 +624,17 @@ public class ArenaHandler {
                 main.getOptions().addOption("Switch to " + g.prefix + " " + g.hullName + " " + g.affix + " [" + g.getOddsString() + "]", "arena_confirm_switch_" + i);
             }
         }
-        main.getOptions().addOption("Cancel", "arena_lobby");
+        main.getOptions().addOption("Cancel", "arena_status");
     }
     
     private void performChampionSwitch(int newChampionIndex) {
+        // Check if there are any bets before calculating penalty
+        if (arenaBets.isEmpty()) {
+            main.getTextPanel().addPara("No active bet to switch. Please place a bet first.", Color.RED);
+            showArenaStatus();
+            return;
+        }
+        
         // Calculate switching penalty
         int penaltyFee = (int)(arenaBets.get(arenaBets.size()-1).amount * 0.5);
         

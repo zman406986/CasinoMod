@@ -16,7 +16,7 @@ public class CasinoMusicPlugin {
     public static void startCasinoMusic() {
         // Save current music state
         originalMusicId = Global.getSoundPlayer().getCurrentMusicId();
-        wasMusicPlaying = !originalMusicId.equals("nothing") && !originalMusicId.equals("null");
+        wasMusicPlaying = originalMusicId != null && !originalMusicId.equals("nothing") && !originalMusicId.equals("null");
         
         // Suspend default music playback and play casino music
         Global.getSoundPlayer().setSuspendDefaultMusicPlayback(true);

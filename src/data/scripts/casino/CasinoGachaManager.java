@@ -386,13 +386,13 @@ public class CasinoGachaManager {
         if (list.isEmpty()) {
             // If no eligible ships found, return a fallback
             if (size == ShipAPI.HullSize.CAPITAL_SHIP) {
-                return "eagle_Balanced"; // Common capital ship
+                return "onslaught"; // Vanilla capital ship
             } else if (size == ShipAPI.HullSize.CRUISER) {
-                return "cerberus_Balanced"; // Common cruiser
+                return "eagle"; // Vanilla cruiser
             } else if (size == ShipAPI.HullSize.DESTROYER) {
-                return "wolf_Balanced"; // Common destroyer
+                return "hammerhead"; // Vanilla destroyer
             } else { // FRIGATE
-                return "lasher_Balanced"; // Common frigate
+                return "lasher"; // Vanilla frigate
             }
         }
         return list.get(random.nextInt(list.size()));
@@ -408,9 +408,9 @@ public class CasinoGachaManager {
         if (list.isEmpty()) {
             // If no eligible ships found, return a fallback
             if (size == ShipAPI.HullSize.DESTROYER) {
-                return "wolf_Balanced"; // Common destroyer
+                return "hammerhead"; // Vanilla destroyer
             } else { // FRIGATE
-                return "lasher_Balanced"; // Common frigate
+                return "lasher"; // Vanilla frigate
             }
         }
         return list.get(random.nextInt(list.size()));

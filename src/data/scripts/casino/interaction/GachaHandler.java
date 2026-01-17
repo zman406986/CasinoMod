@@ -135,6 +135,13 @@ public class GachaHandler {
     }
     
     private void performGachaPull(int times) {
+        // Check if we just completed a pull - redirect to menu to show results
+        // This prevents double-charging if player accidentally clicks confirm again
+        if (justCompletedPull) {
+            showGachaMenu();
+            return;
+        }
+        
         int cost = times * CasinoConfig.GACHA_COST;
         int currentGems = CasinoVIPManager.getStargems();
         

@@ -41,7 +41,7 @@ public class PokerGame {
         }
     
         public static class Deck {
-            private final List<Card> cards = new ArrayList<>();
+            public final List<Card> cards = new ArrayList<>();
             public Deck() {
                 for(Suit s : Suit.values()) for(Rank r : Rank.values()) cards.add(new Card(r, s));
             }

@@ -72,6 +72,12 @@ public class PokerHandler {
         handlers.put("poker_back_action", option -> updateUI());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> {
+            // Return the player's remaining stack before leaving
+            if (playerStack > 0) {
+                CasinoVIPManager.addStargems(playerStack);
+                main.getTextPanel().addPara("Returned " + playerStack + " Stargems to your wallet.", Color.YELLOW);
+                playerStack = 0;
+            }
             // Go back to the poker menu (the initial confirmation screen)
             showPokerConfirm();
         });
@@ -131,9 +137,13 @@ public class PokerHandler {
             main.options.addOption("Huge Stack (25,000 Stargems)", "poker_stack_25000");
         }
         
-        // Add custom stack option if player has gems
-        if (currentGems > 0) {
+        // Add custom stack option if player has enough gems for at least the blinds
+        int minRequiredGems = bigBlind; // Need at least big blind to play
+        if (currentGems >= minRequiredGems) {
             main.options.addOption("Bring All My Stargems (" + currentGems + ")", "poker_stack_all");
+        } else if (currentGems > 0 && currentGems < minRequiredGems) {
+            // Player has some gems but not enough to play
+            main.textPanel.addPara("You need at least " + minRequiredGems + " Stargems (Big Blind) to play.", Color.RED);
         }
         
         main.options.addOption("How to Play Poker", "how_to_poker");  // Add help option
@@ -227,6 +237,12 @@ public class PokerHandler {
         
         // Reset AI aggression tracking for new game
         this.ai = new PokerGame.SimplePokerAI();
+        
+        // Deal hole cards to each player (2 cards each, alternating)
+        playerHand.add(deck.draw());
+        opponentHand.add(deck.draw());
+        playerHand.add(deck.draw());
+        opponentHand.add(deck.draw());
         
         // Visual Panel
         main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.PokerUIPanel(main));
