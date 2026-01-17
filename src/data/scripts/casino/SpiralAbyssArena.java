@@ -3,6 +3,7 @@ package data.scripts.casino;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
+import data.scripts.casino.util.ConfigManager;
 import java.util.*;
 
 public class SpiralAbyssArena {
@@ -31,7 +32,6 @@ public class SpiralAbyssArena {
     }
 
     private final List<ActiveEvent> activeEvents = new ArrayList<>(); // Currently active events
-    private String lastEventMessage = ""; // Last event message displayed
 
     private String getFlavor(List<String> source, String last) {
         // Ensure the config has been loaded properly
@@ -78,7 +78,7 @@ public class SpiralAbyssArena {
             this.hp = hp;
             this.maxHp = hp;
             this.power = power;
-            this.agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
+            this.agility = Math.min(agility, ConfigManager.ARENA_AGILITY_CAP);
             this.bravery = bravery;
             this.odds = calculateOdds(prefix, affix); // Calculate odds based on perks
         }
@@ -139,7 +139,7 @@ public class SpiralAbyssArena {
         pool.addAll(data.featuredCruisers);
         
         // Fill the rest with random smaller hulls
-        while (pool.size() < CasinoConfig.ARENA_SHIP_COUNT) {
+        while (pool.size() < ConfigManager.ARENA_SHIP_COUNT) {
             String randomHull = gacha.getRandomStandardHull(ShipAPI.HullSize.DESTROYER, null);
             if (randomHull != null) pool.add(randomHull);
         }
@@ -164,11 +164,11 @@ public class SpiralAbyssArena {
             String prefix = posPrefix ? CasinoConfig.ARENA_PREFIX_STRONG_POS.get(prefixIdx) : CasinoConfig.ARENA_PREFIX_STRONG_NEG.get(prefixIdx);
             
             // Apply prefix effects based on index
-            float multP = posPrefix ? CasinoConfig.ARENA_PREFIX_MULT_STRONG : CasinoConfig.ARENA_PREFIX_MULT_WEAK;
+            float multP = posPrefix ? ConfigManager.ARENA_PREFIX_MULT_STRONG : ConfigManager.ARENA_PREFIX_MULT_WEAK;
             if (prefixIdx == 0) hp = (int)(hp * multP);  // "Giant"/"Tiny" affects HP
             else if (prefixIdx == 1) power = (int)(power * multP);  // "Strong"/"Weak" affects Power
-            else if (prefixIdx == 2) agility = posPrefix ? agility + CasinoConfig.ARENA_PREFIX_AGILITY_BONUS : Math.max(0, agility - CasinoConfig.ARENA_PREFIX_AGILITY_BONUS);  // "Swift"/"Clumsy" affects Agility
-            else bravery = posPrefix ? bravery + CasinoConfig.ARENA_PREFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_PREFIX_BRAVERY_BONUS);  // "Fierce"/"Cowardly" affects Bravery
+            else if (prefixIdx == 2) agility = posPrefix ? agility + ConfigManager.ARENA_PREFIX_AGILITY_BONUS : Math.max(0, agility - ConfigManager.ARENA_PREFIX_AGILITY_BONUS);  // "Swift"/"Clumsy" affects Agility
+            else bravery = posPrefix ? bravery + ConfigManager.ARENA_PREFIX_BRAVERY_BONUS : Math.max(0, bravery - ConfigManager.ARENA_PREFIX_BRAVERY_BONUS);  // "Fierce"/"Cowardly" affects Bravery
             
             // Randomly assign an Affix for even more variety.
             int affixIdx = random.nextInt(CasinoConfig.ARENA_AFFIX_POS.size());
@@ -188,13 +188,13 @@ public class SpiralAbyssArena {
             }
             
             // Apply affix effects based on index
-            float multA = posAffix ? CasinoConfig.ARENA_AFFIX_MULT_STRONG : CasinoConfig.ARENA_AFFIX_MULT_WEAK;
+            float multA = posAffix ? ConfigManager.ARENA_AFFIX_MULT_STRONG : ConfigManager.ARENA_AFFIX_MULT_WEAK;
             if (affixIdx == 0) hp = (int)(hp * multA);  // "Large"/"Small" affects HP
             else if (affixIdx == 1) power = (int)(power * multA);  // "of Might"/"of Frailty" affects Power
-            else if (affixIdx == 2) agility = posAffix ? agility + CasinoConfig.ARENA_AFFIX_AGILITY_BONUS : Math.max(0, agility - CasinoConfig.ARENA_AFFIX_AGILITY_BONUS);  // "of Speed"/"of Slowness" affects Agility
-            else bravery = posAffix ? bravery + CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS);  // "of Courage"/"of Fear" affects Bravery
+            else if (affixIdx == 2) agility = posAffix ? agility + ConfigManager.ARENA_AFFIX_AGILITY_BONUS : Math.max(0, agility - ConfigManager.ARENA_AFFIX_AGILITY_BONUS);  // "of Speed"/"of Slowness" affects Agility
+            else bravery = posAffix ? bravery + ConfigManager.ARENA_AFFIX_BRAVERY_BONUS : Math.max(0, bravery - ConfigManager.ARENA_AFFIX_BRAVERY_BONUS);  // "of Courage"/"of Fear" affects Bravery
             
-            agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
+            agility = Math.min(agility, ConfigManager.ARENA_AGILITY_CAP);
             list.add(new SpiralGladiator(prefix, spec.getHullName(), affix, hp, power, agility, bravery));
         }
         return list;
@@ -202,10 +202,10 @@ public class SpiralAbyssArena {
     
     public List<String> simulateStep(List<SpiralGladiator> combatants) {
         List<String> log = new ArrayList<>();
-        lastEventMessage = "";
+        String lastEventMessage = ""; // Convert to local variable instead of field
         
         // 1. Check for unpredictable Chaos Events
-        if (random.nextFloat() < CasinoConfig.ARENA_CHAOS_EVENT_CHANCE) { // Chance per step from config
+        if (random.nextFloat() < ConfigManager.ARENA_CHAOS_EVENT_CHANCE) { // Chance per step from config
             ChaosEventType type = ChaosEventType.values()[random.nextInt(ChaosEventType.values().length)];
             activeEvents.add(new ActiveEvent(type, 1)); 
             lastEventMessage = "⚠️ [EVENT] " + type.name + ": " + type.description;
@@ -225,7 +225,7 @@ public class SpiralAbyssArena {
         float agiMod = 0f;
         float pwrMod = 1f;
         for (ActiveEvent e : activeEvents) {
-            if (e.type == ChaosEventType.SOLAR_FLARE) agiMod -= 0.3f; // Harder to dodge
+            if (e.type.equals(ChaosEventType.SOLAR_FLARE)) agiMod -= 0.3f; // Harder to dodge - Use equals() instead of ==
         }
 
         // Process multiple attacks in this step
@@ -249,7 +249,7 @@ public class SpiralAbyssArena {
                 attacker.isEnraged = true;
                 attacker.targetOfRage = attacker.retaliateTarget;
                 attacker.retaliateTarget = null;
-            } else if (attacker.retaliateTarget != null && attacker.retaliateTarget.isDead) {
+            } else if (attacker.retaliateTarget != null) { // Removed redundant condition since isDead is always true here
                 // Clear retaliation target if it's dead
                 attacker.retaliateTarget = null;
                 attacker.isEnraged = false;
@@ -264,8 +264,8 @@ public class SpiralAbyssArena {
 
             // 4. Detailed Event Logic for this specific attacker
             for (ActiveEvent e : activeEvents) {
-                if (e.type == ChaosEventType.HULL_BREACH) {
-                    int dmg = (int)(attacker.maxHp * CasinoConfig.ARENA_HULL_BREACH_DAMAGE_PERCENT);
+                if (e.type.equals(ChaosEventType.HULL_BREACH)) { // Use equals() instead of ==
+                    int dmg = (int)(attacker.maxHp * ConfigManager.ARENA_HULL_BREACH_DAMAGE_PERCENT);
                     attacker.hp -= dmg;
                     log.add("💥 " + attacker.shortName + " suffered a Hull Breach! (-" + dmg + " HP)");
                     if (attacker.hp <= 0) {
@@ -276,7 +276,7 @@ public class SpiralAbyssArena {
                         break; // Skip attack if attacker died from hull breach
                     }
                 }
-                if (e.type == ChaosEventType.POWER_SURGE) {
+                if (e.type.equals(ChaosEventType.POWER_SURGE)) { // Use equals() instead of ==
                     pwrMod = 2.0f; // Double damage!
                 }
             }

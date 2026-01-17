@@ -184,18 +184,18 @@ public class CasinoUIPanels {
             
             // Pity system explanation
             element.addSectionHeading("Pity System", Alignment.MID, 5f);
-            element.addPara("Guaranteed 5-star after " + data.scripts.casino.CasinoConfig.PITY_HARD_5 + " pulls", 5f, 
-                Misc.getHighlightColor(), "" + data.scripts.casino.CasinoConfig.PITY_HARD_5);
-            element.addPara("Guaranteed 4-star after " + data.scripts.casino.CasinoConfig.PITY_HARD_4 + " pulls", 5f, 
-                Misc.getHighlightColor(), "" + data.scripts.casino.CasinoConfig.PITY_HARD_4);
+            element.addPara("Guaranteed 5-star after " + data.scripts.casino.util.ConfigManager.PITY_HARD_5 + " pulls", 5f, 
+                Misc.getHighlightColor(), "" + data.scripts.casino.util.ConfigManager.PITY_HARD_5);
+            element.addPara("Guaranteed 4-star after " + data.scripts.casino.util.ConfigManager.PITY_HARD_4 + " pulls", 5f, 
+                Misc.getHighlightColor(), "" + data.scripts.casino.util.ConfigManager.PITY_HARD_4);
             element.addSpacer(10f);
             
             // Cost information
             element.addSectionHeading("Pull Costs", Alignment.MID, 5f);
-            element.addPara("Single Pull: " + data.scripts.casino.CasinoConfig.GACHA_COST + " Stargems", 5f, 
-                Misc.getHighlightColor(), "" + data.scripts.casino.CasinoConfig.GACHA_COST);
-            element.addPara("Ten Pulls: " + (data.scripts.casino.CasinoConfig.GACHA_COST * 10) + " Stargems", 5f, 
-                Misc.getHighlightColor(), "" + (data.scripts.casino.CasinoConfig.GACHA_COST * 10));
+            element.addPara("Single Pull: " + data.scripts.casino.util.ConfigManager.GACHA_COST + " Stargems", 5f, 
+                Misc.getHighlightColor(), "" + data.scripts.casino.util.ConfigManager.GACHA_COST);
+            element.addPara("Ten Pulls: " + (data.scripts.casino.util.ConfigManager.GACHA_COST * 10) + " Stargems", 5f, 
+                Misc.getHighlightColor(), "" + (data.scripts.casino.util.ConfigManager.GACHA_COST * 10));
             element.addSpacer(10f);
             
             // Additional information

@@ -5,6 +5,7 @@ import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.SpiralAbyssArena;
+import data.scripts.casino.util.LogFormatter;
 import data.scripts.CasinoUIPanels;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -148,7 +149,7 @@ public class ArenaHandler {
             activeArena = new SpiralAbyssArena();
             arenaCombatants = activeArena.generateCombatants(new CasinoGachaManager());
             // Reset bet amount to default for a new championship
-            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
+            currentBetAmount = data.scripts.casino.util.ConfigManager.ARENA_ENTRY_FEE;
         }
         
         main.textPanel.addPara("Spiral Abyss Arena - Today's Match Card", Color.CYAN);
@@ -201,22 +202,22 @@ public class ArenaHandler {
      */
     private boolean isPositiveAffix(String affixOrPrefix) {
         // Check if it's in the positive affix list
-        if (CasinoConfig.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
+        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
             return true;
         }
         
         // Check if it's in the negative affix list
-        if (CasinoConfig.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
+        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
             return false;
         }
         
         // Check if it's in the positive prefix list
-        if (CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
+        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
             return true;
         }
         
         // Check if it's in the negative prefix list
-        if (CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
+        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
             return false;
         }
         
@@ -447,8 +448,8 @@ public class ArenaHandler {
         
         // Calculate rewards based on performance (survival and kills) regardless of win/loss
         int totalBet = getCurrentTotalBet(); // Use the total accumulated bet amount
-        int survivalReward = turnsSurvived * CasinoConfig.ARENA_SURVIVAL_REWARD_PER_TURN; // Configurable gems per turn survived
-        int killReward = chosenChampion.kills * CasinoConfig.ARENA_KILL_REWARD_PER_KILL; // Configurable gems per kill
+        int survivalReward = turnsSurvived * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_REWARD_PER_TURN; // Configurable gems per turn survived
+        int killReward = chosenChampion.kills * data.scripts.casino.util.ConfigManager.ARENA_KILL_REWARD_PER_KILL; // Configurable gems per kill
         int performanceBonus = survivalReward + killReward;
         
         // Determine the actual winner (could be different from chosen champion if player switched)
@@ -466,7 +467,7 @@ public class ArenaHandler {
             // Calculate reward for each individual bet separately (like horse betting)
             int totalWinReward = 0;
             for (BetInfo bet : arenaBets) {
-                int betReward = (int)(bet.amount * bet.multiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT);
+                int betReward = (int)(bet.amount * bet.multiplier * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_REWARD_MULT);
                 totalWinReward += betReward;
             }
             int totalReward = totalWinReward + performanceBonus;
@@ -517,7 +518,7 @@ public class ArenaHandler {
             // Calculate total win reward from all individual bets
             int totalWinReward = 0;
             for (BetInfo bet : arenaBets) {
-                int betReward = (int)(bet.amount * bet.multiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT);
+                int betReward = (int)(bet.amount * bet.multiplier * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_REWARD_MULT);
                 totalWinReward += betReward;
             }
             main.getTextPanel().addPara("Total Reward: " + (performanceBonus + totalWinReward) + " Stargems", Color.GREEN);
@@ -531,7 +532,7 @@ public class ArenaHandler {
         int totalWinReward = 0;
         if (championWon) {
             for (BetInfo bet : arenaBets) {
-                int betReward = (int)(bet.amount * bet.multiplier * CasinoConfig.ARENA_SURVIVAL_REWARD_MULT);
+                int betReward = (int)(bet.amount * bet.multiplier * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_REWARD_MULT);
                 totalWinReward += betReward;
             }
         }
@@ -568,7 +569,7 @@ public class ArenaHandler {
         opponentsDefeated = 0;
         turnsSurvived = 0;
         arenaBets.clear();
-        currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE; // Reset to default bet amount for next game
+        currentBetAmount = data.scripts.casino.util.ConfigManager.ARENA_ENTRY_FEE; // Reset to default bet amount for next game
         
         // According to the requirements, after battle, we should show a menu that allows adding bet
         // until "Continue Battle" (which would be "arena_lobby" in this case) is chosen
@@ -724,178 +725,32 @@ public class ArenaHandler {
     }
     
     private void processLogEntry(String logEntry) {
-        // Parse the log entry to identify attacker, target, and damage values
-        // Use regex to find patterns like "$attacker hits $target for $dmg!"
+        // Use the LogFormatter utility to process the log entry
+        LogFormatter.processLogEntry(logEntry, main.textPanel, arenaCombatants);
         
-        // First, restore font to default
-        main.textPanel.setFontInsignia();
-        
-        if (logEntry.contains("$attacker") || logEntry.contains("$target") || logEntry.contains("$dmg")) {
-            // This shouldn't happen since the replacement should already occur in the simulation
-            main.textPanel.addPara(logEntry);
-            return;
-        }
-        
-        // Check if this is a ship status line
-        if (logEntry.startsWith("--- SHIP STATUS ---")) {
-            main.textPanel.addPara(logEntry, Color.YELLOW);
-            return;
-        }
-        
-        // Check if this is a status line for a specific ship
-        if (logEntry.contains(": ") && (logEntry.contains("HP") || logEntry.contains("angry at"))) {
-            // This is a status line like "Hammerhead: 45/60 HP (angry at Manticore)"
-            main.textPanel.addPara(logEntry, Color.GRAY);
-            
-            // Highlight the ship name
-            String[] parts = logEntry.split(": ");
-            if (parts.length > 0) {
-                String shipName = parts[0].trim();
-                main.textPanel.highlightInLastPara(Color.WHITE, shipName);
-            }
-            
-            // Highlight HP values
-            if (logEntry.contains("/")) {
-                String[] hpParts = logEntry.split(" ");
-                for (String part : hpParts) {
-                    if (part.contains("/")) {
-                        main.textPanel.highlightInLastPara(Color.GREEN, part);
-                    }
-                }
-            }
-            
-            // Highlight the angry text
-            if (logEntry.contains("(angry at")) {
-                int start = logEntry.indexOf("(angry at");
-                int end = logEntry.indexOf(")", start);
-                if (end > start) {
-                    String angryText = logEntry.substring(start, end + 1);
-                    main.textPanel.highlightInLastPara(Color.RED, angryText);
-                }
-            }
-            
-            // Calculate and display expected return if the player bet on this ship
-            if (chosenChampion != null) {
-                for (SpiralAbyssArena.SpiralGladiator g : arenaCombatants) {
-                    if (logEntry.startsWith(g.shortName + ": ")) {
-                        // Check if player bet on this ship
-                        if (g == chosenChampion) {
-                            int totalExpectedReturn = 0;
-                            for (BetInfo bet : arenaBets) {
-                                // Calculate expected return considering both the bet amount and the odds
-                                int expectedReturn = (int)(bet.amount * bet.multiplier * g.odds);
-                                totalExpectedReturn += expectedReturn;
-                            }
-                            if (totalExpectedReturn > 0) {
-                                String returnText = " [Expected Return: " + totalExpectedReturn + " Stargems]";
-                                main.textPanel.addPara(returnText, Color.CYAN);
-                            }
-                        } else {
-                            // Player did not bet on this ship
-                            String returnText = " [Expected Return: 0 Stargems]";
-                            main.textPanel.addPara(returnText, Color.GRAY);
+        // Calculate and display expected return if the player bet on this ship
+        if (chosenChampion != null) {
+            for (SpiralAbyssArena.SpiralGladiator g : arenaCombatants) {
+                if (logEntry.startsWith(g.shortName + ": ")) {
+                    // Check if player bet on this ship
+                    if (g == chosenChampion) {
+                        int totalExpectedReturn = 0;
+                        for (BetInfo bet : arenaBets) {
+                            // Calculate expected return considering both the bet amount and the odds
+                            int expectedReturn = (int)(bet.amount * bet.multiplier * g.odds);
+                            totalExpectedReturn += expectedReturn;
                         }
-                        break;
-                    }
-                }
-            }
-            
-            return;
-        }
-        
-        // Look for damage patterns: "shipName hits shipName for X HP!"
-        // We'll use a simple approach looking for "hits" and "for" keywords
-        String[] parts = logEntry.split("hits | for |!");
-        if (parts.length >= 3 && logEntry.contains("hits") && logEntry.contains("for")) {
-            // Format: "Attacker hits Target for Damage!"
-            String attacker = parts[0].trim();
-            String target = parts[1].trim();
-            String damagePart = parts[2].trim() + (logEntry.endsWith("!") ? "!" : "");
-            
-            // Combine the text into a single paragraph to avoid excessive line breaks
-            String combinedText = attacker + " hits " + target + " for " + damagePart;
-            main.textPanel.addPara(combinedText, Color.WHITE);
-            
-            // Highlight attacker in one color
-            main.textPanel.highlightInLastPara(Color.CYAN, attacker);
-            
-            // Highlight target in another color
-            main.textPanel.highlightInLastPara(Color.ORANGE, target);
-            
-            // Highlight damage values in red/yellow to indicate damage
-            main.textPanel.highlightInLastPara(Color.RED, damagePart.replaceAll("[^0-9]", "").trim());
-        } else if (logEntry.contains("suffered a Hull Breach") || logEntry.contains("was lost to space decompression")) {
-            // Handle hull breach events: "shipName suffered a Hull Breach! (-X HP)"
-            String[] parts2 = logEntry.split(" suffered a| was lost");
-            if (parts2.length >= 1) {
-                String shipName = parts2[0].trim();
-                String eventDesc = logEntry.substring(shipName.length()).trim();
-                
-                // Combine into a single paragraph to avoid excessive line breaks
-                String combinedText = shipName + eventDesc;
-                main.textPanel.addPara(combinedText, Color.WHITE);
-                
-                // Highlight the ship name
-                main.textPanel.highlightInLastPara(Color.MAGENTA, shipName);
-            } else {
-                main.textPanel.addPara(logEntry);
-            }
-        } else if (logEntry.contains("馃拃") || logEntry.contains("馃挜") || logEntry.contains("鈿狅笍")) {
-            // Handle special events with emojis
-            if (logEntry.contains(":")) {
-                String[] parts3 = logEntry.split(":", 2);
-                if (parts3.length >= 2) {
-                    // Combine into a single paragraph to avoid excessive line breaks
-                    String combinedText = parts3[0] + ": " + parts3[1];
-                    main.textPanel.addPara(combinedText, Color.WHITE);
-                    
-                    // Highlight important parts differently
-                    main.textPanel.highlightInLastPara(Color.YELLOW, parts3[0]);
-                    main.textPanel.highlightInLastPara(Color.CYAN, parts3[1]);
-                } else {
-                    main.textPanel.addPara(logEntry);
-                }
-            } else {
-                main.textPanel.addPara(logEntry);
-            }
-        } else {
-            // For other log entries, try to identify ship names
-            boolean foundFormatted = false;
-            for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
-                if (logEntry.contains(gladiator.shortName)) {
-                    // Use the original log entry but with consistent coloring to avoid excessive line breaks
-                    main.textPanel.addPara(logEntry);
-                    
-                    // Extract and highlight different parts of the ship name separately
-                    String prefixText = gladiator.prefix;
-                    String hullNameText = gladiator.hullName;
-                    String affixText = gladiator.affix;
-                    
-                    // Highlight the hull name in white separately from affixes/prefixes
-                    main.textPanel.highlightInLastPara(Color.WHITE, hullNameText);
-                    
-                    // Highlight the prefix in green/red based on whether it's positive or negative
-                    Color prefixHighlightColor = isPositiveAffix(gladiator.prefix) ? Color.GREEN : Color.RED;
-                    main.textPanel.highlightInLastPara(prefixHighlightColor, prefixText);
-                    
-                    // Highlight the affix in green/red based on whether it's positive or negative
-                    Color affixHighlightColor = isPositiveAffix(gladiator.affix) ? Color.GREEN : Color.RED;
-                    main.textPanel.highlightInLastPara(affixHighlightColor, affixText);
-                    
-                    // Highlight any numeric values (damage, HP, etc.) in red
-                    String[] numericParts = logEntry.split("[^0-9]+");
-                    for (String numPart : numericParts) {
-                        if (!numPart.trim().isEmpty()) {
-                            main.textPanel.highlightInLastPara(Color.RED, numPart);
+                        if (totalExpectedReturn > 0) {
+                            String returnText = " [Expected Return: " + totalExpectedReturn + " Stargems]";
+                            main.textPanel.addPara(returnText, Color.CYAN);
                         }
+                    } else {
+                        // Player did not bet on this ship
+                        String returnText = " [Expected Return: 0 Stargems]";
+                        main.textPanel.addPara(returnText, Color.GRAY);
                     }
-                    
-                    foundFormatted = true;
                     break;
                 }
-            }
-            if (!foundFormatted) {
-                main.textPanel.addPara(logEntry);
             }
         }
     }

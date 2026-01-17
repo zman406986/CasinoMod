@@ -8,6 +8,7 @@ import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
 import com.fs.starfarer.api.impl.campaign.ids.Tags;
 import com.fs.starfarer.api.impl.campaign.ids.Items;
+import data.scripts.casino.util.ConfigManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,13 +63,13 @@ public class CasinoGachaManager {
     ));
     
     private int getMinimumFleetPoints(ShipAPI.HullSize size) {
-        switch (size) {
-            case CAPITAL_SHIP: return 20;
-            case CRUISER: return 14;
-            case DESTROYER: return 8;
-            case FRIGATE: return 4;
-            default: return 5;
-        }
+        return switch (size) {
+            case CAPITAL_SHIP -> 20;
+            case CRUISER -> 14;
+            case DESTROYER -> 8;
+            case FRIGATE -> 4;
+            default -> 5;
+        };
     }
     
     public boolean isShipAllowed(ShipHullSpecAPI spec) {
@@ -102,8 +103,8 @@ public class CasinoGachaManager {
         }
         
         // Check for ships in the configured blacklist
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
+        if (ConfigManager.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
+        if (ConfigManager.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
         
         // Skip extremely high FP ships (likely bosses/uniques)
         if (spec.getFleetPoints() > 60) return false;
@@ -203,12 +204,12 @@ public class CasinoGachaManager {
         data.pity4++;
         
         // --- 1. Check 5* (Capital) ---
-        float currentRate5 = CasinoConfig.PROB_5_STAR;
+        float currentRate5 = ConfigManager.PROB_5_STAR;
         
-        if (data.pity5 >= CasinoConfig.PITY_SOFT_START_5) {
-            currentRate5 = CasinoConfig.PROB_5_STAR + (data.pity5 - (CasinoConfig.PITY_SOFT_START_5 - 1)) * 0.06f;
+        if (data.pity5 >= ConfigManager.PITY_SOFT_START_5) {
+            currentRate5 = ConfigManager.PROB_5_STAR + (data.pity5 - (ConfigManager.PITY_SOFT_START_5 - 1)) * 0.06f;
         }
-        if (data.pity5 >= CasinoConfig.PITY_HARD_5) currentRate5 = 10.0f; 
+        if (data.pity5 >= ConfigManager.PITY_HARD_5) currentRate5 = 10.0f; 
         
         float roll = random.nextFloat();
         
@@ -218,8 +219,8 @@ public class CasinoGachaManager {
         }
         
         // --- 2. Check 4* (Cruiser) ---
-        float currentRate4 = CasinoConfig.PROB_4_STAR;
-        if (data.pity4 >= CasinoConfig.PITY_HARD_4) currentRate4 = 10.0f;
+        float currentRate4 = ConfigManager.PROB_4_STAR;
+        if (data.pity4 >= ConfigManager.PITY_HARD_4) currentRate4 = 10.0f;
         
         float roll4 = random.nextFloat();
         
@@ -235,7 +236,7 @@ public class CasinoGachaManager {
         if (s != null && data.autoConvertIds.contains(s)) {
             ShipHullSpecAPI hullSpec = Global.getSettings().getHullSpec(s);
             if (hullSpec != null) {
-                int val = (int)(hullSpec.getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
+                int val = (int)(hullSpec.getBaseValue() / ConfigManager.SHIP_TRADE_RATE);
                 CasinoVIPManager.addStargems(val);
                 return "Auto-Converted: " + hullSpec.getHullName() + " (+" + val + " Gems)";
             }
@@ -256,61 +257,9 @@ public class CasinoGachaManager {
         }
     }
     
-    private String handle5StarForNormalUsage(GachaData data) {
-        String resultId;
-        boolean isFeatured = false;
-        
-        if (data.guaranteedFeatured5) {
-            resultId = data.featuredCapital;
-            data.guaranteedFeatured5 = false; 
-            isFeatured = true;
-        } else {
-             if (random.nextBoolean()) {
-                 resultId = data.featuredCapital;
-                 isFeatured = true;
-             } else {
-                 resultId = getRandomStandardHull(ShipAPI.HullSize.CAPITAL_SHIP, data.featuredCapital);
-                 data.guaranteedFeatured5 = true; 
-             }
-        }
-        
-        FleetMemberAPI member = createShip(resultId);
-        Global.getSector().getPlayerFleet().getFleetData().addFleetMember(member);
-        
-        String shipName = member.getShipName();
-        if (shipName == null || shipName.isEmpty()) {
-            shipName = member.getHullSpec().getHullName();
-        }
-        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
-    }
+
     
-    private String handle4StarForNormalUsage(GachaData data) {
-        String resultId;
-        boolean isFeatured = false;
-        
-        if (data.guaranteedFeatured4) {
-            resultId = data.featuredCruisers.get(random.nextInt(data.featuredCruisers.size()));
-            data.guaranteedFeatured4 = false;
-            isFeatured = true;
-        } else {
-            if (random.nextBoolean()) {
-                resultId = data.featuredCruisers.get(random.nextInt(data.featuredCruisers.size()));
-                isFeatured = true;
-            } else {
-                resultId = getRandomStandardHull(ShipAPI.HullSize.CRUISER, null); 
-                data.guaranteedFeatured4 = true;
-            }
-        }
-        
-        FleetMemberAPI member = createShip(resultId);
-        Global.getSector().getPlayerFleet().getFleetData().addFleetMember(member);
-        
-        String shipName = member.getShipName();
-        if (shipName == null || shipName.isEmpty()) {
-            shipName = member.getHullSpec().getHullName();
-        }
-        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 4*]" : "[4*]");
-    }
+
     
     private String handle5StarDetailed(GachaData data, List<FleetMemberAPI> collectedShips) {
         String resultId;
@@ -335,11 +284,15 @@ public class CasinoGachaManager {
             collectedShips.add(member);
         }
         
+        if (member == null) {
+            return "Error: Could not create ship.";
+        }
+        
         String shipName = member.getShipName();
         if (shipName == null || shipName.isEmpty()) {
             shipName = member.getHullSpec().getHullName();
         }
-        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*]");
+        return shipName + " (" + member.getHullSpec().getHullName() + ") " + (isFeatured ? "[FEATURED 5*]" : "[5*");
     }
     
     private String handle4StarDetailed(GachaData data, List<FleetMemberAPI> collectedShips) {
@@ -363,6 +316,10 @@ public class CasinoGachaManager {
         FleetMemberAPI member = createShip(resultId);
         if (member != null) {
             collectedShips.add(member);
+        }
+        
+        if (member == null) {
+            return "Error: Could not create ship.";
         }
         
         String shipName = member.getShipName();

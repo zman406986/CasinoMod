@@ -2,8 +2,7 @@ package data.scripts.casino;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignClockAPI;
-import com.fs.starfarer.api.impl.campaign.ids.Tags;
-import data.scripts.CasinoModPlugin;
+import data.scripts.casino.util.ConfigManager;
 
 import java.awt.Color;
 import java.util.Map;
@@ -51,7 +50,7 @@ public class CasinoVIPManager {
 
         if (vip.daysRemaining > 0) {
             vip.daysRemaining--;
-            addStargems(CasinoConfig.VIP_DAILY_REWARD);
+            addStargems(ConfigManager.VIP_DAILY_REWARD);
             sendNotification();
             data.put(DATA_KEY, vip); // Always re-put to ensure the map updates
         }
@@ -72,7 +71,7 @@ public class CasinoVIPManager {
         if (day == 15 && !data.containsKey(interestKey)) {
             int gems = getStargems();
             if (gems < 0) {
-                int interest = (int) (gems * CasinoConfig.VIP_INTEREST_RATE); 
+                int interest = (int) (gems * ConfigManager.VIP_INTEREST_RATE); 
                 
                 // Memory markers are great for passing localized flags between methods.
                 Global.getSector().getMemoryWithoutUpdate().set("$ipc_processing_interest", true, 0f);
@@ -90,12 +89,12 @@ public class CasinoVIPManager {
      * Sends a random flavor text advertisement to the player UI.
      */
     private void sendNotification() {
-        if (CasinoConfig.VIP_ADS.isEmpty()) return;
-        String ad = CasinoConfig.VIP_ADS.get(random.nextInt(CasinoConfig.VIP_ADS.size()));
+        if (ConfigManager.VIP_ADS.isEmpty()) return;
+        String ad = ConfigManager.VIP_ADS.get(random.nextInt(ConfigManager.VIP_ADS.size()));
         Global.getSector().getCampaignUI().addMessage(
-            "VIP Pass: " + CasinoConfig.VIP_DAILY_REWARD + " Stargems added. " + ad,
+            "VIP Pass: " + ConfigManager.VIP_DAILY_REWARD + " Stargems added. " + ad,
             Color.GREEN,
-            CasinoConfig.VIP_DAILY_REWARD + " Stargems",
+            ConfigManager.VIP_DAILY_REWARD + " Stargems",
             "",
             Color.YELLOW,
             Color.WHITE
@@ -194,9 +193,9 @@ public class CasinoVIPManager {
 
     // Get the debt ceiling based on dynamic calculation
     public static int getDebtCeiling() {
-        int baseCeiling = CasinoConfig.BASE_DEBT_CEILING;
-        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.VIP_PASS_CEILING_INCREASE;
-        int topupIncrease = (int) (getCumulativeTopupAmount() * CasinoConfig.TOPUP_CEILING_MULTIPLIER);
+        int baseCeiling = ConfigManager.BASE_DEBT_CEILING;
+        int vipIncrease = getCumulativeVIPPurchases() * ConfigManager.VIP_PASS_CEILING_INCREASE;
+        int topupIncrease = (int) (getCumulativeTopupAmount() * ConfigManager.TOPUP_CEILING_MULTIPLIER);
         
         return baseCeiling + vipIncrease + topupIncrease;
     }
@@ -212,7 +211,7 @@ public class CasinoVIPManager {
     public static void applyInterest() {
         int currentDebt = getDebt();
         if (currentDebt > 0) {
-            float interestAmount = currentDebt * CasinoConfig.VIP_INTEREST_RATE;
+            float interestAmount = currentDebt * ConfigManager.VIP_INTEREST_RATE;
             addDebt((int) interestAmount);
         }
     }

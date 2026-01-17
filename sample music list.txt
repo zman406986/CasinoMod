@@ -1,0 +1,10 @@
+For the sample music and logo, ©All rights reserved by miHoYo. 
+Other properties and any right, title, and interest thereof and therein (intellectual property rights included) not derived from 
+Honkai: Star Rail belong to their respective owners. 
+Please do not use or redistribute any part of this mod commercially. 
+Find Hoyo's guide on the usage of their copyrighted materials at
+https://www.hoyolab.com/article/17883171
+
+
+File Name				Music Name 
+casino_theme.ogg			Battle_ Ultimate Champion (Variation

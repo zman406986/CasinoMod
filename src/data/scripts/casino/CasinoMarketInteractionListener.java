@@ -37,31 +37,10 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
     }
     
     private boolean shouldAddCasinoOption(MarketAPI market) {
-        // Check if market meets criteria for casino
-        // Add casino option to Tritachyon faction markets (since they are tech-oriented)
-        if ("tritachyon".equals(market.getFactionId())) {
-            return true;
-        }
-        
-        // Or to player markets (no size requirement)
-        if ("player".equals(market.getFactionId())) {
-            return true;
-        }
-        
-        // Or to markets with entertainment-related industries
-        for (com.fs.starfarer.api.campaign.econ.Industry industry : market.getIndustries()) {
-            String industryId = industry.getId();
-            if (industryId != null && 
-                (industryId.toLowerCase().contains("plex") || 
-                 industryId.toLowerCase().contains("entertainment") ||
-                 industryId.toLowerCase().contains("luxury") ||
-                 industryId.toLowerCase().contains("station"))) {
-                return true;
-            }
-        }
-        
-        // Or to any market (no size requirement)
-        return true; // Make it available in all markets regardless of size
+        // According to project requirements, market size limitations have been removed
+        // The casino is available in all markets regardless of faction or industry
+        // This ensures broad accessibility as per the design
+        return true;
     }
 
     private void addCasinoOptionToMarket(MarketAPI market) {

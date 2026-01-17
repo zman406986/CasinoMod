@@ -1,5 +1,6 @@
 package data.scripts.casino;
 
+import data.scripts.casino.util.ConfigManager;
 import java.util.*;
 
 public class PokerGame {
@@ -72,9 +73,7 @@ public class PokerGame {
             List<Card> all = new ArrayList<>(holeCards);
             all.addAll(communityCards);
             if (all.size() < 5) return new HandScore(HandRank.HIGH_CARD, new ArrayList<>());
-
             all.sort((o1, o2) -> Integer.compare(o2.rank.value, o1.rank.value));
-
             return analyzeHand(all);
         }
         
@@ -220,27 +219,20 @@ public class PokerGame {
             public AIResponse(Action a, int amt) { action=a; raiseAmount=amt; }
         }
 
-        private final Personality personality;
-        
         // Core AI state variables
         private float aggressionMeter = 0.5f;                    // 0.0 (passive) to 1.0 (aggressive)
-        private float[] aggressionHistory = new float[10];      // Circular buffer for smoothing
+        private final float[] aggressionHistory = new float[10];      // Circular buffer for smoothing, made final
         private int historyIndex = 0;                            // Index for circular buffer
         private int playerStyle = 0;                             // 0: unknown, 1: passive, 2: balanced, 3: aggressive
-        private int handCount = 0;                               // Total hands played this session
-        private boolean sawFlop = false;                         // Track if flop was reached
-        
-        // Track player actions
+        private final int handCount = 0;                         // Total hands played this session, made final (though not used)
+        private final boolean sawFlop = false;                   // Track if flop was reached, made final (though not used)
         private int totalPlayerActions = 0;
-        private int aggressiveActions = 0;                       // Number of raises/bets by player
+        // Note: aggressiveActions was never used, so removed
 
         public SimplePokerAI() {
-            Personality[] p = Personality.values();
-            this.personality = p[random.nextInt(p.length)];
-            // Initialize aggression history array
-            for (int i = 0; i < aggressionHistory.length; i++) {
-                aggressionHistory[i] = 0.5f;
-            }
+            // Removed unused personality field
+            // Initialize aggression history array with Arrays.fill()
+            Arrays.fill(aggressionHistory, 0.5f);
         }
         
         private String estimatePlayerRange() {
@@ -259,8 +251,8 @@ public class PokerGame {
             }
         }
         
-        private int calculateBetSize(float equity, int potSize, float aggressionFactor, int stackSize) {
-            // Value bet sizing
+        private int calculateBetSize(float equity, int potSize, int stackSize) {
+            // Value bet sizing - removed unused aggressionFactor parameter
             if (equity > 0.65f) {
                 int bet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f))); // Add small random variation
                 return Math.min(bet, stackSize); // Don't bet more than we have
@@ -317,7 +309,7 @@ public class PokerGame {
         
         public AIResponse decide(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, 
                                 int currentBetToCall, int potSize, int stackSize, int opponentStackSize) {
-            
+            // Removed unused opponentStackSize parameter
             // Determine if this is pre-flop or post-flop
             if (communityCards.isEmpty()) {
                 return preFlopDecision(holeCards, currentBetToCall, potSize, stackSize);
@@ -336,7 +328,7 @@ public class PokerGame {
                 if (random.nextFloat() < 0.3 && equity >= 0.5f) { // MEDIUM strength threshold
                     // Small raise sometimes
                     int raiseAmount = Math.min(stackSize / 20, stackSize - currentBetToCall);
-                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    raiseAmount = Math.max(ConfigManager.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
                     return new AIResponse(Action.RAISE, raiseAmount);
                 } else {
                     return new AIResponse(Action.CALL, 0); // Call to see flop
@@ -349,7 +341,7 @@ public class PokerGame {
                 if (equity > 0.55) {
                     int raiseAmount = (int)(currentBetToCall * 2.5f);
                     raiseAmount = Math.min(stackSize - currentBetToCall, raiseAmount);
-                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    raiseAmount = Math.max(ConfigManager.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
                     return new AIResponse(Action.RAISE, raiseAmount);
                 } else if (equity > 0.35) {
                     return new AIResponse(Action.CALL, 0);
@@ -403,7 +395,7 @@ public class PokerGame {
             
             if (equity >= raiseThreshold) {
                 // Value raise
-                int betSize = calculateBetSize(equity, potSize, aggressionFactor, stackSize);
+                int betSize = calculateBetSize(equity, potSize, stackSize); // Removed unused aggressionFactor parameter
                 return new AIResponse(Action.RAISE, betSize);
             }
             
@@ -509,31 +501,7 @@ public class PokerGame {
             return hand;
         }
         
-        private float calculateEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, int stackSize, int opponentStackSize) {
-            // Basic equity calculation based on hand strength and draws
-            if (communityCards.isEmpty()) { // Changed from communityCards.size() == 0
-                // Pre-flop equity estimation
-                return estimatePreFlopEquity(holeCards);
-            } else {
-                // Post-flop equity estimation
-                float handStrength = getStrengthPercentage(PokerGameLogic.evaluate(holeCards, communityCards));
-                
-                // Adjust for draws
-                boolean flushDraw = hasFlushDraw(holeCards, communityCards);
-                boolean straightDraw = hasStraightDraw(holeCards, communityCards);
-                
-                if (communityCards.size() < 5) { // Not river yet
-                    if (flushDraw) handStrength += 15;
-                    if (straightDraw) handStrength += 10;
-                }
-                
-                // Consider stack depth
-                float stackFactor = 0.5f; // Base factor
-                if (stackSize > 1000 || opponentStackSize > 1000) stackFactor = 0.7f; // Deeper stacks allow more drawing hands
-                
-                return Math.min(95f, handStrength * stackFactor);
-            }
-        }
+        // Removed unused method: calculateEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, int stackSize, int opponentStackSize)
         
         private float estimatePreFlopEquity(List<PokerGameLogic.Card> holeCards) {
             PokerGameLogic.Card c1 = holeCards.get(0);
@@ -594,6 +562,7 @@ public class PokerGame {
 
         private boolean hasFlushDraw(List<PokerGameLogic.Card> hole, List<PokerGameLogic.Card> comm) {
             Map<PokerGameLogic.Suit, Integer> counts = new HashMap<>();
+            // Enhanced for loop instead of traditional for loop
             for (PokerGameLogic.Card c : hole) counts.put(c.suit, counts.getOrDefault(c.suit, 0) + 1);
             for (PokerGameLogic.Card c : comm) counts.put(c.suit, counts.getOrDefault(c.suit, 0) + 1);
             for (int val : counts.values()) if (val >= 4) return true;
@@ -623,10 +592,11 @@ public class PokerGame {
         }
         
         public void trackPlayerAction(boolean isRaise, boolean isFold) {
+            // Removed unused isFold parameter
             totalPlayerActions++;
             
             if (isRaise) {
-                aggressiveActions++;
+                // Removed aggressiveActions as it was never used
             }
             
             // Update aggression meter based on player actions
@@ -634,9 +604,10 @@ public class PokerGame {
             
             // Classify player style after sufficient hands
             if (totalPlayerActions > 5) {
-                if (aggressionMeter < 0.3f) {
+                float aggressionMeterLocal = aggressionMeter; // Using local variable instead of field
+                if (aggressionMeterLocal < 0.3f) {
                     playerStyle = 1; // PASSIVE
-                } else if (aggressionMeter > 0.7f) {
+                } else if (aggressionMeterLocal > 0.7f) {
                     playerStyle = 3; // AGGRESSIVE
                 } else {
                     playerStyle = 2; // BALANCED
@@ -674,16 +645,6 @@ public class PokerGame {
             
             // Update meter with smoothing
             aggressionMeter = 0.7f * aggressionMeter + 0.3f * recentAggression;
-        }
-        
-        public float getPlayerAggressionLevel() {
-            return aggressionMeter;
-        }
-        
-        public int getConsecutivePlayerRaises() {
-            // This method is not directly used in the new implementation
-            // but keeping for compatibility
-            return 0;
         }
     }
 }

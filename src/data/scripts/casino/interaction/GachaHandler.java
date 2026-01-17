@@ -26,7 +26,7 @@ public class GachaHandler {
     
     // Track if we just completed a gacha pull animation
     private boolean justCompletedPull = false;
-    private List<FleetMemberAPI> pendingShipsForConversion = new ArrayList<>();
+    private final List<FleetMemberAPI> pendingShipsForConversion = new ArrayList<>();
     
     public GachaHandler(CasinoInteraction main) {
         this.main = main;
@@ -49,9 +49,9 @@ public class GachaHandler {
         });
     }
     
-    private boolean canAffordTransaction(int cost) {
+    private boolean canAffordTransaction(int amount) {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
-        return availableCredit >= 0; // Player can afford if they have enough gems or available credit
+        return availableCredit >= amount; // Player can afford if they have enough gems or available credit
     }
 
     public void handle(String option) {
@@ -186,16 +186,7 @@ public class GachaHandler {
         for (String result : pullResults) {
             // Parse the result to create gacha items
             // This is a simplified approach - in a real implementation you'd parse the actual results
-            int rarity = 3; // Default to 3 stars for demonstration
-            if (result.contains("5*") || result.toLowerCase().contains("legendary")) {
-                rarity = 5;
-            } else if (result.contains("4*") || result.toLowerCase().contains("rare")) {
-                rarity = 4;
-            } else if (result.contains("3*") || result.toLowerCase().contains("uncommon")) {
-                rarity = 3;
-            } else if (result.contains("2*") || result.toLowerCase().contains("common")) {
-                rarity = 2;
-            }
+            int rarity = getRarityFromResult(result);
             
             GachaAnimation.GachaItem item = new GachaAnimation.GachaItem(
                 "item_" + System.currentTimeMillis() + "_" + itemsToAnimate.size(),
@@ -210,33 +201,37 @@ public class GachaHandler {
         this.pendingShipsForConversion.addAll(obtainedShips);
         
         // Create the animation
-        GachaAnimation animation = new GachaAnimation(itemsToAnimate, new GachaAnimation.GachaAnimationCallback() {
-            @Override
-            public void onAnimationComplete(List<GachaAnimation.GachaItem> results) {
-                // Mark that we just completed a pull so we know to show results next
-                justCompletedPull = true;
-                
-                // The animation dialog will dismiss itself, and the results will be shown
-                // when the user returns to the gacha menu
-            }
+        GachaAnimation animation = new GachaAnimation(itemsToAnimate, results -> {
+            // Mark that we just completed a pull so we know to show results next
+            justCompletedPull = true;
+            
+            // The animation dialog will dismiss itself, and the results will be shown
+            // when the user returns to the gacha menu
         });
         
         // Show the animation in a custom dialog
-        GachaAnimationDialogDelegate delegate = new GachaAnimationDialogDelegate(null, animation, main.getDialog(), null);
+        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation);
         
         // Show the custom visual dialog
         main.getDialog().showCustomVisualDialog(600f, 400f, delegate);
     }
     
-    private void showPullResults(List<GachaAnimation.GachaItem> animatedResults, List<FleetMemberAPI> obtainedShips) {
-        // This method may still be called directly in some cases, but we'll handle it by
-        // storing the results and redirecting to the gacha menu which will show them
-        this.pendingShipsForConversion.clear();
-        this.pendingShipsForConversion.addAll(obtainedShips);
-        this.justCompletedPull = true;
-        
-        // Redirect to gacha menu which will handle showing the results
-        showGachaMenu();
+    private int getRarityFromResult(String result) {
+        int rarity = 3; // Default to 3 stars for demonstration
+        if (result.contains("5*") || result.toLowerCase().contains("legendary")) {
+            rarity = 5;
+        } else if (result.contains("4*") || result.toLowerCase().contains("rare")) {
+            rarity = 4;
+        } else if (result.contains("3*") || result.toLowerCase().contains("uncommon")) {
+            rarity = 3;
+        } else if (result.contains("2*") || result.toLowerCase().contains("common")) {
+            rarity = 2;
+        }
+        return rarity;
+    }
+    
+    private GachaAnimationDialogDelegate createAnimationDialog(GachaAnimation animation) {
+        return new GachaAnimationDialogDelegate(null, animation, main.getDialog(), null);
     }
     
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {

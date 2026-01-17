@@ -1,0 +1,14 @@
+{
+  "music": {
+    "casino_theme": [
+      {
+        "source": "sounds/casino",
+        "volume": 0.80,
+        "files": [
+          "casino_theme.ogg"
+        ],
+        "randomStart": false
+      }
+    ]
+  }
+}
