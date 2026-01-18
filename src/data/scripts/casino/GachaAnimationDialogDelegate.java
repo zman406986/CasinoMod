@@ -24,12 +24,17 @@ public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate 
     protected Map<String, MemoryAPI> memoryMap;
     protected boolean tutorialMode = false;
     
+    // Callback to trigger menu update after animation completes
+    protected Runnable onDismissCallback;
+    
     public GachaAnimationDialogDelegate(String musicId, GachaAnimation gachaAnimation, 
-                                      InteractionDialogAPI dialog, Map<String, MemoryAPI> memoryMap) {
+                                      InteractionDialogAPI dialog, Map<String, MemoryAPI> memoryMap,
+                                      Runnable onDismissCallback) {
         this.musicId = musicId;
         this.gachaAnimation = gachaAnimation;
         this.dialog = dialog;
         this.memoryMap = memoryMap;
+        this.onDismissCallback = onDismissCallback;
     }
     
     public CustomUIPanelPlugin getCustomPanelPlugin() {
@@ -78,6 +83,11 @@ public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate 
         if (memoryMap != null) { // null when called from test dialogs
             // Fire event when gacha animation completes
             FireBest.fire(null, dialog, memoryMap, "GachaAnimationCompleted");
+        }
+        
+        // Trigger the callback to update the menu
+        if (onDismissCallback != null) {
+            onDismissCallback.run();
         }
     }
 }

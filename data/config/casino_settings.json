@@ -43,7 +43,9 @@
         "smallBlind": 100,
         "bigBlind": 200,
         "raiseAmounts": [200, 400, 1000, 5000],
-        "aiBluffChance": 0.1
+        "aiBluffChance": 0.1,
+        "stackSizes": [1000, 5000, 10000, 25000],
+        "defaultOpponentStack": 10000
     },
     "vipAds": [
         "May your journey lead you starward. (Tachy-Impact)",
@@ -165,8 +167,8 @@
         "hullBreachDamagePercent": 0.2,
         "entryFee": 100,
         "survivalRewardMult": 2.0,
-        "survivalRewardPerTurn": 10,
-        "killRewardPerKill": 20,
+        "survivalBonusPerTurn": 0.1,
+        "killBonusPerKill": 0.2,
         "shipCount": 6,
         "baseStats": {
             "frigate": { "hp": 56, "power": 25, "agility": 0.60 },

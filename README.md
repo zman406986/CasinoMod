@@ -5,15 +5,15 @@ Only the boldest pilots dare to wager their fleets. This mod adds a high-stakes 
 ## Features
 
 ### 1. Texas Hold'em Poker (Stargem Stakes)
-Play standard No-Limit Texas Hold'em against the House AI using **Stargems**.
+Play standard No-Limit Texas Hold'em against House AI using **Stargems**.
 - **The Currency**: **Stargems**.
-    - **Top-Up**: Buy Gem Packages or the **VIP Pass (Astral Subscription)** which gives 100 Gems daily for 30 days.
-    - **Trade Ships**: Convert ships directly to Stargems (Valued at 1 Gem = 10 Credits of Hull Value). Includes smart sorting.
+    - **Top-Up**: Buy Gem Packages (1980/3280/6480 gems) or **VIP Pass** (9999 Credits) which gives 100 Gems daily for 30 days.
+    - **Trade Ships**: Convert ships directly to Stargems (Valued at 1 Gem = 100 Credits of Hull Value). Includes smart sorting.
 - **Stakes**: Blinds are 100/200 Stargems.
-- **Advanced AI**: The poker AI now adapts to player aggression patterns, tracking consecutive raises and adjusting its strategy accordingly. It uses equity-based calculations to make more realistic decisions against bluff-heavy players.
-- **Cash Out**: Convert Stargems back to Credits at a 1:10 ratio (1 Gem = 10 Credits).
+- **Advanced AI**: The poker AI adapts to player aggression patterns, tracking consecutive raises and adjusting its strategy accordingly. It uses equity-based calculations to make more realistic decisions against bluff-heavy players.
+- **Cash Out**: Convert Stargems back to Credits at a 1:100 ratio (1 Gem = 100 Credits).
 
-### 2. Tachy-Impact (Warp Beacon)
+### 2. Tachy-Impact
 Acquire rare ships through a rotating banner system.
 - **Cost**: **160 Stargems** per Pull.
 - **Rotation**: The featured Capital and Cruisers change every **14 in-game days**.
@@ -28,11 +28,12 @@ Acquire rare ships through a rotating banner system.
 ### 3. Warp Core Arena (Spiral Abyss)
 Battle with randomized ships in an elimination tournament.
 - **Entry Fee**: 100 Stargems.
-- **Rewards**: Earn gems based on survival and performance.
-- **Ship Modifications**: Ships receive random prefixes and affixes that modify stats.
-- **Chaos Events**: Random events occur during battles that affect gameplay.
-- **Bet Management**: Players can now increase their bets on the current champion without switching ships. Custom bet amounts include percentage options (10%, 30%, 50%, 70%, 100% of player's gem balance) for scalable betting with large stacks.
-- **Enhanced Betting**: Consistent menu patterns for both initial bet selection and bet increases, with proportional options for players with varying stack sizes.
+- **Betting System**: Bet on one or more ships to survive. Each ship has base odds (e.g., 1:2.0 means 2x return).
+- **Performance Bonuses**: Survival and kills add proportional modifiers to your multiplier.
+- **Champion Switching**: Switch champions during battle (costs 50% of current bet as fee, halves multiplier).
+- **Chaos Events**: Solar Flare (reduces agility), Hull Breach (deals damage), Power Surge (doubles damage).
+- **Ship Modifications**: Ships receive random prefixes and affixes that modify stats and affect odds.
+- **Bet Management**: Players can bet on multiple ships and add bets during battle (later bets have reduced effectiveness).
 
 ## Internal Architecture
 
@@ -75,12 +76,12 @@ Implements the Texas Hold'em poker game logic:
 - **Advanced AI**: Implements decision-making algorithms for the house AI based on hand strength, pot odds, and player aggression tracking. The AI now adapts to repeated bluffing/raising patterns from the player and adjusts its calling/raising frequency accordingly based on equity calculations.
 
 #### SpiralAbyssArena
-Controls the arena battle system:
+Controls arena battle system:
 - **Team Generation**: Creates randomized teams with prefixed ships
-- **Battle Simulation**: Runs turn-based combat between player and AI teams
-- **Reward Calculation**: Determines payouts based on performance
+- **Battle Simulation**: Runs turn-based combat between ships
+- **Reward Calculation**: Determines payouts based on survival, kills, and ship odds
 - **Modifier System**: Applies random prefixes and affixes to ships with stat modifications
-- **Enhanced Betting**: Players can now increase bets on their current champion without switching, with proportional bet options for scalability
+- **Betting**: Players can bet on multiple ships, add bets during battle, and switch champions with penalties
 
 ### Economic System
 

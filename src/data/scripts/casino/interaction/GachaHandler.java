@@ -24,7 +24,6 @@ public class GachaHandler {
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
     
-    // Track if we just completed a gacha pull animation
     private boolean justCompletedPull = false;
     private final List<FleetMemberAPI> pendingShipsForConversion = new ArrayList<>();
     
@@ -34,15 +33,14 @@ public class GachaHandler {
     }
     
     private void initializeHandlers() {
-        // Exact match handlers
         handlers.put("gacha_menu", option -> showGachaMenu());
         handlers.put("pull_1", option -> showGachaConfirm(1));
         handlers.put("pull_10", option -> showGachaConfirm(10));
         handlers.put("auto_convert", option -> openAutoConvertPicker());
         handlers.put("how_to_gacha", option -> main.help.showGachaHelp());
         handlers.put("back_menu", option -> main.showMenu());
+        handlers.put("explain_ipc_credit", option -> showIPCCreditExplanation());
         
-        // Predicate-based handlers for pattern matching
         predicateHandlers.put(option -> option.startsWith("confirm_pull_"), option -> {
             int rounds = Integer.parseInt(option.replace("confirm_pull_", ""));
             performGachaPull(rounds);
@@ -95,7 +93,7 @@ public class GachaHandler {
         // Normal menu display continues here
         main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.GachaUIPanel());
         
-        main.textPanel.addPara("Tachy-Impact Warp Beacon Protocol", Color.CYAN);
+        main.textPanel.addPara("Tachy-Impact Protocol", Color.CYAN);
         
         CasinoGachaManager manager = new CasinoGachaManager();
         manager.checkRotation();
@@ -110,6 +108,20 @@ public class GachaHandler {
         main.textPanel.addPara("Pity Status:", Color.GRAY);
         main.textPanel.addPara("- 5* Pity: " + data.pity5 + "/" + CasinoConfig.PITY_HARD_5);
         main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
+        
+        // Show account balance in IPC format
+        main.textPanel.addPara("IPC ACCOUNT STATUS:", Color.CYAN);
+        int currentGems = CasinoVIPManager.getStargems();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
+        
+        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
+        if (availableCredit < currentGems) {
+            main.textPanel.addPara("Available Credit: " + availableCredit + " (Credit in use: " + (currentGems - availableCredit) + ")", Color.YELLOW);
+        } else {
+            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        }
+        main.textPanel.addPara("Credit Ceiling: " + debtCeiling, Color.GRAY);
         
         // Show pull options if player can afford them within their available credit
         if (canAffordTransaction(CasinoConfig.GACHA_COST)) {
@@ -128,10 +140,64 @@ public class GachaHandler {
     private void showGachaConfirm(int times) {
         main.options.clearOptions();
         int cost = times * CasinoConfig.GACHA_COST;
-        main.textPanel.addPara("Confirm initiating Warp Sequence " + times + "x for " + cost + " Stargems?", Color.YELLOW);
+        int currentGems = CasinoVIPManager.getStargems();
         
-        main.options.addOption("Confirm Warp", "confirm_pull_" + times);
+        if (currentGems < cost) {
+            int availableCredit = CasinoVIPManager.getAvailableCredit();
+            if (availableCredit < cost) {
+                main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
+                showGachaMenu();
+                return;
+            }
+            
+            int debtAmount = cost - currentGems;
+            showOverdraftConfirm(times, cost, debtAmount);
+        } else {
+            main.textPanel.addPara("Confirm initiating Warp Sequence " + times + "x for " + cost + " Stargems?", Color.YELLOW);
+            main.options.addOption("Confirm Warp", "confirm_pull_" + times);
+            main.options.addOption("Cancel", "gacha_menu");
+        }
+    }
+    
+    private void showOverdraftConfirm(int times, int cost, int debtAmount) {
+        main.options.clearOptions();
+        
+        main.textPanel.addPara("IPC CREDIT ALERT", Color.ORANGE);
+        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
+        main.textPanel.addPara("Available Stargems: " + CasinoVIPManager.getStargems(), Color.GRAY);
+        main.textPanel.addPara("Transaction Cost: " + cost + " Stargems", Color.GRAY);
+        main.textPanel.addPara("Required Overdraft: " + debtAmount + " Stargems", Color.RED);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("The IPC extends credit facilities to valued customers. Overdraft will be added to your account balance.", Color.CYAN);
+        main.textPanel.addPara("Note: Outstanding balances accrue 5% monthly interest. The Corporate Reconciliation Team may contact you regarding payment.", Color.YELLOW);
+        
+        main.options.addOption("Authorize Overdraft", "confirm_pull_" + times);
+        main.options.addOption("What is IPC Credit?", "explain_ipc_credit");
         main.options.addOption("Cancel", "gacha_menu");
+    }
+    
+    private void showIPCCreditExplanation() {
+        main.options.clearOptions();
+        
+        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("The IPC provides flexible credit options for valued customers experiencing temporary liquidity constraints.", Color.WHITE);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("HOW IT WORKS:", Color.YELLOW);
+        main.textPanel.addPara("- Your account has a credit ceiling based on your VIP status and purchase history.", Color.GRAY);
+        main.textPanel.addPara("- You may exceed your Stargem balance up to this ceiling.", Color.GRAY);
+        main.textPanel.addPara("- Overdraft amounts are recorded as account balance (debt).", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("INTEREST & COLLECTIONS:", Color.YELLOW);
+        main.textPanel.addPara("- Outstanding balances accrue 5% monthly interest on the 15th.", Color.GRAY);
+        main.textPanel.addPara("- Continued delinquency may prompt Corporate Reconciliation Team intervention.", Color.GRAY);
+        main.textPanel.addPara("- Pay off debt anytime through the Financial Services menu.", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("INCREASING YOUR CREDIT CEILING:", Color.YELLOW);
+        main.textPanel.addPara("- Purchase VIP Passes for permanent ceiling increases.", Color.GRAY);
+        main.textPanel.addPara("- Regular top-ups and purchases demonstrate creditworthiness.", Color.GRAY);
+        
+        main.options.addOption("Back", "gacha_menu");
     }
     
     private void performGachaPull(int times) {
@@ -150,7 +216,8 @@ public class GachaHandler {
             // Check if they have enough available credit to go into debt
             int availableCredit = CasinoVIPManager.getAvailableCredit();
             if (availableCredit < cost) {
-                main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
+                main.textPanel.addPara("IPC CREDIT DENIED: Transaction exceeds your credit ceiling.", Color.RED);
+                main.textPanel.addPara("Please contact Financial Services to increase your credit limit or settle outstanding balances.", Color.YELLOW);
                 showGachaMenu();
                 return;
             }
@@ -217,7 +284,10 @@ public class GachaHandler {
         });
         
         // Show the animation in a custom dialog
-        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation);
+        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, () -> {
+            // Callback to update the menu after animation completes
+            showGachaMenu();
+        });
         
         // Show the custom visual dialog
         main.getDialog().showCustomVisualDialog(600f, 400f, delegate);
@@ -237,8 +307,8 @@ public class GachaHandler {
         return rarity;
     }
     
-    private GachaAnimationDialogDelegate createAnimationDialog(GachaAnimation animation) {
-        return new GachaAnimationDialogDelegate(null, animation, main.getDialog(), null);
+    private GachaAnimationDialogDelegate createAnimationDialog(GachaAnimation animation, Runnable onDismissCallback) {
+        return new GachaAnimationDialogDelegate(null, animation, main.getDialog(), null, onDismissCallback);
     }
     
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {

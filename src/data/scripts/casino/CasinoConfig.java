@@ -48,12 +48,14 @@ public class CasinoConfig {
     public static int POKER_BIG_BLIND = 200;
     public static int[] POKER_RAISE_AMOUNTS = {200, 400, 1000, 5000};
     public static float POKER_AI_BLUFF_CHANCE = 0.1f;
+    public static int[] POKER_STACK_SIZES = {1000, 5000, 10000, 25000};
+    public static int POKER_DEFAULT_OPPONENT_STACK = 10000;
 
     // Arena
     public static int ARENA_ENTRY_FEE = 100;                   // Cost to enter arena
     public static float ARENA_SURVIVAL_REWARD_MULT = 2.0f;     // Survival reward multiplier
-    public static int ARENA_SURVIVAL_REWARD_PER_TURN = 10;     // Gems earned per turn survived
-    public static int ARENA_KILL_REWARD_PER_KILL = 20;         // Gems earned per kill
+    public static float ARENA_SURVIVAL_BONUS_PER_TURN = 0.1f;  // Multiplier bonus per turn survived
+    public static float ARENA_KILL_BONUS_PER_KILL = 0.2f;      // Multiplier bonus per kill
     public static int ARENA_SHIP_COUNT = 6;                    // Ships per arena battle
     public static float ARENA_AGILITY_CAP = 0.9f;              // Max agility to prevent unhittable ships
 
@@ -183,6 +185,16 @@ public class CasinoConfig {
                  }
                  POKER_AI_BLUFF_CHANCE = (float) poker.optDouble("aiBluffChance", 0.1);
                  
+                 // Load poker stack sizes if they exist in config
+                 if (poker.has("stackSizes")) {
+                     JSONArray stackArray = poker.getJSONArray("stackSizes");
+                     POKER_STACK_SIZES = new int[stackArray.length()];
+                     for (int i = 0; i < stackArray.length(); i++) {
+                         POKER_STACK_SIZES[i] = stackArray.getInt(i);
+                     }
+                 }
+                 POKER_DEFAULT_OPPONENT_STACK = poker.optInt("defaultOpponentStack", 10000);
+                 
                  // Strings
                  VIP_ADS.clear();
                  JSONArray ads = json.getJSONArray("vipAds");
@@ -311,11 +323,12 @@ public class CasinoConfig {
                  if (json.has("arena")) {
                      JSONObject arena = json.getJSONObject("arena");
                      ARENA_CHAOS_EVENT_CHANCE = (float) arena.optDouble("chaosEventChance", 0.15);
-                     ARENA_HULL_BREACH_DAMAGE_PERCENT = (float) arena.optDouble("hullBreachDamagePercent", 0.2);
-                     ARENA_ENTRY_FEE = arena.optInt("entryFee", 100);
-                     ARENA_SURVIVAL_REWARD_MULT = (float) arena.optDouble("survivalRewardMult", 2.0);
-                     ARENA_SURVIVAL_REWARD_PER_TURN = arena.optInt("survivalRewardPerTurn", 10);
-                     ARENA_KILL_REWARD_PER_KILL = arena.optInt("killRewardPerKill", 20);
+                    ARENA_HULL_BREACH_DAMAGE_PERCENT = (float) arena.optDouble("hullBreachDamagePercent", 0.2);
+                    ARENA_ENTRY_FEE = arena.optInt("entryFee", 100);
+                    ARENA_SURVIVAL_REWARD_MULT = (float) arena.optDouble("survivalRewardMult", 2.0);
+                    ARENA_SURVIVAL_BONUS_PER_TURN = (float) arena.optDouble("survivalBonusPerTurn", 0.1);
+                    ARENA_KILL_BONUS_PER_KILL = (float) arena.optDouble("killBonusPerKill", 0.2);
+                    ARENA_SHIP_COUNT = arena.optInt("shipCount", 6);
                      
                      // Load Arena Base Stats if available
                      if (arena.has("baseStats")) {
@@ -377,8 +390,8 @@ public class CasinoConfig {
             GEM_PACKAGES.add(new GemPackage(3280, 49999));
             GEM_PACKAGES.add(new GemPackage(6480, 99999));
             
-            ARENA_SURVIVAL_REWARD_PER_TURN = 5;
-            ARENA_KILL_REWARD_PER_KILL = 10;
+            ARENA_SURVIVAL_BONUS_PER_TURN = 0.05f;
+            ARENA_KILL_BONUS_PER_KILL = 0.1f;
             ARENA_BASE_STATS.put(ShipAPI.HullSize.FRIGATE, new ArenaStat(56, 25, 0.60f));
             ARENA_BASE_STATS.put(ShipAPI.HullSize.DESTROYER, new ArenaStat(84, 29, 0.40f));
             ARENA_BASE_STATS.put(ShipAPI.HullSize.CRUISER, new ArenaStat(112, 33, 0.20f));

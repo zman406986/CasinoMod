@@ -69,8 +69,8 @@ public class HelpHandler {
         main.textPanel.addPara("- VIP Pass (30 Days) grants exclusive reputation bonuses.");
         
         main.textPanel.addPara("Financial Laws:", Color.GRAY);
-        main.textPanel.addPara("- Debt Ceiling: Based on total Credits spent + Tri-Tachyon Rep.");
-        main.textPanel.addPara("- Interest: 5% accumulated on the 15th if balance is negative.");
+        main.textPanel.addPara("- Debt Ceiling: Base " + (int)CasinoConfig.BASE_DEBT_CEILING + " Credits + VIP Pass bonuses + Top-up bonuses.");
+        main.textPanel.addPara("- Interest: 5% accumulated on the 15th if Stargem balance is negative.");
         
         main.textPanel.addPara("Continuity (Save/Resume):", Color.GRAY);
         main.textPanel.addPara("- You can 'Tell Them to Wait' to suspend an active game.");
@@ -137,28 +137,62 @@ public class HelpHandler {
     public void showArenaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- SPIRAL ABYSS ARENA: SURVIVAL ---", Color.CYAN);
+        main.textPanel.addPara("Objective:", Color.GRAY);
+        main.textPanel.addPara("- Bet on one or more ships to survive the battle royale.");
+        main.textPanel.addPara("- Last ship standing wins!");
+        
+        main.textPanel.addPara("Betting System:", Color.GRAY);
+        main.textPanel.addPara("- Each ship has base odds (e.g., 1:2.0 means 2x return).");
+        main.textPanel.addPara("- Odds are affected by ship perks (positive perks lower odds, negative perks raise odds).");
+        main.textPanel.addPara("- You can bet on multiple ships at once.");
+        main.textPanel.addPara("- Add additional bets during battle (later bets have reduced effectiveness).");
+        
+        main.textPanel.addPara("Performance Bonuses:", Color.GRAY);
+        main.textPanel.addPara("- Survival Bonus: Each turn survived adds to your multiplier.");
+        main.textPanel.addPara("- Kill Bonus: Each kill adds to your multiplier.");
+        main.textPanel.addPara("- Performance bonuses are proportional modifiers to your ship's odds.");
+        
+        main.textPanel.addPara("Champion Switching:", Color.GRAY);
+        main.textPanel.addPara("- You can switch champions during battle.");
+        main.textPanel.addPara("- Cost: 50% of your current bet as a switching fee.");
+        main.textPanel.addPara("- Penalty: Your multiplier is halved when switching.");
+        
         main.textPanel.addPara("Chaos Events:", Color.GRAY);
-        main.textPanel.addPara("- Mid-battle events can trigger meteor strikes, repairs, or combat buffs.");
-        main.textPanel.addPara("- Pay attention to the ticker to anticipate game-changing shifts!");
+        main.textPanel.addPara("- Solar Flare: Reduces all ships' agility.");
+        main.textPanel.addPara("- Hull Breach: Deals damage to random ships.");
+        main.textPanel.addPara("- Power Surge: Doubles damage for one round.");
         
         main.textPanel.addPara("Strategy:", Color.GRAY);
-        main.textPanel.addPara("- Switching: You can switch champions, but it costs 50% of the ante and halves the multiplier.");
-        main.textPanel.addPara("- Scaling: Multipliers drop as ships die. Bet early for maximum profit!", Color.ORANGE);
+        main.textPanel.addPara("- Bet early for maximum effectiveness.");
+        main.textPanel.addPara("- Monitor ship performance to decide when to switch.");
+        main.textPanel.addPara("- Watch for chaos events that can change the tide of battle!");
         
-        main.options.addOption("Back", "arena_lobby"); // Go back to arena menu
+        main.options.addOption("Back", "arena_lobby");
     }
 
     public void showGachaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TACHY-IMPACT: WARP PROTOCOL ---", Color.CYAN);
+        main.textPanel.addPara("Ship Rarities:", Color.GRAY);
+        main.textPanel.addPara("- 5* (Capital Ships): Rare featured ships with high value.");
+        main.textPanel.addPara("- 4* (Cruisers): Featured ships with good value.");
+        main.textPanel.addPara("- 3* (Destroyers/Frigates): Common ships.");
+        
         main.textPanel.addPara("Pity Mechanics:", Color.GRAY);
         main.textPanel.addPara("- 5* Pity: Guaranteed at " + CasinoConfig.PITY_HARD_5 + " pulls. Chance increases after " + CasinoConfig.PITY_SOFT_START_5 + ".");
-        main.textPanel.addPara("- 50/50 Rule: If your 5* isn't the featured ship, the next one IS guaranteed featuring ship.");
+        main.textPanel.addPara("- 4* Pity: Guaranteed at " + CasinoConfig.PITY_HARD_4 + " pulls.");
+        main.textPanel.addPara("- 50/50 Rule: If your 5* isn't the featured ship, the next one IS guaranteed to be the featured ship.");
         
-        main.textPanel.addPara("Inventory:", Color.GRAY);
-        main.textPanel.addPara("- Duplicate chips are converted to Stargems automatically via the Blacklist.");
-        main.textPanel.addPara("- Featured ships rotate bi-weekly. Pity carries over between rotations!", Color.GREEN);
+        main.textPanel.addPara("Featured Rotation:", Color.GRAY);
+        main.textPanel.addPara("- Featured ships rotate every 14 days.");
+        main.textPanel.addPara("- One featured 5* capital and three featured 4* cruisers per rotation.");
+        main.textPanel.addPara("- Pity carries over between rotations!");
         
-        main.options.addOption("Back", "gacha_menu"); // Go back to gacha menu
+        main.textPanel.addPara("Auto-Convert:", Color.GRAY);
+        main.textPanel.addPara("- Select ships to automatically convert to Stargems.");
+        main.textPanel.addPara("- Converted ships give gems based on their credit value.");
+        main.textPanel.addPara("- You can keep or convert ships after each pull.");
+        
+        main.options.addOption("Back", "gacha_menu");
     }
 }

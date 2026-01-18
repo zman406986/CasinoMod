@@ -64,6 +64,7 @@ public class SpiralAbyssArena {
         public float bravery;    // Crit/Retaliate chance
         public boolean isDead = false;
         public int kills = 0;
+        public int turnsSurvived = 0;
         public float odds;       // Betting odds (e.g., 1:2.5)
         public SpiralGladiator retaliateTarget = null;
         public boolean isEnraged = false;  // Whether the ship is in an enraged state
@@ -115,10 +116,10 @@ public class SpiralAbyssArena {
         
         public String getStatusString() {
             StringBuilder status = new StringBuilder();
-            status.append(shortName).append(": ").append(hp).append("/").append(maxHp).append(" HP");
+            status.append(hullName).append(": ").append(hp).append("/").append(maxHp).append(" HP");
             
             if (isEnraged && targetOfRage != null) {
-                status.append(" (angry at ").append(targetOfRage.shortName).append(")");
+                status.append(" (angry at ").append(targetOfRage.hullName).append(")");
             }
             
             return status.toString();
@@ -212,7 +213,12 @@ public class SpiralAbyssArena {
             log.add(lastEventMessage);
         }
 
-        // Cleanup
+        // Decrement duration of all active events
+        for (ActiveEvent e : activeEvents) {
+            e.duration--;
+        }
+
+        // Cleanup expired events
         activeEvents.removeIf(e -> e.duration <= 0);
 
         // Filter for ships that aren't scrap metal yet
@@ -229,8 +235,8 @@ public class SpiralAbyssArena {
         }
 
         // Process multiple attacks in this step
-        // Allow each ship to potentially attack once per step (or a subset based on alive count)
-        int attacksThisStep = Math.max(1, alive.size() / 2); // Allow roughly half the alive ships to attack per step
+        // Allow each ship to attack at least once per step
+        int attacksThisStep = alive.size();
         
         for (int i = 0; i < attacksThisStep; i++) {
             // Only continue if we still have at least 2 ships alive

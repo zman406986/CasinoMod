@@ -78,7 +78,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
                     mem.unset("$ipc_suspended_game_type");
                 }
                 else if ("Arena".equals(type)) {
-                    arena.showArenaLobby();
+                    arena.restoreSuspendedArena(); // Restore the suspended arena game
                     mem.unset("$ipc_suspended_game_type");
                 }
             } else {

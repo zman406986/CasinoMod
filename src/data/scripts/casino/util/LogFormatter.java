@@ -44,7 +44,7 @@ public class LogFormatter {
             String[] parts = logEntry.split(": ");
             if (parts.length > 0) {
                 String shipName = parts[0].trim();
-                textPanel.highlightInLastPara(Color.WHITE, shipName);
+                textPanel.highlightInLastPara(Color.YELLOW, shipName);
             }
             
             // Highlight HP values
@@ -82,13 +82,13 @@ public class LogFormatter {
             String combinedText = attacker + " hits " + target + " for " + damagePart;
             textPanel.addPara(combinedText, Color.WHITE);
             
-            // Highlight attacker in one color
-            textPanel.highlightInLastPara(Color.CYAN, attacker);
+            // Highlight attacker in yellow
+            textPanel.highlightInLastPara(Color.YELLOW, attacker);
             
-            // Highlight target in another color
-            textPanel.highlightInLastPara(Color.ORANGE, target);
+            // Highlight target in yellow
+            textPanel.highlightInLastPara(Color.YELLOW, target);
             
-            // Highlight damage values in red/yellow to indicate damage
+            // Highlight damage values in red to indicate damage
             textPanel.highlightInLastPara(Color.RED, damagePart.replaceAll("[^0-9]", "").trim());
         } else if (logEntry.contains("suffered a Hull Breach") || logEntry.contains("was lost to space decompression")) {
             // Handle hull breach events: "shipName suffered a Hull Breach! (-X HP)"
@@ -101,8 +101,8 @@ public class LogFormatter {
                 String combinedText = shipName + eventDesc;
                 textPanel.addPara(combinedText, Color.WHITE);
                 
-                // Highlight the ship name
-                textPanel.highlightInLastPara(Color.MAGENTA, shipName);
+                // Highlight the ship name in yellow
+                textPanel.highlightInLastPara(Color.YELLOW, shipName);
             } else {
                 textPanel.addPara(logEntry);
             }
@@ -132,21 +132,8 @@ public class LogFormatter {
                     // Use the original log entry but with consistent coloring to avoid excessive line breaks
                     textPanel.addPara(logEntry);
                     
-                    // Extract and highlight different parts of the ship name separately
-                    String prefixText = gladiator.prefix;
-                    String hullNameText = gladiator.hullName;
-                    String affixText = gladiator.affix;
-                    
-                    // Highlight the hull name in white separately from affixes/prefixes
-                    textPanel.highlightInLastPara(Color.WHITE, hullNameText);
-                    
-                    // Highlight the prefix in green/red based on whether it's positive or negative
-                    Color prefixHighlightColor = isPositiveAffix(gladiator.prefix);
-                    textPanel.highlightInLastPara(prefixHighlightColor, prefixText);
-                    
-                    // Highlight the affix in green/red based on whether it's positive or negative
-                    Color affixHighlightColor = isPositiveAffix(gladiator.affix);
-                    textPanel.highlightInLastPara(affixHighlightColor, affixText);
+                    // Highlight the ship name in yellow
+                    textPanel.highlightInLastPara(Color.YELLOW, gladiator.shortName);
                     
                     // Highlight any numeric values (damage, HP, etc.) in red
                     String[] numericParts = logEntry.split("[^0-9]+");

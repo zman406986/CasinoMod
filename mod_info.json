@@ -2,7 +2,7 @@
     "id": "the_casino_mod",
     "name": "The Casino Mod",
     "version": "1.0.0",
-    "description": "Brings the high-stakes thrill of the IPC to the Sector. Features Texas Hold'em and a Warp Beacon Gacha system for exclusive hulls.",
+    "description": "Brings the high-stakes thrill of the IPC to the Sector. Features Texas Hold'em and a Tachy-Impact system for exclusive hulls.",
     "gameVersion": "0.98a-RC7",
     "jars": [
         "jars/Casino.jar"

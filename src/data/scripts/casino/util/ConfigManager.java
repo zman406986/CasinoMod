@@ -10,8 +10,8 @@ public class ConfigManager {
     // Arena configuration values
     public static final int ARENA_ENTRY_FEE = CasinoConfig.ARENA_ENTRY_FEE;
     public static final float ARENA_SURVIVAL_REWARD_MULT = CasinoConfig.ARENA_SURVIVAL_REWARD_MULT;
-    public static final int ARENA_SURVIVAL_REWARD_PER_TURN = CasinoConfig.ARENA_SURVIVAL_REWARD_PER_TURN;
-    public static final int ARENA_KILL_REWARD_PER_KILL = CasinoConfig.ARENA_KILL_REWARD_PER_KILL;
+    public static final float ARENA_SURVIVAL_BONUS_PER_TURN = CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN;
+    public static final float ARENA_KILL_BONUS_PER_KILL = CasinoConfig.ARENA_KILL_BONUS_PER_KILL;
     public static final int ARENA_SHIP_COUNT = CasinoConfig.ARENA_SHIP_COUNT;
     public static final float ARENA_AGILITY_CAP = CasinoConfig.ARENA_AGILITY_CAP;
     public static final float ARENA_CHAOS_EVENT_CHANCE = CasinoConfig.ARENA_CHAOS_EVENT_CHANCE;

@@ -174,7 +174,7 @@ public class CasinoUIPanels {
             panel.addUIElement(element);
 
             // Title
-            element.addSectionHeading("Tachy-Impact Warp Beacon", Alignment.MID, 0f);
+            element.addSectionHeading("Tachy-Impact", Alignment.MID, 0f);
             element.addSpacer(10f);
             
             // Featured item section

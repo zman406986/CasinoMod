@@ -20,34 +20,20 @@ public class PokerHandler {
 
     private final CasinoInteraction main;
     
-    // State
     protected PokerGameLogic.Deck deck;
-    
     protected List<PokerGameLogic.Card> playerHand;
-    
     protected List<PokerGameLogic.Card> opponentHand;
-    
     protected List<PokerGameLogic.Card> communityCards;
-    
     protected int potSize;
-    
     protected int playerBet;
-    
     protected int opponentBet;
-    
     protected int currentBetToCall; 
-    
-    protected int playerWallet; // Player's total money outside the current game
+    protected int playerWallet;
     protected int playerStack; 
-    
     protected int opponentStack; 
-    
     protected PokerGame.SimplePokerAI ai;
-    
     protected int bigBlind = CasinoConfig.POKER_BIG_BLIND;
-    
     protected int smallBlind = CasinoConfig.POKER_SMALL_BLIND;
-    
     protected boolean playerIsDealer;
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -60,7 +46,6 @@ public class PokerHandler {
     }
     
     private void initializeHandlers() {
-        // Exact match handlers
         handlers.put("play", option -> showPokerConfirm());
         handlers.put("confirm_poker_ante", option -> setupGame());
         handlers.put("next_hand", option -> setupGame());
@@ -72,25 +57,21 @@ public class PokerHandler {
         handlers.put("poker_back_action", option -> updateUI());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> {
-            // Return the player's remaining stack before leaving
             if (playerStack > 0) {
                 CasinoVIPManager.addStargems(playerStack);
                 main.getTextPanel().addPara("Returned " + playerStack + " Stargems to your wallet.", Color.YELLOW);
                 playerStack = 0;
             }
-            // Go back to the poker menu (the initial confirmation screen)
             showPokerConfirm();
         });
         handlers.put("leave_now", option -> main.showMenu());
         handlers.put("back_menu", option -> main.showMenu());
         
-        // Predicate-based handlers for pattern matching
         predicateHandlers.put(option -> option.startsWith("poker_raise_"), option -> {
             int amt = Integer.parseInt(option.replace("poker_raise_", ""));
             performRaise(amt);
         });
         
-        // Stack selection handlers
         predicateHandlers.put(option -> option.startsWith("poker_stack_"), option -> {
             String stackStr = option.replace("poker_stack_", "");
             int stackSize = "all".equals(stackStr) ? CasinoVIPManager.getStargems() : Integer.parseInt(stackStr);
@@ -122,38 +103,30 @@ public class PokerHandler {
         main.textPanel.addPara("The IPC Dealer prepares to deal. How big of a stack would you like to bring to the table?", Color.YELLOW);
         
         int currentGems = CasinoVIPManager.getStargems();
+        int[] stackSizes = CasinoConfig.POKER_STACK_SIZES;
+        String[] stackLabels = {"Small", "Medium", "Large", "Huge"};
         
-        // Offer different stack sizes based on player's available gems
-        if (currentGems >= 1000) {
-            main.options.addOption("Small Stack (1,000 Stargems)", "poker_stack_1000");
-        }
-        if (currentGems >= 5000) {
-            main.options.addOption("Medium Stack (5,000 Stargems)", "poker_stack_5000");
-        }
-        if (currentGems >= 10000) {
-            main.options.addOption("Large Stack (10,000 Stargems)", "poker_stack_10000");
-        }
-        if (currentGems >= 25000) {
-            main.options.addOption("Huge Stack (25,000 Stargems)", "poker_stack_25000");
+        for (int i = 0; i < stackSizes.length && i < stackLabels.length; i++) {
+            if (currentGems >= stackSizes[i]) {
+                main.options.addOption(stackLabels[i] + " Stack (" + stackSizes[i] + " Stargems)", "poker_stack_" + stackSizes[i]);
+            }
         }
         
-        // Add custom stack option if player has enough gems for at least the blinds
-        int minRequiredGems = bigBlind; // Need at least big blind to play
+        int minRequiredGems = bigBlind;
         if (currentGems >= minRequiredGems) {
             main.options.addOption("Bring All My Stargems (" + currentGems + ")", "poker_stack_all");
         } else if (currentGems > 0 && currentGems < minRequiredGems) {
-            // Player has some gems but not enough to play
             main.textPanel.addPara("You need at least " + minRequiredGems + " Stargems (Big Blind) to play.", Color.RED);
         }
         
-        main.options.addOption("How to Play Poker", "how_to_poker");  // Add help option
+        main.options.addOption("How to Play Poker", "how_to_poker");
         main.options.addOption("Wait... (Cancel)", "back_menu");
         main.setState(CasinoInteraction.State.POKER);
     }
 
     public void setupGame() {
-        // Default to 10000 stack if called without parameters
-        setupGame(10000);
+        int defaultStack = CasinoConfig.POKER_STACK_SIZES.length > 0 ? CasinoConfig.POKER_STACK_SIZES[0] : 10000;
+        setupGame(defaultStack);
     }
     
     public void setupGame(int stackSize) {
@@ -181,8 +154,9 @@ public class PokerHandler {
         CasinoVIPManager.addStargems(-stackSize);
         playerStack = stackSize;
         
-        // Ensure opponent has at least 10k gems regardless of player's situation
-        opponentStack = Math.max(10000, playerStack); 
+        if (opponentStack == 0 || opponentStack < bigBlind) {
+            opponentStack = Math.max(CasinoConfig.POKER_DEFAULT_OPPONENT_STACK, playerStack);
+        } 
         
         potSize = 0;
         currentBetToCall = 0;
@@ -287,7 +261,6 @@ public class PokerHandler {
         }
         
         main.getOptions().addOption("How to Play Poker", "how_to_poker");  // Add help option during gameplay
-        main.getOptions().addOption("Back to Poker Menu", "poker_back_to_menu"); // Add option to return to poker menu
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
     }
 
@@ -624,7 +597,12 @@ public class PokerHandler {
         mem.set("$ipc_poker_opponent_stack", opponentStack);
         mem.set("$ipc_poker_player_is_dealer", playerIsDealer);
         
-        main.getTextPanel().addPara("The Dealer nods. 'The cards will stay as they are. Don't be long.'", Color.YELLOW);
+        // Store the time when game was suspended for the joke
+        mem.set("$ipc_poker_suspend_time", Global.getSector().getClock().getTimestamp());
+        
+        main.getTextPanel().addPara("You stand up abruptly. 'Hold that thought! I'll be right back!'", Color.YELLOW);
+        main.getTextPanel().addPara("The IPC Dealer raises an eyebrow but nods slowly. 'The cards will stay as they are.'", Color.CYAN);
+        main.getTextPanel().addPara("'Don't be long. We have other customers waiting.'", Color.GRAY);
         main.getOptions().clearOptions();
         main.getOptions().addOption("Leave", "leave_now");
     }
@@ -642,6 +620,11 @@ public class PokerHandler {
             playerStack = mem.getInt("$ipc_poker_player_stack");
             opponentStack = mem.getInt("$ipc_poker_opponent_stack");
             playerIsDealer = mem.getBoolean("$ipc_poker_player_is_dealer");
+            
+            // Calculate how long player was away for the joke
+            long suspendTime = mem.getLong("$ipc_poker_suspend_time");
+            long currentTime = Global.getSector().getClock().getTimestamp();
+            float daysAway = (currentTime - suspendTime) / 30f; // Approximate days (30 days per month)
             
             // Since we can't restore the actual cards/deck state, we'll start a new hand but preserve the stakes
             // Create a fresh deck and hands
@@ -665,8 +648,10 @@ public class PokerHandler {
             // Visual Panel
             main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.PokerUIPanel(main));
             
-            // Inform player that game has been resumed
-            main.getTextPanel().addPara("Resumed poker game. Preserved stakes and stacks.", Color.YELLOW);
+            // Inform player that game has been resumed with joke
+            main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
+            main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
+            main.getTextPanel().addPara("'The cards are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
             
             // Update UI with restored game state
             updateUI();
@@ -779,16 +764,22 @@ public class PokerHandler {
             main.getTextPanel().addPara("You win the pot of " + potSize + " Stargems!", Color.CYAN);
         }
         
-        // Return both players' remaining stacks to their respective wallets/pools
-        returnStacks();
-        
         // Ensure stack values don't go negative
         if (playerStack < 0) playerStack = 0;
         if (opponentStack < 0) opponentStack = 0;
         
+        // Check if either player is busted
+        if (playerStack < bigBlind) {
+            main.getTextPanel().addPara("You're out of chips! Game over.", Color.RED);
+            returnStacks();
+        } else if (opponentStack < bigBlind) {
+            main.getTextPanel().addPara("Opponent is out of chips! You win!", Color.GREEN);
+            returnStacks();
+        }
+        
         // Play game complete sound
         // Removed sound effect as it was removed from sounds.json
-// Global.getSoundPlayer().playUISound("game_complete", 1f, 1f);
+// Global.getSoundPlayer().playUISound("game_complete",1f, 1f);
         
         main.getOptions().clearOptions();
         main.getOptions().addOption("Next Hand", "next_hand");

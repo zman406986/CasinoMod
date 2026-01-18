@@ -5,6 +5,45 @@ import java.util.*;
 
 public class PokerGame {
 
+    public enum Action { FOLD, CHECK, CALL, RAISE, ALL_IN }
+
+    public enum Dealer { PLAYER, OPPONENT }
+
+    public enum Round { PREFLOP, FLOP, TURN, RIVER, SHOWDOWN }
+
+    public enum CurrentPlayer { PLAYER, OPPONENT }
+
+    public static class PokerState {
+        public List<PokerGameLogic.Card> playerHand;
+        public List<PokerGameLogic.Card> opponentHand;
+        public List<PokerGameLogic.Card> communityCards;
+        public int pot;
+        public int playerStack;
+        public int opponentStack;
+        public int playerBet;
+        public int opponentBet;
+        public Dealer dealer;
+        public Round round;
+        public PokerGameLogic.HandRank playerHandRank;
+        public PokerGameLogic.HandRank opponentHandRank;
+        public CurrentPlayer currentPlayer;
+        public int bigBlind;
+    }
+
+    private PokerState state;
+    private SimplePokerAI ai;
+    private PokerGameLogic.Deck deck;
+    private final int startingStack = 1000;
+    private final int smallBlind = 10;
+    private final int bigBlindAmount = 20;
+
+    public PokerGame() {
+        ai = new SimplePokerAI();
+        state = new PokerState();
+        state.bigBlind = bigBlindAmount;
+        startNewHand();
+    }
+
     public static class PokerGameLogic {
         public enum Suit { SPADES, HEARTS, DIAMONDS, CLUBS }
         
@@ -254,23 +293,25 @@ public class PokerGame {
         private int calculateBetSize(float equity, int potSize, int stackSize) {
             // Value bet sizing - removed unused aggressionFactor parameter
             if (equity > 0.65f) {
-                int bet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f))); // Add small random variation
+                int bet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f)));
                 return Math.min(bet, stackSize); // Don't bet more than we have
             }
             
             // Medium strength
             if (equity > 0.45f) {
-                int bet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f))); // Add small random variation
+                int bet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f)));
                 return Math.min(bet, stackSize);
             }
             
             // Bluff sizing
-            int bet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f))); // Add small random variation
+            int bet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f)));
             return Math.min(bet, stackSize);
         }
         
         private AIResponse randomDeviation(float equity, float potOdds, int stackSize, int potSize) {
             int deviationType = random.nextInt(4) + 1; // 1-4
+            int bluffRaise = 0;
+            int overbet = 0;
             
             switch(deviationType) {
                 case 1: // Hero call
@@ -280,7 +321,7 @@ public class PokerGame {
                     break;
                 case 2: // Bluff raise
                     if (equity < 0.4f && random.nextFloat() < 0.3f) {
-                        int bluffRaise = (int)(potSize * 0.5f);
+                        bluffRaise = (int)(potSize * 0.5f);
                         bluffRaise = Math.min(bluffRaise, stackSize);
                         return new AIResponse(Action.RAISE, bluffRaise);
                     }
@@ -292,7 +333,7 @@ public class PokerGame {
                     break;
                 case 4: // Overbet
                     if (equity > 0.75f) {
-                        int overbet = (int)(potSize * 1.5f);
+                        overbet = (int)(potSize * 1.5f);
                         overbet = Math.min(overbet, stackSize);
                         return new AIResponse(Action.RAISE, overbet);
                     }
@@ -645,6 +686,180 @@ public class PokerGame {
             
             // Update meter with smoothing
             aggressionMeter = 0.7f * aggressionMeter + 0.3f * recentAggression;
+        }
+    }
+
+    public PokerState getState() {
+        return state;
+    }
+
+    public void startNewHand() {
+        deck = new PokerGameLogic.Deck();
+        deck.shuffle();
+
+        state.playerHand = new ArrayList<>();
+        state.opponentHand = new ArrayList<>();
+        state.communityCards = new ArrayList<>();
+
+        state.playerHand.add(deck.draw());
+        state.opponentHand.add(deck.draw());
+        state.playerHand.add(deck.draw());
+        state.opponentHand.add(deck.draw());
+
+        state.playerStack = startingStack;
+        state.opponentStack = startingStack;
+
+        state.playerBet = 0;
+        state.opponentBet = 0;
+        state.pot = 0;
+
+        state.dealer = state.dealer == Dealer.PLAYER ? Dealer.OPPONENT : Dealer.PLAYER;
+
+        postBlinds();
+
+        state.round = Round.PREFLOP;
+        state.currentPlayer = state.dealer == Dealer.PLAYER ? CurrentPlayer.OPPONENT : CurrentPlayer.PLAYER;
+
+        evaluateHands();
+    }
+
+    private void postBlinds() {
+        if (state.dealer == Dealer.PLAYER) {
+            state.playerBet = smallBlind;
+            state.playerStack -= smallBlind;
+            state.opponentBet = bigBlindAmount;
+            state.opponentStack -= bigBlindAmount;
+        } else {
+            state.opponentBet = smallBlind;
+            state.opponentStack -= smallBlind;
+            state.playerBet = bigBlindAmount;
+            state.playerStack -= bigBlindAmount;
+        }
+        state.pot = state.playerBet + state.opponentBet;
+    }
+
+    public void processPlayerAction(Action action, int raiseAmount) {
+        switch (action) {
+            case FOLD:
+                state.opponentStack += state.pot;
+                state.pot = 0;
+                state.round = Round.SHOWDOWN;
+                break;
+            case CHECK:
+                break;
+            case CALL:
+                int callAmount = state.opponentBet - state.playerBet;
+                state.playerStack -= callAmount;
+                state.playerBet = state.opponentBet;
+                state.pot += callAmount;
+                break;
+            case RAISE:
+                int totalBet = state.opponentBet + raiseAmount;
+                int raiseAmountActual = totalBet - state.playerBet;
+                state.playerStack -= raiseAmountActual;
+                state.playerBet = totalBet;
+                state.pot += raiseAmountActual;
+                break;
+            case ALL_IN:
+                int allInAmount = state.playerStack;
+                state.pot += allInAmount;
+                state.playerBet += allInAmount;
+                state.playerStack = 0;
+                break;
+        }
+
+        ai.trackPlayerAction(action == Action.RAISE || action == Action.ALL_IN, action == Action.FOLD);
+
+        if (state.round != Round.SHOWDOWN) {
+            state.currentPlayer = CurrentPlayer.OPPONENT;
+            checkRoundProgression();
+        }
+    }
+
+    public SimplePokerAI.AIResponse getOpponentAction() {
+        int currentBetToCall = state.playerBet - state.opponentBet;
+        return ai.decide(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack, state.playerStack);
+    }
+
+    public void processOpponentAction(SimplePokerAI.AIResponse response) {
+        switch (response.action) {
+            case FOLD:
+                state.playerStack += state.pot;
+                state.pot = 0;
+                state.round = Round.SHOWDOWN;
+                break;
+            case CHECK:
+                break;
+            case CALL:
+                int callAmount = state.playerBet - state.opponentBet;
+                state.opponentStack -= callAmount;
+                state.opponentBet = state.playerBet;
+                state.pot += callAmount;
+                break;
+            case RAISE:
+                int raiseAmount = response.raiseAmount;
+                int totalBet = state.playerBet + raiseAmount;
+                int raiseAmountActual = totalBet - state.opponentBet;
+                state.opponentStack -= raiseAmountActual;
+                state.opponentBet = totalBet;
+                state.pot += raiseAmountActual;
+                break;
+        }
+
+        if (state.round != Round.SHOWDOWN) {
+            state.currentPlayer = CurrentPlayer.PLAYER;
+            checkRoundProgression();
+        }
+    }
+
+    private void checkRoundProgression() {
+        if (state.playerBet == state.opponentBet) {
+            advanceRound();
+        }
+    }
+
+    private void advanceRound() {
+        state.playerBet = 0;
+        state.opponentBet = 0;
+
+        switch (state.round) {
+            case PREFLOP:
+                state.round = Round.FLOP;
+                state.communityCards.add(deck.draw());
+                state.communityCards.add(deck.draw());
+                state.communityCards.add(deck.draw());
+                break;
+            case FLOP:
+                state.round = Round.TURN;
+                state.communityCards.add(deck.draw());
+                break;
+            case TURN:
+                state.round = Round.RIVER;
+                state.communityCards.add(deck.draw());
+                break;
+            case RIVER:
+                state.round = Round.SHOWDOWN;
+                break;
+            case SHOWDOWN:
+                return;
+        }
+
+        evaluateHands();
+
+        if (state.round != Round.SHOWDOWN) {
+            state.currentPlayer = state.dealer == Dealer.PLAYER ? CurrentPlayer.OPPONENT : CurrentPlayer.PLAYER;
+        }
+    }
+
+    private void evaluateHands() {
+        if (state.communityCards.size() >= 3) {
+            PokerGameLogic.HandScore playerScore = PokerGameLogic.evaluate(state.playerHand, state.communityCards);
+            PokerGameLogic.HandScore opponentScore = PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
+            state.playerHandRank = playerScore.rank;
+            state.opponentHandRank = opponentScore.rank;
+        } else {
+            state.playerHandRank = null;
+            state.opponentHandRank = null;
         }
     }
 }

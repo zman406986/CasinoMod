@@ -28,6 +28,16 @@ public class FinHandler {
         handlers.put("financial_menu", option -> showTopUpMenu());
         handlers.put("buy_chips", option -> showTopUpMenu());
         handlers.put("cash_out", option -> performCashOut());
+        handlers.put("cash_out_insist", option -> performCashOutInsist());
+        handlers.put("cash_out_queue", option -> performCashOutQueue());
+        handlers.put("cash_out_department", option -> performCashOutDepartment());
+        handlers.put("cash_out_form", option -> performCashOutForm());
+        handlers.put("cash_out_confirm", option -> performCashOutConfirm());
+        handlers.put("cash_out_final", option -> performCashOutFinal());
+        handlers.put("cash_out_return", option -> performCashOutReturn());
+        handlers.put("cash_out_return_queue", option -> performCashOutReturnQueue());
+        handlers.put("cash_out_return_department", option -> performCashOutReturnDepartment());
+        handlers.put("cash_out_return_error", option -> performCashOutReturnDepartment());
         handlers.put("buy_vip", option -> showTopUpConfirm(-1, true));
         handlers.put("confirm_buy_vip", option -> purchaseVIPPass());
         handlers.put("buy_ship", option -> openShipTradePicker());
@@ -35,7 +45,6 @@ public class FinHandler {
         handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
         
         // Predicate-based handlers for pattern matching
-        predicateHandlers.put(option -> option.startsWith("cash_out_"), option -> processCashOutOption(option));
         predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
             int index = Integer.parseInt(option.replace("buy_pack_", ""));
             showTopUpConfirm(index, false);
@@ -66,14 +75,24 @@ public class FinHandler {
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("Financial Services Terminal", Color.GREEN);
         
-        // Check if gem packages are available and not empty
+        int cashoutStage = 0;
+        if (Global.getSector().getMemoryWithoutUpdate().contains("$casino_cashout_stage")) {
+            cashoutStage = Global.getSector().getMemoryWithoutUpdate().getInt("$casino_cashout_stage");
+        }
+        
+        if (cashoutStage == 1) {
+            main.getOptions().addOption("Check Cashout Status", "cash_out_return");
+            main.getOptions().addOption("Back", "back_menu");
+            main.setState(CasinoInteraction.State.FINANCIAL);
+            return;
+        }
+        
         if (CasinoConfig.GEM_PACKAGES != null && !CasinoConfig.GEM_PACKAGES.isEmpty()) {
             for (int i=0; i<CasinoConfig.GEM_PACKAGES.size(); i++) {
                 CasinoConfig.GemPackage pack = CasinoConfig.GEM_PACKAGES.get(i);
                 main.getOptions().addOption(pack.gems + " Gems (" + pack.cost + " Credits)", "buy_pack_" + i);
             }
         } else {
-            // If no gem packages are available, inform the player
             main.getTextPanel().addPara("No gem packages currently available.", Color.ORANGE);
         }
         
@@ -128,105 +147,145 @@ public class FinHandler {
     }
 
     private void performCashOut() {
-        int totalGems = CasinoVIPManager.getStargems();
-        if (totalGems <= 0) {
-            main.textPanel.addPara("No Stargems to cash out!", Color.RED);
-            main.getOptions().clearOptions();
-            main.getOptions().addOption("Back", "financial_menu");
-            return;
-        }
-        
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Select amount of Stargems to cash out", Color.ORANGE);
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("We appreciate your business!", Color.YELLOW);
+        main.textPanel.addPara("However, we strongly encourage you to spend all your Stargems on ship pulls.", Color.ORANGE);
+        main.textPanel.addPara("Our collection of rare ships from across the galaxy is truly unmatched.", Color.CYAN);
         
-        // Create fixed cashout options based on available gems - following same pattern as betting menus
-        if (totalGems >= 100) {
-            int option1 = Math.min(totalGems, 100);
-            main.getOptions().addOption(option1 + " Stargems", "cash_out_100");
-        }
-        if (totalGems >= 500) {
-            int option2 = Math.min(totalGems, 500);
-            main.getOptions().addOption(option2 + " Stargems", "cash_out_500");
-        }
-        if (totalGems >= 2000) {  // Changed from 1000 to 2000 to match betting pattern
-            int option3 = Math.min(totalGems, 2000);
-            main.getOptions().addOption(option3 + " Stargems", "cash_out_2000");
-        }
-        
-        // Add option to cash out percentage of available gems based on available credit (remaining debt capacity) if in debt
-        int availableCredit = CasinoVIPManager.getAvailableCredit();
-        if (availableCredit > 0) {
-            // Player has available credit, show percentage options based on that
-            int tenPercent = (availableCredit * 10) / 100;
-            if (tenPercent > 0) {
-                main.getOptions().addOption(tenPercent + " Stargems (10% of remaining credit)", "cash_out_ten_percent");
-            }
-        } else {
-            // Player has no available credit, show percentage options based on current balance
-            int tenPercent = (totalGems * 10) / 100;
-            if (tenPercent > 0) {
-                main.getOptions().addOption(tenPercent + " Stargems (10% of account)", "cash_out_ten_percent");
-            }
-        }
-        
-        // Add option to cash out all available gems
-        main.getOptions().addOption("All " + totalGems + " Stargems", "cash_out_all");
-        
+        main.getOptions().addOption("I insist on cashing out", "cash_out_insist");
         main.getOptions().addOption("Cancel", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
     
-    private void confirmCashOut(int gemsToCashOut) {
-        int currentGems = CasinoVIPManager.getStargems();
-        if (gemsToCashOut <= 0) {
-            main.textPanel.addPara("No Stargems selected for cash out!", Color.RED);
-            main.getOptions().clearOptions();
-            main.getOptions().addOption("Back", "financial_menu");
-            return;
-        }
-        
-        if (gemsToCashOut > currentGems) {
-            main.textPanel.addPara("Not enough Stargems! You only have " + currentGems + ".", Color.RED);
-            main.getOptions().clearOptions();
-            main.getOptions().addOption("Back", "financial_menu");
-            return;
-        }
-        
-        float credits = gemsToCashOut * CasinoConfig.STARGEM_EXCHANGE_RATE;
-        Global.getSector().getPlayerFleet().getCargo().getCredits().add(credits);
-        CasinoVIPManager.addStargems(-gemsToCashOut); // Subtract the cashed-out gems
-        
-        main.textPanel.addPara("Cashed out " + gemsToCashOut + " Stargems for " + (int)credits + " Credits.", Color.GREEN);
+    private void performCashOutInsist() {
         main.getOptions().clearOptions();
-        main.getOptions().addOption("Back", "financial_menu");
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Very well. We can process your cashout request.", Color.YELLOW);
+        main.textPanel.addPara("However, please note that this transaction requires multiple levels of approval.", Color.ORANGE);
+        main.textPanel.addPara("Our banking system processes all requests in the order they are received.", Color.GRAY);
+        
+        main.getOptions().addOption("Proceed to queue", "cash_out_queue");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
     }
     
-    /**
-     * Process the selected cashout option
-     */
-    private void processCashOutOption(String option) {
-        int totalGems = CasinoVIPManager.getStargems();
-        int gemsToCashOut = 0;
+    private void performCashOutQueue() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Welcome to the Cashout Queue Management System.", Color.YELLOW);
+        main.textPanel.addPara("Your position in queue: 4,723", Color.RED);
+        main.textPanel.addPara("Estimated wait time: 3-5 business days for queue processing.", Color.ORANGE);
+        main.textPanel.addPara("Please select your preferred queue tier:", Color.GRAY);
         
-        if ("cash_out_100".equals(option)) {
-            gemsToCashOut = Math.min(totalGems, 100);
-        } else if ("cash_out_500".equals(option)) {
-            gemsToCashOut = Math.min(totalGems, 500);
-        } else if ("cash_out_2000".equals(option)) {
-            gemsToCashOut = Math.min(totalGems, 2000);
-        } else if ("cash_out_ten_percent".equals(option)) {
-            // Use available credit if in debt, otherwise use current gems
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit > 0) {
-                gemsToCashOut = (availableCredit * 10) / 100;
-            } else {
-                gemsToCashOut = (totalGems * 10) / 100;
-            }
-        } else if ("cash_out_all".equals(option)) {
-            gemsToCashOut = totalGems;
-        }
+        main.getOptions().addOption("Standard Queue (Free)", "cash_out_department");
+        main.getOptions().addOption("Express Queue (500 Credits)", "cash_out_department");
+        main.getOptions().addOption("VIP Queue (Requires VIP Status)", "cash_out_department");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutDepartment() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Department Selection", Color.YELLOW);
+        main.textPanel.addPara("Please select the appropriate department for your cashout request:", Color.GRAY);
         
-        confirmCashOut(gemsToCashOut);
+        main.getOptions().addOption("Department of Fund Disbursement", "cash_out_form");
+        main.getOptions().addOption("Department of Asset Liquidation", "cash_out_form");
+        main.getOptions().addOption("Department of Transaction Verification", "cash_out_form");
+        main.getOptions().addOption("Department of Regulatory Compliance", "cash_out_form");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutForm() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Form Submission Required", Color.YELLOW);
+        main.textPanel.addPara("Please complete the following forms:", Color.GRAY);
+        main.textPanel.addPara("- Form 7B: Request for Fund Disbursement", Color.ORANGE);
+        main.textPanel.addPara("- Form 12C: Asset Liquidation Authorization", Color.ORANGE);
+        main.textPanel.addPara("- Form 24A: Tax Compliance Declaration", Color.ORANGE);
+        main.textPanel.addPara("- Form 31D: Risk Assessment Questionnaire", Color.ORANGE);
+        main.textPanel.addPara("- Form 45F: Anti-Money Laundering Certification", Color.ORANGE);
+        
+        main.getOptions().addOption("Submit all forms", "cash_out_confirm");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutConfirm() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Form Submission Successful", Color.YELLOW);
+        main.textPanel.addPara("Your request has been submitted for review.", Color.ORANGE);
+        main.textPanel.addPara("Processing time: 30 business days.", Color.RED);
+        main.textPanel.addPara("Please note: You must return after 30 business days to complete this transaction.", Color.GRAY);
+        main.textPanel.addPara("Failure to return within 60 business days will result in request cancellation.", Color.RED);
+        
+        main.getOptions().addOption("I understand. Return in 30 business days.", "cash_out_final");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutFinal() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Request Received", Color.YELLOW);
+        main.textPanel.addPara("Your cashout request has been logged in our system.", Color.ORANGE);
+        main.textPanel.addPara("Request ID: " + System.currentTimeMillis(), Color.CYAN);
+        main.textPanel.addPara("Please return in exactly 30 business days.", Color.RED);
+        main.textPanel.addPara("Have a pleasant day.", Color.GRAY);
+        
+        main.getOptions().addOption("Leave", "leave");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+        
+        Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 1);
+    }
+    
+    private void performCashOutReturn() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Welcome back. We see you have a pending cashout request.", Color.YELLOW);
+        main.textPanel.addPara("Please proceed to the queue to check on your request status.", Color.ORANGE);
+        
+        main.getOptions().addOption("Proceed to queue", "cash_out_return_queue");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutReturnQueue() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Queue Management System", Color.YELLOW);
+        main.textPanel.addPara("Your position in queue: 8,947", Color.RED);
+        main.textPanel.addPara("Estimated wait time: 2-4 business days.", Color.ORANGE);
+        main.textPanel.addPara("Please select your department:", Color.GRAY);
+        
+        main.getOptions().addOption("Department of Request Processing", "cash_out_return_department");
+        main.getOptions().addOption("Department of Status Verification", "cash_out_return_department");
+        main.getOptions().addOption("Department of Final Approval", "cash_out_return_department");
+        main.getOptions().addOption("Cancel", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void performCashOutReturnDepartment() {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
+        main.textPanel.addPara("Processing Request...", Color.YELLOW);
+        main.textPanel.addPara("Accessing database...", Color.GRAY);
+        main.textPanel.addPara("Verifying request ID...", Color.GRAY);
+        main.textPanel.addPara("Checking compliance status...", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("ERROR: SYSTEM MALFUNCTION DETECTED", Color.RED);
+        main.textPanel.addPara("Error Code: 0x5F3A2B1C", Color.RED);
+        main.textPanel.addPara("Our technical team has been notified.", Color.ORANGE);
+        main.textPanel.addPara("Please restart the process from the beginning.", Color.GRAY);
+        
+        main.getOptions().addOption("Return to main menu", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+        
+        Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
     }
     
     private void openShipTradePicker() {
