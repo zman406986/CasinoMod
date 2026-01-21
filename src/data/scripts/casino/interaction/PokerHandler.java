@@ -218,8 +218,11 @@ public class PokerHandler {
         playerHand.add(deck.draw());
         opponentHand.add(deck.draw());
         
-        // Visual Panel
-        main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.PokerUIPanel(main));
+        // Visual Panel - Use showCustomVisualDialog like Eventide and Gacha
+        PokerGame pokerGame = new PokerGame();
+        data.scripts.casino.ui.poker.PokerDialogDelegate pokerDelegate = 
+            new data.scripts.casino.ui.poker.PokerDialogDelegate(pokerGame, main.dialog);
+        main.dialog.showCustomVisualDialog(800f, 600f, pokerDelegate);
         
         updateUI();
     }
@@ -645,8 +648,11 @@ public class PokerHandler {
             // Restore the AI state as much as possible
             this.ai = new PokerGame.SimplePokerAI();
             
-            // Visual Panel
-            main.dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.PokerUIPanel(main));
+            // Visual Panel - Use showCustomVisualDialog like Eventide and Gacha
+            PokerGame pokerGame = new PokerGame();
+            data.scripts.casino.ui.poker.PokerDialogDelegate pokerDelegate = 
+                new data.scripts.casino.ui.poker.PokerDialogDelegate(pokerGame, main.dialog);
+            main.dialog.showCustomVisualDialog(800f, 600f, pokerDelegate);
             
             // Inform player that game has been resumed with joke
             main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
