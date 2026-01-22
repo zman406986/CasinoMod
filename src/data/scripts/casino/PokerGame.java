@@ -33,14 +33,25 @@ public class PokerGame {
     private PokerState state;
     private SimplePokerAI ai;
     private PokerGameLogic.Deck deck;
-    private final int startingStack = 1000;
-    private final int smallBlind = 10;
-    private final int bigBlindAmount = 20;
+    private int startingStack;
+    private int smallBlind;
+    private int bigBlindAmount;
 
     public PokerGame() {
+        this(1000, 1000, 10, 20);
+    }
+
+    public PokerGame(int playerStack, int opponentStack, int smallBlind, int bigBlind) {
         ai = new SimplePokerAI();
         state = new PokerState();
+        this.startingStack = playerStack; // Keep for reference, though state.playerStack is initialized in startNewHand
+        this.smallBlind = smallBlind;
+        this.bigBlindAmount = bigBlind;
+        
+        state.playerStack = playerStack;
+        state.opponentStack = opponentStack;
         state.bigBlind = bigBlindAmount;
+        
         startNewHand();
     }
 
@@ -706,8 +717,7 @@ public class PokerGame {
         state.playerHand.add(deck.draw());
         state.opponentHand.add(deck.draw());
 
-        state.playerStack = startingStack;
-        state.opponentStack = startingStack;
+
 
         state.playerBet = 0;
         state.opponentBet = 0;

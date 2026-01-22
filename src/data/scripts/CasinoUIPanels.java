@@ -34,13 +34,6 @@ public class CasinoUIPanels {
 
             element.addSectionHeading("Spiral Abyss: Real-time Sensors", Alignment.MID, 0f);
             element.addSpacer(10f);
-
-            // if (interaction.arenaCombatants == null) return; // Temporarily commented out
-
-            // LEARNERS: We loop through each combatant and create a "LunaProgressBar" for them.
-            // for (data.scripts.casino.SpiralAbyssArena.SpiralGladiator g : interaction.arenaCombatants) {
-                
-            // }
         }
 
         @Override

@@ -127,7 +127,10 @@ public class HelpHandler {
         main.textPanel.addPara("- The IPC Dealer calculates pot odds. Don't let them bully you!", Color.ORANGE);
         
         // Check if we're in an active poker game (has cards dealt)
-        if (main.poker.playerHand != null && !main.poker.playerHand.isEmpty()) {
+        if (main.poker.getPokerGame() != null && 
+            main.poker.getPokerGame().getState() != null && 
+            main.poker.getPokerGame().getState().playerHand != null && 
+            !main.poker.getPokerGame().getState().playerHand.isEmpty()) {
             main.options.addOption("Back to Game", "poker_back_action"); // Return to active game
         } else {
             main.options.addOption("Back", "play"); // Go back to poker menu when not in a game
