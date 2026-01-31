@@ -289,8 +289,8 @@ public class GachaHandler {
             showGachaMenu();
         });
         
-        // Show the custom visual dialog
-        main.getDialog().showCustomVisualDialog(600f, 400f, delegate);
+        // Show the custom visual dialog with larger size for multi-column layout
+        main.getDialog().showCustomVisualDialog(800f, 600f, delegate);
     }
     
     private int getRarityFromResult(String result) {

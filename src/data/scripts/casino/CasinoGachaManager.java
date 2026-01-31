@@ -8,7 +8,6 @@ import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
 import com.fs.starfarer.api.impl.campaign.ids.Tags;
 import com.fs.starfarer.api.impl.campaign.ids.Items;
-import data.scripts.casino.util.ConfigManager;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -103,8 +102,8 @@ public class CasinoGachaManager {
         }
         
         // Check for ships in the configured blacklist
-        if (ConfigManager.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
-        if (ConfigManager.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
         
         // Skip extremely high FP ships (likely bosses/uniques)
         if (spec.getFleetPoints() > 60) return false;
@@ -204,12 +203,12 @@ public class CasinoGachaManager {
         data.pity4++;
         
         // --- 1. Check 5* (Capital) ---
-        float currentRate5 = ConfigManager.PROB_5_STAR;
+        float currentRate5 = CasinoConfig.PROB_5_STAR;
         
-        if (data.pity5 >= ConfigManager.PITY_SOFT_START_5) {
-            currentRate5 = ConfigManager.PROB_5_STAR + (data.pity5 - (ConfigManager.PITY_SOFT_START_5 - 1)) * 0.06f;
+        if (data.pity5 >= CasinoConfig.PITY_SOFT_START_5) {
+            currentRate5 = CasinoConfig.PROB_5_STAR + (data.pity5 - (CasinoConfig.PITY_SOFT_START_5 - 1)) * 0.06f;
         }
-        if (data.pity5 >= ConfigManager.PITY_HARD_5) currentRate5 = 10.0f; 
+        if (data.pity5 >= CasinoConfig.PITY_HARD_5) currentRate5 = 10.0f; 
         
         float roll = random.nextFloat();
         
@@ -219,8 +218,8 @@ public class CasinoGachaManager {
         }
         
         // --- 2. Check 4* (Cruiser) ---
-        float currentRate4 = ConfigManager.PROB_4_STAR;
-        if (data.pity4 >= ConfigManager.PITY_HARD_4) currentRate4 = 10.0f;
+        float currentRate4 = CasinoConfig.PROB_4_STAR;
+        if (data.pity4 >= CasinoConfig.PITY_HARD_4) currentRate4 = 10.0f;
         
         float roll4 = random.nextFloat();
         
@@ -236,7 +235,7 @@ public class CasinoGachaManager {
         if (s != null && data.autoConvertIds.contains(s)) {
             ShipHullSpecAPI hullSpec = Global.getSettings().getHullSpec(s);
             if (hullSpec != null) {
-                int val = (int)(hullSpec.getBaseValue() / ConfigManager.SHIP_TRADE_RATE);
+                int val = (int)(hullSpec.getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
                 CasinoVIPManager.addStargems(val);
                 return "Auto-Converted: " + hullSpec.getHullName() + " (+" + val + " Gems)";
             }

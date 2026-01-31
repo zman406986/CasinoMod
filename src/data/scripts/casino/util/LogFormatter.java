@@ -158,22 +158,22 @@ public class LogFormatter {
      */
     private static Color isPositiveAffix(String affixOrPrefix) {
         // Check if it's in the positive affix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
+        if (data.scripts.casino.CasinoConfig.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
             return Color.GREEN;
         }
         
         // Check if it's in the negative affix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
+        if (data.scripts.casino.CasinoConfig.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
             return Color.RED;
         }
         
         // Check if it's in the positive prefix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
+        if (data.scripts.casino.CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
             return Color.GREEN;
         }
         
         // Check if it's in the negative prefix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
+        if (data.scripts.casino.CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
             return Color.RED;
         }
         

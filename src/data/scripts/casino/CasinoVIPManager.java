@@ -2,7 +2,6 @@ package data.scripts.casino;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignClockAPI;
-import data.scripts.casino.util.ConfigManager;
 
 import java.awt.Color;
 import java.util.Map;
@@ -11,14 +10,12 @@ import java.util.Random;
 public class CasinoVIPManager {
     private static final String DATA_KEY = "CasinoVIPData";
     
+    private static final String LAST_REWARD_TIME_KEY = "$ipc_vip_last_reward_time";
+    
     // Performance: We track time to avoid running heavy logic every single frame.
     private float daysElapsed = 0;
     private float timer = 0f;
     private final Random random = new Random();
-
-    public static class VIPData {
-        public int daysRemaining = 0;
-    }
 
     public boolean isDone() { return false; } // This script never finishes naturally
     
@@ -44,15 +41,21 @@ public class CasinoVIPManager {
      * Checks if a new day has arrived to give VIP rewards.
      */
     private void checkDaily() {
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        VIPData vip = (VIPData) data.get(DATA_KEY);
-        if (vip == null) return;
+        int daysRemaining = getDaysRemaining();
+        if (daysRemaining <= 0) return;
 
-        if (vip.daysRemaining > 0) {
-            vip.daysRemaining--;
-            addStargems(ConfigManager.VIP_DAILY_REWARD);
+        CampaignClockAPI clock = Global.getSector().getClock();
+        long currentTime = clock.getTimestamp();
+        long lastRewardTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_REWARD_TIME_KEY);
+
+        // Only give reward if we haven't given one today (or within last 24 hours)
+        // Using 24 hours (86400 seconds) to ensure daily rewards
+        if (lastRewardTime == 0 || (currentTime - lastRewardTime) >= 86400L) {
+            addStargems(CasinoConfig.VIP_DAILY_REWARD);
             sendNotification();
-            data.put(DATA_KEY, vip); // Always re-put to ensure the map updates
+            
+            // Mark current time as the time we gave the reward
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, currentTime);
         }
     }
 
@@ -71,7 +74,7 @@ public class CasinoVIPManager {
         if (day == 15 && !data.containsKey(interestKey)) {
             int gems = getStargems();
             if (gems < 0) {
-                int interest = (int) (gems * ConfigManager.VIP_INTEREST_RATE); 
+                int interest = (int) (gems * CasinoConfig.VIP_INTEREST_RATE); 
                 
                 // Memory markers are great for passing localized flags between methods.
                 Global.getSector().getMemoryWithoutUpdate().set("$ipc_processing_interest", true, 0f);
@@ -89,12 +92,12 @@ public class CasinoVIPManager {
      * Sends a random flavor text advertisement to the player UI.
      */
     private void sendNotification() {
-        if (ConfigManager.VIP_ADS.isEmpty()) return;
-        String ad = ConfigManager.VIP_ADS.get(random.nextInt(ConfigManager.VIP_ADS.size()));
+        if (CasinoConfig.VIP_ADS.isEmpty()) return;
+        String ad = CasinoConfig.VIP_ADS.get(random.nextInt(CasinoConfig.VIP_ADS.size()));
         Global.getSector().getCampaignUI().addMessage(
-            "VIP Pass: " + ConfigManager.VIP_DAILY_REWARD + " Stargems added. " + ad,
+            "VIP Pass: " + CasinoConfig.VIP_DAILY_REWARD + " Stargems added. " + ad,
             Color.GREEN,
-            ConfigManager.VIP_DAILY_REWARD + " Stargems",
+            CasinoConfig.VIP_DAILY_REWARD + " Stargems",
             "",
             Color.YELLOW,
             Color.WHITE
@@ -160,13 +163,25 @@ public class CasinoVIPManager {
     // Get days remaining for VIP status
     public static int getDaysRemaining() {
         CampaignClockAPI clock = Global.getSector().getClock();
-        int start = Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_vip_start_time");
+        long startTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong("$ipc_vip_start_time");
         int duration = Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_vip_duration");
 
         if (duration <= 0) return 0;
 
-        int elapsed = clock.getDay() - start;
-        int remaining = duration - elapsed;
+        float elapsedDays;
+        
+        // Backward compatibility: if startTime is a small number (old-style day value), convert it
+        if (startTime < 1000000000L) {
+            // Old format: startTime was stored as clock.getDay() (day of month, 1-31)
+            // We can't accurately convert this, so we'll assume it was recent
+            // and set remaining days based on duration minus a reasonable elapsed time
+            elapsedDays = 0;
+        } else {
+            // New format: startTime is a timestamp
+            elapsedDays = clock.getElapsedDaysSince(startTime);
+        }
+
+        int remaining = duration - (int) elapsedDays;
         return Math.max(0, remaining);
     }
 
@@ -178,14 +193,18 @@ public class CasinoVIPManager {
         int newDuration;
         if (getDaysRemaining() <= 0) {
             // No current VIP, start fresh
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getDay());
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
             newDuration = days;
         } else {
-            // Extend current VIP
+            // Extend current VIP - reset start time to today and add remaining days
             newDuration = getDaysRemaining() + days;
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
         }
 
         Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_duration", newDuration);
+        
+        // Reset the last reward time so the player gets a reward on the day they purchase
+        Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, -1L);
         
         // Add to cumulative VIP purchases
         addCumulativeVIPPurchases(1); // Count this as one VIP purchase
@@ -193,9 +212,9 @@ public class CasinoVIPManager {
 
     // Get the debt ceiling based on dynamic calculation
     public static int getDebtCeiling() {
-        int baseCeiling = ConfigManager.BASE_DEBT_CEILING;
-        int vipIncrease = getCumulativeVIPPurchases() * ConfigManager.VIP_PASS_CEILING_INCREASE;
-        int topupIncrease = (int) (getCumulativeTopupAmount() * ConfigManager.TOPUP_CEILING_MULTIPLIER);
+        int baseCeiling = CasinoConfig.BASE_DEBT_CEILING;
+        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.VIP_PASS_CEILING_INCREASE;
+        int topupIncrease = (int) (getCumulativeTopupAmount() * CasinoConfig.TOPUP_CEILING_MULTIPLIER);
         
         return baseCeiling + vipIncrease + topupIncrease;
     }
@@ -211,7 +230,7 @@ public class CasinoVIPManager {
     public static void applyInterest() {
         int currentDebt = getDebt();
         if (currentDebt > 0) {
-            float interestAmount = currentDebt * ConfigManager.VIP_INTEREST_RATE;
+            float interestAmount = currentDebt * CasinoConfig.VIP_INTEREST_RATE;
             addDebt((int) interestAmount);
         }
     }

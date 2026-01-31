@@ -107,7 +107,7 @@ public class FinHandler {
         main.getOptions().clearOptions();
         if (isVIP) {
             int currentDays = CasinoVIPManager.getDaysRemaining();
-            String message = "Purchase VIP Subscription (30 Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
+            String message = "Purchase VIP Subscription (" + CasinoConfig.VIP_PASS_DAYS + " Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
             if (currentDays > 0) {
                 message += " (Current VIP: " + currentDays + " days remaining)";
             }
@@ -141,7 +141,7 @@ public class FinHandler {
             return;
         }
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
-        CasinoVIPManager.addSubscriptionDays(30);
+        CasinoVIPManager.addSubscriptionDays(CasinoConfig.VIP_PASS_DAYS);
         main.textPanel.addPara("VIP Status Activated! Enjoy your benefits.", Color.CYAN);
         showTopUpMenu();
     }

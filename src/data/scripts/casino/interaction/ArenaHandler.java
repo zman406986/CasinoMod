@@ -146,7 +146,7 @@ public class ArenaHandler {
             activeArena = new SpiralAbyssArena();
             arenaCombatants = activeArena.generateCombatants(new CasinoGachaManager());
             // Reset bet amount to default for a new championship
-            currentBetAmount = data.scripts.casino.util.ConfigManager.ARENA_ENTRY_FEE;
+            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
         }
         
         main.textPanel.addPara("Spiral Abyss Arena - Today's Match Card", Color.CYAN);
@@ -199,22 +199,22 @@ public class ArenaHandler {
      */
     private boolean isPositiveAffix(String affixOrPrefix) {
         // Check if it's in the positive affix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
+        if (CasinoConfig.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
             return true;
         }
         
         // Check if it's in the negative affix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
+        if (CasinoConfig.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
             return false;
         }
         
         // Check if it's in the positive prefix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
+        if (CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
             return true;
         }
         
         // Check if it's in the negative prefix list
-        if (data.scripts.casino.util.ConfigManager.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
+        if (CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
             return false;
         }
         
@@ -492,12 +492,15 @@ public class ArenaHandler {
         int totalWinReward = 0;
         boolean anyWinner = false;
         
+        // Apply survival reward multiplier from config
+        float survivalRewardMultiplier = CasinoConfig.ARENA_SURVIVAL_REWARD_MULT;
+        
         for (SpiralAbyssArena.SpiralGladiator ship : betShips) {
             if (!ship.isDead) {
                 // This ship won - calculate its reward
-                // Performance bonuses are proportional modifiers to the odds
-                float survivalBonusMult = 1.0f + (ship.turnsSurvived * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_BONUS_PER_TURN);
-                float killBonusMult = 1.0f + (ship.kills * data.scripts.casino.util.ConfigManager.ARENA_KILL_BONUS_PER_KILL);
+                // Performance bonuses are proportional modifiers to odds
+                float survivalBonusMult = 1.0f + (ship.turnsSurvived * CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN);
+                float killBonusMult = 1.0f + (ship.kills * CasinoConfig.ARENA_KILL_BONUS_PER_KILL);
                 float performanceMultiplier = survivalBonusMult * killBonusMult;
                 
                 for (BetInfo bet : arenaBets) {
@@ -513,7 +516,7 @@ public class ArenaHandler {
                         
                         // Base multiplier is the ship's odds, modified by performance and diminishing returns
                         float effectiveMultiplier = ship.odds * performanceMultiplier * diminishingReturns;
-                        int betReward = (int)(bet.amount * effectiveMultiplier);
+                        int betReward = (int)(bet.amount * effectiveMultiplier * survivalRewardMultiplier);
                         totalWinReward += betReward;
                     }
                 }
@@ -562,8 +565,8 @@ public class ArenaHandler {
         
         for (SpiralAbyssArena.SpiralGladiator ship : betShips) {
             int shipBet = getBetAmountForShip(ship);
-            float survivalBonusMult = ship.turnsSurvived * data.scripts.casino.util.ConfigManager.ARENA_SURVIVAL_BONUS_PER_TURN;
-            float killBonusMult = ship.kills * data.scripts.casino.util.ConfigManager.ARENA_KILL_BONUS_PER_KILL;
+            float survivalBonusMult = ship.turnsSurvived * CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN;
+            float killBonusMult = ship.kills * CasinoConfig.ARENA_KILL_BONUS_PER_KILL;
             float performanceMultiplierBonus = survivalBonusMult + killBonusMult;
             
             main.getTextPanel().addPara("  - " + ship.fullName + ":", Color.WHITE);
@@ -597,8 +600,7 @@ public class ArenaHandler {
         try {
             main.dialog.getVisualPanel().showCustomPanel(600, 800, winnerPanel);
         } catch (Exception e) {
-            // If LunaLib is not available or has issues, continue without the popup
-            System.out.println("Could not show winner announcement popup: " + e.getMessage());
+            Global.getLogger(this.getClass()).warn("Could not show winner announcement popup: " + e.getMessage());
         }
         
         // Play game complete sound
@@ -611,7 +613,7 @@ public class ArenaHandler {
         chosenChampion = null;
         opponentsDefeated = 0;
         arenaBets.clear();
-        currentBetAmount = data.scripts.casino.util.ConfigManager.ARENA_ENTRY_FEE; // Reset to default bet amount for next game
+        currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE; // Reset to default bet amount for next game
         
         // According to the requirements, after battle, we should show a menu that allows adding bet
         // until "Continue Battle" (which would be "arena_lobby" in this case) is chosen

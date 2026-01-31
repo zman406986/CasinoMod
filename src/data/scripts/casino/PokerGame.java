@@ -1,6 +1,5 @@
 package data.scripts.casino;
 
-import data.scripts.casino.util.ConfigManager;
 import java.util.*;
 
 public class PokerGame {
@@ -277,12 +276,67 @@ public class PokerGame {
         private final int handCount = 0;                         // Total hands played this session, made final (though not used)
         private final boolean sawFlop = false;                   // Track if flop was reached, made final (though not used)
         private int totalPlayerActions = 0;
+        private Personality personality = Personality.CALCULATED;  // AI's current personality, adapts to player style
         // Note: aggressiveActions was never used, so removed
 
         public SimplePokerAI() {
-            // Removed unused personality field
+            // Initialize with CALCULATED personality as default
+            personality = Personality.CALCULATED;
             // Initialize aggression history array with Arrays.fill()
             Arrays.fill(aggressionHistory, 0.5f);
+        }
+        
+        private void updatePersonality() {
+            // Adapt AI personality based on detected player style
+            PlayerStyle detectedStyle = PlayerStyle.values()[playerStyle];
+            
+            switch (detectedStyle) {
+                case PASSIVE:
+                    // Against passive players: play AGGRESSIVE to exploit them
+                    personality = Personality.AGGRESSIVE;
+                    break;
+                case AGGRESSIVE:
+                    // Against aggressive players: play TIGHT to trap them
+                    personality = Personality.TIGHT;
+                    break;
+                case BALANCED:
+                    // Against balanced players: play CALCULATED for optimal play
+                    personality = Personality.CALCULATED;
+                    break;
+                case UNKNOWN:
+                default:
+                    // Unknown player: stick with CALCULATED
+                    personality = Personality.CALCULATED;
+                    break;
+            }
+        }
+        
+        private float getPersonalityThreshold(String thresholdType) {
+            // Get threshold values based on current AI personality
+            switch (personality) {
+                case TIGHT:
+                    switch (thresholdType) {
+                        case "raise": return CasinoConfig.POKER_AI_TIGHT_THRESHOLD_RAISE / 100.0f;
+                        case "fold": return CasinoConfig.POKER_AI_TIGHT_THRESHOLD_FOLD / 100.0f;
+                        case "stackFold": return CasinoConfig.POKER_AI_STACK_PERCENT_FOLD_TIGHT;
+                        default: return 0.5f;
+                    }
+                case AGGRESSIVE:
+                    switch (thresholdType) {
+                        case "raise": return CasinoConfig.POKER_AI_AGGRESSIVE_THRESHOLD_RAISE / 100.0f;
+                        case "fold": return CasinoConfig.POKER_AI_AGGRESSIVE_THRESHOLD_FOLD / 100.0f;
+                        case "stackFold": return 0.1f; // Aggressive AI rarely folds
+                        default: return 0.5f;
+                    }
+                case CALCULATED:
+                default:
+                    switch (thresholdType) {
+                        case "raise": return CasinoConfig.POKER_AI_NORMAL_THRESHOLD_RAISE / 100.0f;
+                        case "fold": return CasinoConfig.POKER_AI_NORMAL_THRESHOLD_FOLD / 100.0f;
+                        case "stackFold": return CasinoConfig.POKER_AI_STACK_PERCENT_CALL_LIMIT;
+                        default: return 0.5f;
+                    }
+            }
         }
         
         private String estimatePlayerRange() {
@@ -301,22 +355,54 @@ public class PokerGame {
             }
         }
         
+        public String getCurrentPersonality() {
+            // Return current AI personality for display/debugging
+            return personality.name();
+        }
+        
+        public String getPersonalityDescription() {
+            // Return a human-readable description of current AI personality
+            switch (personality) {
+                case TIGHT:
+                    return "The IPC Dealer is playing conservatively, waiting for premium hands.";
+                case AGGRESSIVE:
+                    return "The IPC Dealer is playing aggressively, applying pressure with frequent raises.";
+                case CALCULATED:
+                    return "The IPC Dealer is playing a balanced, calculated strategy.";
+                default:
+                    return "The IPC Dealer is adapting to your play style.";
+            }
+        }
+        
         private int calculateBetSize(float equity, int potSize, int stackSize) {
-            // Value bet sizing - removed unused aggressionFactor parameter
+            // Use configured raise amounts as base, with pot-based adjustments
+            int[] raiseAmounts = CasinoConfig.POKER_RAISE_AMOUNTS;
+            
+            // Select base raise amount based on equity strength
+            int baseRaise;
             if (equity > 0.65f) {
-                int bet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f)));
-                return Math.min(bet, stackSize); // Don't bet more than we have
+                // High strength - use largest raise or pot-based
+                baseRaise = raiseAmounts[Math.min(raiseAmounts.length - 1, 3)];
+                int potBasedBet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f)));
+                baseRaise = Math.max(baseRaise, potBasedBet);
+            } else if (equity > 0.45f) {
+                // Medium strength - use middle raise
+                baseRaise = raiseAmounts[Math.min(raiseAmounts.length - 1, 2)];
+                int potBasedBet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f)));
+                baseRaise = Math.max(baseRaise, potBasedBet);
+            } else {
+                // Bluff sizing - use smallest raise
+                baseRaise = raiseAmounts[0];
+                int potBasedBet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f)));
+                baseRaise = Math.max(baseRaise, potBasedBet);
             }
             
-            // Medium strength
-            if (equity > 0.45f) {
-                int bet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f)));
-                return Math.min(bet, stackSize);
+            // Add random variation if configured
+            if (CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION > 0) {
+                baseRaise += random.nextInt(CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION);
             }
             
-            // Bluff sizing
-            int bet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f)));
-            return Math.min(bet, stackSize);
+            return Math.min(baseRaise, stackSize); // Don't bet more than we have
         }
         
         private AIResponse randomDeviation(float equity, float potOdds, int stackSize, int potSize) {
@@ -371,33 +457,43 @@ public class PokerGame {
         }
         
         private AIResponse preFlopDecision(List<PokerGameLogic.Card> holeCards, int currentBetToCall, int potSize, int stackSize) {
+            // Update AI personality based on current player style
+            updatePersonality();
+            
             // Calculate pre-flop equity
             float equity = calculatePreflopEquity(holeCards);
             
             // If player didn't raise (checked or limped), always continue
             if (currentBetToCall == 0) {
                 // Player checked or limped - always continue
-                if (random.nextFloat() < 0.3 && equity >= 0.5f) { // MEDIUM strength threshold
+                if (random.nextFloat() < CasinoConfig.POKER_AI_DRAW_CHANCE && equity >= CasinoConfig.POKER_AI_STRENGTH_MEDIUM / 100.0f) {
                     // Small raise sometimes
                     int raiseAmount = Math.min(stackSize / 20, stackSize - currentBetToCall);
-                    raiseAmount = Math.max(ConfigManager.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
                     return new AIResponse(Action.RAISE, raiseAmount);
                 } else {
                     return new AIResponse(Action.CALL, 0); // Call to see flop
                 }
             } else {
-                // Player bet/raised - use equity-based decision
+                // Player bet/raised - use equity-based decision with personality-based thresholds
                 float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
                 
-                // Adjusted thresholds for heads-up play
-                if (equity > 0.55) {
+                // Use personality-based thresholds
+                float raiseThreshold = getPersonalityThreshold("raise");
+                float callThreshold = getPersonalityThreshold("fold");
+                float bluffFoldThreshold = 1.0f - CasinoConfig.POKER_AI_BLUFF_FOLD_CHANCE;
+                
+                if (equity > raiseThreshold) {
                     int raiseAmount = (int)(currentBetToCall * 2.5f);
                     raiseAmount = Math.min(stackSize - currentBetToCall, raiseAmount);
-                    raiseAmount = Math.max(ConfigManager.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    raiseAmount = Math.max(CasinoConfig.POKER_AI_MIN_RAISE_VALUE, raiseAmount);
+                    if (CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION > 0) {
+                        raiseAmount += random.nextInt(CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION);
+                    }
                     return new AIResponse(Action.RAISE, raiseAmount);
-                } else if (equity > 0.35) {
+                } else if (equity > callThreshold) {
                     return new AIResponse(Action.CALL, 0);
-                } else if (equity < 0.25 && random.nextFloat() > 0.15) {
+                } else if (equity < callThreshold * 0.6f && random.nextFloat() > bluffFoldThreshold) {
                     return new AIResponse(Action.FOLD, 0);
                 }
                 
@@ -419,17 +515,48 @@ public class PokerGame {
         }
         
         private AIResponse postFlopDecisionLogic(float equity, float potOdds, int stackSize, int potSize) {
+            // Update AI personality based on current player style
+            updatePersonality();
+            
             // Base decision on equity adjusted by aggression meter
             float aggressionFactor = aggressionMeter;
             
-            // Call threshold: adjust based on opponent aggression
-            float callThreshold = potOdds * (1.0f - aggressionFactor * 0.15f);
+            // Use personality-based thresholds
+            float strengthHigh = CasinoConfig.POKER_AI_STRENGTH_HIGH / 100.0f;
+            float strengthMedium = CasinoConfig.POKER_AI_STRENGTH_MEDIUM / 100.0f;
+            float stackPercentCallLimit = getPersonalityThreshold("stackFold");
+            float stackPercentCallMedium = CasinoConfig.POKER_AI_STACK_PERCENT_CALL_MEDIUM;
+            float potPercentCallDraw = CasinoConfig.POKER_AI_POT_PERCENT_CALL_DRAW;
+            float bluffStrengthBoost = CasinoConfig.POKER_AI_BLUFF_STRENGTH_BOOST / 100.0f;
+            float checkRaiseChance = CasinoConfig.POKER_AI_CHECK_RAISE_CHANCE;
             
-            // Raise threshold: higher vs passive players
-            float raiseThreshold = potOdds + 0.2f + (aggressionFactor * 0.1f);
+            // Adjust thresholds based on personality
+            float callThreshold, raiseThreshold, bluffThreshold;
             
-            // Bluff threshold: bluff more vs passive players
-            float bluffThreshold = 0.25f - (aggressionFactor * 0.1f);
+            switch (personality) {
+                case TIGHT:
+                    // Tight AI: plays fewer hands, higher standards
+                    callThreshold = potOdds * (1.0f - aggressionFactor * 0.1f); // Less influenced by aggression
+                    raiseThreshold = potOdds + 0.3f; // Higher threshold to raise
+                    bluffThreshold = 0.35f; // Less likely to bluff
+                    checkRaiseChance *= 0.5f; // Rarely check-raises
+                    break;
+                case AGGRESSIVE:
+                    // Aggressive AI: raises more, bluffs more
+                    callThreshold = potOdds * (1.0f - aggressionFactor * 0.2f); // More influenced by aggression
+                    raiseThreshold = potOdds + 0.1f; // Lower threshold to raise
+                    bluffThreshold = 0.15f; // More likely to bluff
+                    checkRaiseChance *= 1.5f; // More likely to check-raise
+                    bluffStrengthBoost *= 1.5f; // Stronger bluffs
+                    break;
+                case CALCULATED:
+                default:
+                    // Calculated AI: balanced, optimal play
+                    callThreshold = potOdds * (1.0f - aggressionFactor * 0.15f);
+                    raiseThreshold = potOdds + 0.2f + (aggressionFactor * 0.1f);
+                    bluffThreshold = 0.25f - (aggressionFactor * 0.1f);
+                    break;
+            }
             
             // Random deviation (10% chance)
             if (random.nextFloat() < 0.1f) {
@@ -447,7 +574,13 @@ public class PokerGame {
             
             if (equity >= raiseThreshold) {
                 // Value raise
-                int betSize = calculateBetSize(equity, potSize, stackSize); // Removed unused aggressionFactor parameter
+                int betSize = calculateBetSize(equity, potSize, stackSize);
+                return new AIResponse(Action.RAISE, betSize);
+            }
+            
+            // Check-raise logic
+            if (equity > strengthMedium && random.nextFloat() < checkRaiseChance) {
+                int betSize = calculateBetSize(equity + bluffStrengthBoost, potSize, stackSize);
                 return new AIResponse(Action.RAISE, betSize);
             }
             
@@ -702,6 +835,14 @@ public class PokerGame {
 
     public PokerState getState() {
         return state;
+    }
+
+    public String getAIPersonality() {
+        return ai.getCurrentPersonality();
+    }
+
+    public String getAIPersonalityDescription() {
+        return ai.getPersonalityDescription();
     }
 
     public void startNewHand() {

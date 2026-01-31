@@ -5,12 +5,9 @@ import java.util.Map;
 import com.fs.starfarer.api.campaign.CustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
-import com.fs.starfarer.api.campaign.rules.MemKeys;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.FireBest;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
-
-import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
 
 public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate {
     

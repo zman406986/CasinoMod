@@ -1,16 +1,17 @@
 # The Casino Mod
 
-Only the boldest pilots dare to wager their fleets. This mod adds a high-stakes Casino to **Tri-Tachyon** and **Player-owned** markets.
+Only the boldest pilots dare to wager their fleets. This mod adds a high-stakes Casino to **all markets** regardless of faction or size.
 
 ## Features
 
 ### 1. Texas Hold'em Poker (Stargem Stakes)
-Play standard No-Limit Texas Hold'em against House AI using **Stargems**.
+Play standard No-Limit Texas Hold'em against House AI using **Stargems** through a text-based interface.
 - **The Currency**: **Stargems**.
     - **Top-Up**: Buy Gem Packages (1980/3280/6480 gems) or **VIP Pass** (9999 Credits) which gives 100 Gems daily for 30 days.
     - **Trade Ships**: Convert ships directly to Stargems (Valued at 1 Gem = 100 Credits of Hull Value). Includes smart sorting.
 - **Stakes**: Blinds are 100/200 Stargems.
 - **Advanced AI**: The poker AI adapts to player aggression patterns, tracking consecutive raises and adjusting its strategy accordingly. It uses equity-based calculations to make more realistic decisions against bluff-heavy players.
+- **Text-Based Interface**: All poker gameplay is displayed through the standard Starsector dialog system with colored card displays and clear game state information.
 - **Cash Out**: Convert Stargems back to Credits at a 1:100 ratio (1 Gem = 100 Credits).
 
 ### 2. Tachy-Impact
@@ -40,7 +41,7 @@ Battle with randomized ships in an elimination tournament.
 ### Core Components
 
 #### CasinoModPlugin
-The main entry point of the mod that integrates with the game's lifecycle. It registers the casino interaction listener to markets that meet the size requirements. The plugin handles initialization and manages the connection between the game and the casino features. Redundant CasinoMarketInteractionManager class has been removed for cleaner architecture and simpler implementation as per user preference for single-point solutions over distributed systems.
+The main entry point of the mod that integrates with the game's lifecycle. It registers the casino interaction listener to all markets without restrictions. The plugin handles initialization and manages the connection between the game and casino features.
 
 #### CasinoInteraction
 The primary UI controller that manages the interaction dialog with the player. It implements the state machine pattern to handle different modes of interaction:
@@ -73,7 +74,21 @@ Implements the Texas Hold'em poker game logic:
 - **Card Management**: Handles deck creation, shuffling, and dealing
 - **Hand Evaluation**: Uses a 9-tier ranking system (High Card to Straight Flush) to evaluate hands
 - **Game Flow**: Manages betting rounds (pre-flop, flop, turn, river)
-- **Advanced AI**: Implements decision-making algorithms for the house AI based on hand strength, pot odds, and player aggression tracking. The AI now adapts to repeated bluffing/raising patterns from the player and adjusts its calling/raising frequency accordingly based on equity calculations.
+- **Advanced AI**: Implements decision-making algorithms for the house AI based on hand strength, pot odds, and player aggression tracking. The AI adapts to repeated bluffing/raising patterns from the player and adjusts its calling/raising frequency accordingly based on equity calculations.
+- **Text-Based UI**: All poker gameplay is displayed through the standard Starsector dialog system with colored card displays and clear game state information.
+
+#### Interaction Handlers
+The mod uses a handler-based architecture for managing different game modes:
+- **PokerHandler**: Manages poker game state and player actions
+- **ArenaHandler**: Controls arena battles, betting, and champion switching
+- **GachaHandler**: Handles gacha pulls, pity system, and ship conversion
+- **FinHandler**: Manages financial services, gem packages, VIP passes, and ship trading
+- **HelpHandler**: Provides help text for all game modes
+
+#### Utility Classes
+- **ConfigManager**: Provides a unified access layer for configuration values
+- **LogFormatter**: Formats arena battle logs with colored highlighting
+- **OptionHandler**: Functional interface for handling option-based interactions
 
 #### SpiralAbyssArena
 Controls arena battle system:
@@ -99,17 +114,16 @@ The mod implements a dual-currency system with conversion mechanisms:
 ### Market Integration
 
 #### CasinoMarketInteractionListener
-Monitors market interactions and adds casino options to qualifying markets:
-- **Size Requirements**: Player markets need minimum size of 3, general markets need size 4
-- **Faction Restrictions**: Only applies to specific factions (currently Tri-Tachyon)
-- **Dynamic Options**: Adds casino-related options to the market interaction dialog
+Monitors market interactions and adds casino options to all markets:
+- **Universal Access**: The casino is available in all markets regardless of faction or market size
+- **Dynamic Options**: Adds the "Visit Private Lounge" option to market interaction dialogs
 
 #### UI Panels
-The CasinoUIPanels class manages the rendering of various interface elements:
-- **Financial Panel**: Shows gem packages and ship trading options
-- **Poker Interface**: Visual representation of cards, chips, and game state
-- **Gacha Animation**: Banner pull animations and results display
-- **Arena Display**: Battle visualization and team management
+The CasinoUIPanels class manages LunaLib-based custom panels for visual elements:
+- **Arena UI Panel**: Displays real-time battle status and ship information during arena combat
+- **Arena Winner Announcement Panel**: Shows battle results with statistics and rewards
+- **Gacha UI Panel**: Displays gacha banner information, pity status, and pull costs
+- **Text-Based Poker**: Poker gameplay uses the standard Starsector dialog system with colored text and options instead of custom panels
 
 ### Configuration Structure
 
@@ -152,10 +166,6 @@ All parameters are externalized to `data/config/casino_settings.json`:
   "vipSystem": {
     "interestRate": 0.05,
     "debtHunterThreshold": -10000
-  },
-  "marketInteraction": {
-    "minSizeForPlayerCasino": 3,
-    "minSizeForGeneralCasino": 4
   }
 }
 ```
@@ -171,3 +181,16 @@ The mod uses the game's built-in persistence system to maintain state between ga
 - **Debt Tracking**: Manages player debt and interest calculations
 
 The persistent data is stored in `Global.getSector().getPersistentData()` using unique keys to avoid conflicts with other mods.
+
+### Code Architecture
+
+The mod follows a streamlined, maintainable architecture with clear separation of concerns:
+
+- **Handler Pattern**: Each game mode (Poker, Arena, Gacha, Financial, Help) has its own handler class that manages game state and player interactions
+- **State Machine**: The main CasinoInteraction class uses a state machine pattern to manage transitions between different game modes
+- **Configuration Layer**: ConfigManager provides a unified access layer to CasinoConfig, making it easy to access settings throughout the codebase
+- **Text-Based UI**: Poker gameplay uses the standard Starsector dialog system for maximum compatibility and simplicity
+- **LunaLib Integration**: Arena and Gacha systems use LunaLib for custom visual panels where enhanced UI is beneficial
+- **Persistence**: All game state is properly persisted using the game's built-in persistence system
+
+This architecture ensures the codebase is maintainable, extensible, and follows Starsector modding best practices.

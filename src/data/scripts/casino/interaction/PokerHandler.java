@@ -4,7 +4,6 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
-import data.scripts.CasinoUIPanels;
 import data.scripts.casino.PokerGame;
 import data.scripts.casino.PokerGame.PokerGameLogic;
 
@@ -136,13 +135,7 @@ public class PokerHandler {
         
         int opponentStack = Math.max(CasinoConfig.POKER_DEFAULT_OPPONENT_STACK, stackSize);
         
-        // Initialize the unified PokerGame instance
         pokerGame = new PokerGame(stackSize, opponentStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
-        
-        // Visual Panel - Use showCustomVisualDialog
-        data.scripts.casino.ui.poker.PokerDialogDelegate pokerDelegate = 
-            new data.scripts.casino.ui.poker.PokerDialogDelegate(pokerGame, main.dialog);
-        main.dialog.showCustomVisualDialog(800f, 600f, pokerDelegate);
         
         updateUI();
     }
@@ -156,6 +149,10 @@ public class PokerHandler {
         main.getTextPanel().addPara("Pot: " + state.pot + " Stargems", Color.GREEN);
         main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
         main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
+        
+        // Display AI personality information
+        String aiPersonality = pokerGame.getAIPersonalityDescription();
+        main.getTextPanel().addPara(aiPersonality, Color.GRAY);
         
         main.getTextPanel().addPara("Your Hand: ");
         displayColoredCards(state.playerHand);
@@ -362,11 +359,6 @@ public class PokerHandler {
             main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
             main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
             main.getTextPanel().addPara("'The cards are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
-            
-            // Visual Panel
-            data.scripts.casino.ui.poker.PokerDialogDelegate pokerDelegate = 
-                new data.scripts.casino.ui.poker.PokerDialogDelegate(pokerGame, main.dialog);
-            main.dialog.showCustomVisualDialog(800f, 600f, pokerDelegate);
             
             updateUI();
         } else {

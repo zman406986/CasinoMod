@@ -63,10 +63,12 @@ public class CasinoDebtScript implements EveryFrameScript {
         // Calculate current time in months
         float currentTimeMonths = Global.getSector().getClock().getTimestamp() / 30f; // Approximate months
         
-        // The debt threshold for triggering collectors is when available credit becomes negative
-        // This happens when debt exceeds the ceiling
+        // Use configurable debt threshold for triggering collectors
+        // The threshold is negative because it represents a debt value (e.g., -10000 means 10000 in debt)
+        int debtThreshold = CasinoConfig.VIP_DEBT_HUNTER_THRESHOLD;
+        
         // Only check for spawning if cooldown period has passed
-        if (availableCredit < 0 && (!debtCollectorSent || (currentTimeMonths - lastSpawnCheckTime) >= SPAWN_COOLDOWN_MONTHS)) {
+        if (debtAmount <= debtThreshold && (!debtCollectorSent || (currentTimeMonths - lastSpawnCheckTime) >= SPAWN_COOLDOWN_MONTHS)) {
             // Player has exceeded debt threshold, spawn debt collectors
             maybeSpawnDebtCollectors();
             debtCollectorSent = true; // Prevent spawning multiple times
