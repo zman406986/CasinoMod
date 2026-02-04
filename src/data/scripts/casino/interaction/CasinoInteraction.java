@@ -1,548 +1,343 @@
 package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
-import com.fs.starfarer.api.campaign.InteractionDialogAPI;
-import com.fs.starfarer.api.campaign.InteractionDialogPlugin;
-import com.fs.starfarer.api.campaign.TextPanelAPI;
-import com.fs.starfarer.api.campaign.OptionPanelAPI;
+import com.fs.starfarer.api.campaign.*;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
-import data.scripts.casino.CasinoVIPManager;
 import data.scripts.CasinoMusicPlugin;
-import java.awt.Color;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Predicate;
+import data.scripts.CasinoUIPanels;
+import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.CasinoVIPManager;
 
+import java.awt.Color;
+import java.util.Map;
+
+/**
+ * Main interaction dialog plugin for the Interastral Peace Casino.
+ * This is the central hub that manages all casino UI flows and delegates to specialized handlers.
+ * 
+ * ARCHITECTURE:
+ * CasinoInteraction implements InteractionDialogPlugin to integrate with Starsector's dialog system.
+ * It uses a state machine (State enum) to track which screen the player is currently viewing.
+ * Each game/feature has its own handler class that contains the specific logic.
+ * 
+ * HANDLER PATTERN:
+ * - GachaHandler: Tachy-Impact gacha/pull mechanics
+ * - PokerHandler: Texas Hold'em poker game
+ * - ArenaHandler: Spiral Abyss Arena betting
+ * - FinHandler: Financial services (VIP, credit, debt)
+ * - HelpHandler: Help documentation and rules
+ * 
+ * STATE MANAGEMENT:
+ * The State enum tracks the current screen for proper back-button behavior.
+ * When showing a new screen, always call setState() to update the current state.
+ * 
+ * SUSPENDED GAMES:
+ * Poker games can be suspended mid-hand and resumed later.
+ * Game state is stored in player memory with keys prefixed by $ipc_poker_
+ * When the player returns, restoreSuspendedGame() is called automatically.
+ * 
+ * AI_AGENT NOTES:
+ * - Always use handlers for game-specific logic - don't inline it here
+ * - Call setState() whenever showing a new screen
+ * - Use showMenu() as the "home" screen that all features return to
+ * - The dialog, textPanel, and options fields are shared across all handlers
+ * - Never create new handler instances after initialization - reuse the existing ones
+ * 
+ * MEMORY KEYS FOR SUSPENDED GAMES:
+ * - $ipc_suspended_game_type: Type of suspended game ("Poker")
+ * - $ipc_poker_pot_size: Current pot amount
+ * - $ipc_poker_player_bet: Player's current bet
+ * - $ipc_poker_opponent_bet: Opponent's current bet
+ * - $ipc_poker_player_stack: Player's remaining chips
+ * - $ipc_poker_opponent_stack: Opponent's remaining chips
+ * - $ipc_poker_player_is_dealer: Boolean for dealer position
+ * - $ipc_poker_suspend_time: Timestamp when game was suspended
+ */
 public class CasinoInteraction implements InteractionDialogPlugin {
-    // Enum for tracking current state
+
+    /** Reference to the dialog API for UI operations */
+    protected InteractionDialogAPI dialog;
+    /** Reference to the text panel for displaying messages */
+    protected TextPanelAPI textPanel;
+    /** Reference to the option panel for showing menu choices */
+    protected OptionPanelAPI options;
+    /** Reference to the visual panel for custom UI elements */
+    private VisualPanelAPI visual;
+
+    // Handler instances - each manages a specific feature
+    /** Handler for gacha/pull mechanics */
+    protected final GachaHandler gacha;
+    /** Handler for poker game */
+    protected final PokerHandler poker;
+    /** Handler for arena betting */
+    protected final ArenaHandler arena;
+    /** Handler for financial services */
+    protected final FinHandler financial;
+    /** Handler for help/documentation */
+    protected final HelpHandler help;
+
+    /** Current UI state for navigation tracking */
+    private State currentState = State.MAIN_MENU;
+
+    /**
+     * Enum representing all possible UI states.
+     * Used for tracking navigation and back-button behavior.
+     * 
+     * AI_AGENT NOTE: When adding new screens, add a corresponding state here
+     * and update setState() calls in the appropriate handler.
+     */
     public enum State {
-        MAIN_MENU, POKER, ARENA, GACHA, FINANCIAL, HELP
+        /** Main casino lobby/menu */
+        MAIN_MENU,
+        /** Gacha/pull interface */
+        GACHA,
+        /** Poker game interface */
+        POKER,
+        /** Arena betting interface */
+        ARENA,
+        /** Financial services interface */
+        FINANCIAL,
+        /** Help/documentation interface */
+        HELP
     }
 
-    // Dependencies
-    public final PokerHandler poker;
-    public final ArenaHandler arena;
-    public final GachaHandler gacha;
-    public final FinHandler fin;
-    public final HelpHandler help;
+    /**
+     * Static factory method to start casino interaction from rule commands.
+     * This is the entry point called by Casino_StartCasinoInteraction rule command.
+     * 
+     * AI_AGENT NOTE: This is the ONLY way to start a casino interaction.
+     * Never instantiate CasinoInteraction directly - always use this method.
+     * 
+     * @param dialog The interaction dialog API instance
+     */
+    public static void startCasinoInteraction(InteractionDialogAPI dialog) {
+        CasinoInteraction plugin = new CasinoInteraction();
+        dialog.setPlugin(plugin);
+        plugin.init(dialog);
+    }
 
-    // UI Components
-    public InteractionDialogAPI dialog;
-    public TextPanelAPI textPanel;
-    public OptionPanelAPI options;
-
-    // Handlers maps
-    private final Map<String, OptionHandler> handlers = new HashMap<>();
-    private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
-
-    // State tracking
-    private State currentState = State.MAIN_MENU;
-    private boolean handbookIntroShown = false;
-
-    public CasinoInteraction(InteractionDialogAPI dialog) {
-        this.dialog = dialog;
-        this.textPanel = dialog.getTextPanel();
-        this.options = dialog.getOptionPanel();
+    /**
+     * Constructor initializes all handlers.
+     * Handlers are created once and reused throughout the interaction.
+     * 
+     * AI_AGENT NOTE: Handlers receive 'this' reference to access shared UI components
+     * (dialog, textPanel, options, visual) and to call back to showMenu().
+     */
+    public CasinoInteraction() {
+        this.gacha = new GachaHandler(this);
         this.poker = new PokerHandler(this);
         this.arena = new ArenaHandler(this);
-        this.gacha = new GachaHandler(this);
-        this.fin = new FinHandler(this);
+        this.financial = new FinHandler(this);
         this.help = new HelpHandler(this);
-        initializeMainHandlers();
     }
 
-    // Initialize handlers in constructor or init method
-    private void initializeMainHandlers() {
-        // Initialize the debt system when the interaction starts
-        CasinoVIPManager.initializeDebtSystem();
-        
-        // Exact match handlers
-        handlers.put("visit_casino", option -> showMenu());
-        handlers.put("resume_game", option -> {
-            // Check debt before resuming any game
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                String type = mem.getString("$ipc_suspended_game_type");
-                if ("Poker".equals(type)) {
-                    poker.restoreSuspendedGame(); // Restore the suspended poker game
-                    mem.unset("$ipc_suspended_game_type");
-                }
-                else if ("Arena".equals(type)) {
-                    arena.restoreSuspendedArena(); // Restore the suspended arena game
-                    mem.unset("$ipc_suspended_game_type");
-                }
-            } else {
-                // If no suspended game, just return to main menu
-                showMenu();
-            }
-        });
-        handlers.put("forfeit_and_return", option -> {
-            // Clear the suspended game memory
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                mem.unset("$ipc_suspended_game_type");
-            }
-            // Return to main menu
-            showMenu();
-        });
-        handlers.put("play", option -> {
-            // Check debt before entering poker
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
-            // Check if there's a suspended game and warn the player
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one. Would you like to continue?", Color.RED);
-                options.clearOptions();
-                options.addOption("Continue with New Game", "confirm_new_poker");
-                options.addOption("Resume Suspended Game", "resume_game");
-                options.addOption("Back to Main Menu", "back_menu");
-            } else {
-                poker.handle(option);
-            }
-        });
-        handlers.put("confirm_new_poker", option -> {
-            // Check debt before entering poker
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
-            // Clear the suspended game memory if any
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                mem.unset("$ipc_suspended_game_type");
-            }
-            // Now start the new poker game
-            poker.handle("play");
-        });
-        handlers.put("confirm_poker_ante", option -> {
-            // Check debt before entering poker
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            poker.handle(option);
-        });
-        handlers.put("next_hand", option -> {
-            // Check debt before entering poker
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            poker.handle(option);
-        });
-        handlers.put("how_to_poker", option -> {
-            // Check debt before entering poker help
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            poker.handle(option);
-        });
-        handlers.put("arena_lobby", option -> {
-            // Check debt before entering arena
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
-            // Check if there's a suspended game and warn the player
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                textPanel.addPara("Warning: You have a suspended game. Starting a new game will forfeit the suspended one. Would you like to continue?", Color.RED);
-                options.clearOptions();
-                options.addOption("Continue with New Game", "confirm_new_arena");
-                options.addOption("Resume Suspended Game", "resume_game");
-                options.addOption("Back to Main Menu", "back_menu");
-            } else {
-                arena.handle(option);
-            }
-        });
-        handlers.put("confirm_new_arena", option -> {
-            // Check debt before entering arena
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            
-            // Clear the suspended game memory if any
-            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            if (mem.contains("$ipc_suspended_game_type")) {
-                mem.unset("$ipc_suspended_game_type");
-            }
-            // Now start the new arena game
-            arena.handle("arena_lobby");
-        });
-        handlers.put("arena_watch_next", option -> {
-            // Check debt before continuing arena
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            arena.handle(option);
-        });
-        handlers.put("arena_skip", option -> {
-            // Check debt before continuing arena
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            arena.handle(option);
-        });
-        handlers.put("arena_switch", option -> {
-            // Check debt before continuing arena
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            arena.handle(option);
-        });
-        handlers.put("how_to_arena", option -> {
-            // Check debt before entering arena help
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            arena.handle(option);
-        });
-        handlers.put("gacha_menu", option -> {
-            // Check debt before entering gacha
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            gacha.handle(option);
-        });
-        handlers.put("pull_1", option -> {
-            // Check debt before entering gacha
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            gacha.handle(option);
-        });
-        handlers.put("pull_10", option -> {
-            // Check debt before entering gacha
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            gacha.handle(option);
-        });
-        handlers.put("auto_convert", option -> {
-            // Check debt before entering gacha
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            gacha.handle(option);
-        });
-        handlers.put("how_to_gacha", option -> {
-            // Check debt before entering gacha help
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            gacha.handle(option);
-        });
-        handlers.put("financial_menu", option -> {
-            // Financial menu should ALWAYS be accessible, even when in debt
-            // This allows players to cash out or sell ships to pay off debt
-            fin.handle(option);
-        });
-        handlers.put("buy_chips", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        handlers.put("cash_out", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        handlers.put("buy_vip", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        handlers.put("confirm_buy_vip", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        handlers.put("buy_ship", option -> {
-            // Check debt before entering financial menu
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        handlers.put("how_to_play_main", option -> {
-            // Help should ALWAYS be accessible
-            // Only show the intro page if it hasn't been shown yet
-            if (!handbookIntroShown) {
-                help.showIntroPage();
-                handbookIntroShown = true;
-            } else {
-                // Otherwise show the main help menu
-                help.showMainMenu();
-            }
-        });
-        handlers.put("leave", option -> {
-            // Stop casino music when leaving the casino
-            CasinoMusicPlugin.stopCasinoMusic();
-            dialog.dismiss();
-        });
-        handlers.put("leave_now", option -> {
-            // Stop casino music when leaving the casino
-            CasinoMusicPlugin.stopCasinoMusic();
-            dialog.dismiss();
-        });
-        handlers.put("back_menu", option -> showMenu());
-        
-        // Predicate-based handlers for pattern matching
-        predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
-            // Check debt before financial transaction
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
-            // Check debt before financial transaction
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return;
-            }
-            fin.handle(option);
-        });
-        
-        // State-dependent handlers
-        predicateHandlers.put(option -> {
-            // Check debt before state-dependent handling
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return false;
-            }
-            return currentState == State.POKER;
-        }, option -> poker.handle(option));
-        predicateHandlers.put(option -> {
-            // Check debt before state-dependent handling
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return false;
-            }
-            return currentState == State.ARENA;
-        }, option -> arena.handle(option));
-        predicateHandlers.put(option -> {
-            // Check debt before state-dependent handling
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return false;
-            }
-            return currentState == State.GACHA;
-        }, option -> gacha.handle(option));
-        predicateHandlers.put(option -> {
-            // Check debt before state-dependent handling
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return false;
-            }
-            return currentState == State.FINANCIAL;
-        }, option -> fin.handle(option));
-        predicateHandlers.put(option -> {
-            // Check debt before state-dependent handling
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < 0) {
-                textPanel.addPara("Corporate Reconciliation Team is waiting for you...", Color.RED);
-                options.addOption("End Interaction", "leave_now");
-                return false;
-            }
-            return currentState == State.HELP;
-        }, option -> help.handle(option));
-    }
-    
-    public void setState(State state) {
-        this.currentState = state;
-    }
-    
-    public State getState() {
-        return this.currentState;
-    }
-    
-    public InteractionDialogAPI getDialog() {
-        return dialog;
-    }
-    
-    public TextPanelAPI getTextPanel() {
-        return textPanel;
-    }
-    
-    public OptionPanelAPI getOptions() {
-        return options;
-    }
-    
-    public void showMenu() {
-        options.clearOptions();
-        textPanel.addPara("Welcome to the Intergalactic Casino! Choose your entertainment:", Color.WHITE);
-        
-        options.addOption("Poker Table", "play");
-        options.addOption("Arena Combat", "arena_lobby");
-        options.addOption("Gacha Terminal", "gacha_menu");
-        options.addOption("Financial Services", "financial_menu");
-        options.addOption("How to Play", "how_to_play_main");
-        options.addOption("Leave Casino", "leave");
-        
-        setState(State.MAIN_MENU);
-    }
-    
-    public static void startCasinoInteraction(InteractionDialogAPI dialog) {
-        CasinoInteraction interaction = new CasinoInteraction(dialog);
-        // Start casino music when entering
-        data.scripts.CasinoMusicPlugin.startCasinoMusic();
-        dialog.setPlugin(interaction);
-        interaction.showMenu();
-    }
-    
-    // ============================================================
-    // InteractionDialogPlugin interface implementation
-    // ============================================================
-    
+    /**
+     * Initializes the dialog plugin.
+     * Called automatically by the game when the interaction starts.
+     * 
+     * AI_AGENT NOTE: This sets up the shared UI component references that
+     * all handlers will use. Must be called before any handler methods.
+     */
     @Override
     public void init(InteractionDialogAPI dialog) {
-        // Already initialized in constructor, but we can reinitialize if needed
         this.dialog = dialog;
         this.textPanel = dialog.getTextPanel();
         this.options = dialog.getOptionPanel();
+        this.visual = dialog.getVisualPanel();
+
+        // Check if there's a suspended poker game to resume
+        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        if (mem.contains("$ipc_suspended_game_type")) {
+            String gameType = mem.getString("$ipc_suspended_game_type");
+            if ("Poker".equals(gameType)) {
+                textPanel.addPara("Resuming your suspended poker game...", Color.YELLOW);
+                poker.restoreSuspendedGame();
+                return;
+            }
+        }
+
+        // Show the main menu if no suspended game
+        showMenu();
     }
-    
+
+    /**
+     * Shows the main casino lobby/menu.
+     * This is the "home" screen that all features return to.
+     * 
+     * AI_AGENT NOTE: Always call this method to return to main menu,
+     * never recreate the menu logic elsewhere. This ensures consistency.
+     */
+    public void showMenu() {
+        options.clearOptions();
+        
+        // Start casino music if not already playing
+        if (!CasinoMusicPlugin.isCasinoMusicPlaying()) {
+            CasinoMusicPlugin.startCasinoMusic();
+        }
+        
+        // Show custom UI panel for the casino
+        dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.GachaUIPanel());
+
+        textPanel.addPara("Welcome to the Interastral Peace Casino.", Color.CYAN);
+        textPanel.addPara("How may we assist you today?", Color.GRAY);
+
+        // Display current balance
+        int balance = CasinoVIPManager.getBalance();
+        int daysRemaining = CasinoVIPManager.getDaysRemaining();
+        
+        Color balanceColor = balance >= 0 ? Color.GREEN : Color.RED;
+        textPanel.addPara("Current Balance: " + balance + " Stargems", balanceColor);
+        
+        if (daysRemaining > 0) {
+            textPanel.addPara("VIP Status: " + daysRemaining + " days remaining", Color.CYAN);
+        }
+
+        // Main menu options
+        options.addOption("Tachy-Impact (Gacha)", "gacha_menu");
+        options.addOption("Texas Hold'em (Poker)", "play");
+        options.addOption("Spiral Abyss (Arena)", "arena_lobby");
+        options.addOption("Financial Services", "financial_menu");
+        options.addOption("How to Play", "how_to_play_main");
+        options.addOption("Leave", "leave");
+
+        setState(State.MAIN_MENU);
+    }
+
+    /**
+     * Main option selection handler.
+     * Routes options to the appropriate handler based on option ID prefix.
+     * 
+     * AI_AGENT NOTE: This is the central routing method.
+     * Option IDs follow pattern: {feature}_{action}_{detail}
+     * - "gacha_" -> GachaHandler
+     * - "play", "poker_" -> PokerHandler  
+     * - "arena_" -> ArenaHandler
+     * - "financial_" -> FinHandler
+     * - "how_to_" -> HelpHandler
+     * - "leave" -> Close dialog
+     */
     @Override
     public void optionSelected(String optionText, Object optionData) {
         if (optionData == null) return;
         
-        String option = optionData.toString();
-        
-        // Try exact match handlers first
-        OptionHandler handler = handlers.get(option);
-        if (handler != null) {
-            handler.handle(option);
+        String option = (String) optionData;
+
+        if ("leave".equals(option)) {
+            CasinoMusicPlugin.stopCasinoMusic();
+            dialog.dismiss();
             return;
         }
-        
-        // Try state-dependent handlers
-        for (Map.Entry<Predicate<String>, OptionHandler> entry : predicateHandlers.entrySet()) {
-            if (entry.getKey().test(option)) {
-                entry.getValue().handle(option);
-                return;
-            }
+
+        // Route to appropriate handler based on option prefix
+        if (option.startsWith("gacha_") || option.startsWith("pull_") || option.startsWith("confirm_pull_") || option.startsWith("auto_convert") || option.startsWith("explain_")) {
+            gacha.handle(option);
+        } else if (option.startsWith("play") || option.startsWith("poker_") || option.startsWith("confirm_poker") || option.startsWith("next_hand")) {
+            poker.handle(option);
+        } else if (option.startsWith("arena_")) {
+            arena.handle(option);
+        } else if (option.startsWith("financial_") || option.startsWith("buy_vip") || option.startsWith("buy_pack_") ||
+                   option.startsWith("confirm_buy_pack_") || option.startsWith("buy_ship") ||
+                   option.startsWith("toggle_vip_notifications") || option.startsWith("captcha_answer_") ||
+                   option.startsWith("captcha_wrong_") || option.startsWith("topup_") ||
+                   option.startsWith("cashout") || option.startsWith("explain_")) {
+            financial.handle(option);
+        } else if (option.startsWith("how_to_")) {
+            help.handle(option);
+        } else if (option.startsWith("back_")) {
+            showMenu();
+        } else {
+            // Unknown option - return to menu as fallback
+            showMenu();
         }
-        
-        // If no handler found, log a warning
-        Global.getLogger(this.getClass()).warn("No handler found for option: " + option);
     }
-    
+
+    /**
+     * Called when the player mouses over an option.
+     * Currently unused but required by interface.
+     */
     @Override
     public void optionMousedOver(String optionText, Object optionData) {
-        // Optional: implement hover behavior if needed
+        // No hover effects currently implemented
     }
-    
+
+    /**
+     * Called when the dialog is closed.
+     * Cleans up any suspended game markers.
+     * 
+     * AI_AGENT NOTE: If player leaves with an active poker game,
+     * it remains suspended and can be resumed later.
+     */
     @Override
     public void advance(float amount) {
-        // Optional: implement per-frame updates if needed
+        // Per-frame updates if needed
     }
-    
+
+    /**
+     * Called when the dialog is dismissed.
+     */
     @Override
     public void backFromEngagement(EngagementResultAPI battleResult) {
-        // Handle returning from combat if needed
+        // Not used - casino has no combat
     }
-    
+
+    /**
+     * Returns the context for this interaction.
+     */
     @Override
     public Object getContext() {
-        return null; // Not using context
+        return null;
     }
-    
+
+    /**
+     * Returns the memory map for rule commands.
+     */
     @Override
     public Map<String, MemoryAPI> getMemoryMap() {
-        return null; // Not using custom memory map
+        return null;
+    }
+
+    /**
+     * Gets the current UI state.
+     * @return Current State enum value
+     */
+    public State getState() {
+        return currentState;
+    }
+
+    /**
+     * Sets the current UI state.
+     * 
+     * AI_AGENT NOTE: Always call this when showing a new screen
+     * to ensure proper state tracking for navigation.
+     * 
+     * @param state The new state to set
+     */
+    public void setState(State state) {
+        this.currentState = state;
+    }
+
+    /**
+     * Gets the dialog API reference.
+     * Used by handlers to access UI components.
+     */
+    public InteractionDialogAPI getDialog() {
+        return dialog;
+    }
+
+    /**
+     * Gets the text panel for displaying messages.
+     * Used by handlers to show game output.
+     */
+    public TextPanelAPI getTextPanel() {
+        return textPanel;
+    }
+
+    /**
+     * Gets the option panel for showing menu choices.
+     * Used by handlers to present options to the player.
+     */
+    public OptionPanelAPI getOptions() {
+        return options;
     }
 }

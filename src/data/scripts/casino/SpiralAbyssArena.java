@@ -84,8 +84,9 @@ public class SpiralAbyssArena {
         }
         
         private float calculateOdds(String prefix, String affix) {
-            // Base odds is 1:2 (meaning you get 2x your bet back if you win)
-            float baseOdds = 2.0f;
+            // Base odds is 1:1.7 (meaning you get 1.7x your bet back if you win)
+            // Reduced from 2.0 to add house edge and prevent abuse
+            float baseOdds = 1.7f;
             
             // Count positive and negative prefixes
             boolean isPrefixPositive = CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(prefix);

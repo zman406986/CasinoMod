@@ -2,182 +2,67 @@ package data.scripts.casino.util;
 
 import com.fs.starfarer.api.campaign.TextPanelAPI;
 import data.scripts.casino.SpiralAbyssArena;
+
 import java.awt.Color;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * Utility class for formatting and displaying log entries consistently across the casino mod
+ * Utility class for formatting arena battle log entries.
+ * Processes log entries and adds them to the text panel with appropriate colors.
  */
 public class LogFormatter {
-    
+
+    private static final Pattern ATTACK_PATTERN = Pattern.compile("(.+?): Attacks (.+?) for (\\d+) damage");
+    private static final Pattern KILL_PATTERN = Pattern.compile("(.+?): Kills (.+?)");
+    private static final Pattern MISS_PATTERN = Pattern.compile("(.+?): Misses (.+?)");
+
     /**
-     * Processes and formats a log entry for display in the UI
-     * @param logEntry The raw log entry text
-     * @param textPanel The UI panel to add the formatted text to (TextPanelAPI version)
-     * @param arenaCombatants The list of arena combatants for identifying ship names
+     * Processes a log entry and adds it to the text panel with appropriate formatting.
+     *
+     * @param logEntry The log entry string to process
+     * @param textPanel The text panel to add the formatted entry to
+     * @param combatants The list of combatants for context
      */
-    public static void processLogEntry(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> arenaCombatants) {
-        // Parse the log entry to identify attacker, target, and damage values
-        // Use regex to find patterns like "$attacker hits $target for $dmg!"
-        
-        // First, restore font to default
-        textPanel.setFontInsignia();
-        
-        if (logEntry.contains("$attacker") || logEntry.contains("$target") || logEntry.contains("$dmg")) {
-            // This shouldn't happen since the replacement should already occur in the simulation
-            textPanel.addPara(logEntry);
+    public static void processLogEntry(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        if (logEntry == null || logEntry.isEmpty()) {
             return;
         }
-        
-        // Check if this is a ship status line
-        if (logEntry.startsWith("--- SHIP STATUS ---")) {
-            textPanel.addPara(logEntry, Color.YELLOW);
+
+        // Check for kill message
+        Matcher killMatcher = KILL_PATTERN.matcher(logEntry);
+        if (killMatcher.find()) {
+            String attacker = killMatcher.group(1);
+            String target = killMatcher.group(2);
+            textPanel.addPara(attacker + ": ", Color.CYAN);
+            textPanel.highlightInLastPara(Color.RED, "Kills " + target);
             return;
         }
-        
-        // Check if this is a status line for a specific ship
-        if (logEntry.contains(": ") && (logEntry.contains("HP") || logEntry.contains("angry at"))) {
-            // This is a status line like "Hammerhead: 45/60 HP (angry at Manticore)"
-            textPanel.addPara(logEntry, Color.GRAY);
-            
-            // Highlight the ship name
-            String[] parts = logEntry.split(": ");
-            if (parts.length > 0) {
-                String shipName = parts[0].trim();
-                textPanel.highlightInLastPara(Color.YELLOW, shipName);
-            }
-            
-            // Highlight HP values
-            if (logEntry.contains("/")) {
-                String[] hpParts = logEntry.split(" ");
-                for (String part : hpParts) {
-                    if (part.contains("/")) {
-                        textPanel.highlightInLastPara(Color.GREEN, part);
-                    }
-                }
-            }
-            
-            // Highlight the angry text
-            if (logEntry.contains("(angry at")) {
-                int start = logEntry.indexOf("(angry at");
-                int end = logEntry.indexOf(")", start);
-                if (end > start) {
-                    String angryText = logEntry.substring(start, end + 1);
-                    textPanel.highlightInLastPara(Color.RED, angryText);
-                }
-            }
+
+        // Check for attack message
+        Matcher attackMatcher = ATTACK_PATTERN.matcher(logEntry);
+        if (attackMatcher.find()) {
+            String attacker = attackMatcher.group(1);
+            String target = attackMatcher.group(2);
+            String damage = attackMatcher.group(3);
+
+            textPanel.addPara(attacker + ": Attacks " + target + " for ", Color.CYAN);
+            textPanel.highlightInLastPara(Color.RED, damage + " damage");
             return;
         }
-        
-        // Look for damage patterns: "shipName hits shipName for X HP!"
-        // We'll use a simple approach looking for "hits" and "for" keywords
-        String[] parts = logEntry.split("hits | for |!");
-        if (parts.length >= 3 && logEntry.contains("hits") && logEntry.contains("for")) {
-            // Format: "Attacker hits Target for Damage!"
-            String attacker = parts[0].trim();
-            String target = parts[1].trim();
-            String damagePart = parts[2].trim() + (logEntry.endsWith("!") ? "!" : "");
-            
-            // Combine the text into a single paragraph to avoid excessive line breaks
-            String combinedText = attacker + " hits " + target + " for " + damagePart;
-            textPanel.addPara(combinedText, Color.WHITE);
-            
-            // Highlight attacker in yellow
-            textPanel.highlightInLastPara(Color.YELLOW, attacker);
-            
-            // Highlight target in yellow
-            textPanel.highlightInLastPara(Color.YELLOW, target);
-            
-            // Highlight damage values in red to indicate damage
-            textPanel.highlightInLastPara(Color.RED, damagePart.replaceAll("[^0-9]", "").trim());
-        } else if (logEntry.contains("suffered a Hull Breach") || logEntry.contains("was lost to space decompression")) {
-            // Handle hull breach events: "shipName suffered a Hull Breach! (-X HP)"
-            String[] parts2 = logEntry.split(" suffered a| was lost");
-            if (parts2.length >= 1) {
-                String shipName = parts2[0].trim();
-                String eventDesc = logEntry.substring(shipName.length()).trim();
-                
-                // Combine into a single paragraph to avoid excessive line breaks
-                String combinedText = shipName + eventDesc;
-                textPanel.addPara(combinedText, Color.WHITE);
-                
-                // Highlight the ship name in yellow
-                textPanel.highlightInLastPara(Color.YELLOW, shipName);
-            } else {
-                textPanel.addPara(logEntry);
-            }
-        } else if (logEntry.contains("馃拃") || logEntry.contains("馃挜") || logEntry.contains("鈿狅笍")) {
-            // Handle special events with emojis
-            if (logEntry.contains(":")) {
-                String[] parts3 = logEntry.split(":", 2);
-                if (parts3.length >= 2) {
-                    // Combine into a single paragraph to avoid excessive line breaks
-                    String combinedText = parts3[0] + ": " + parts3[1];
-                    textPanel.addPara(combinedText, Color.WHITE);
-                    
-                    // Highlight important parts differently
-                    textPanel.highlightInLastPara(Color.YELLOW, parts3[0]);
-                    textPanel.highlightInLastPara(Color.CYAN, parts3[1]);
-                } else {
-                    textPanel.addPara(logEntry);
-                }
-            } else {
-                textPanel.addPara(logEntry);
-            }
-        } else {
-            // For other log entries, try to identify ship names
-            boolean foundFormatted = false;
-            for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
-                if (logEntry.contains(gladiator.shortName)) {
-                    // Use the original log entry but with consistent coloring to avoid excessive line breaks
-                    textPanel.addPara(logEntry);
-                    
-                    // Highlight the ship name in yellow
-                    textPanel.highlightInLastPara(Color.YELLOW, gladiator.shortName);
-                    
-                    // Highlight any numeric values (damage, HP, etc.) in red
-                    String[] numericParts = logEntry.split("[^0-9]+");
-                    for (String numPart : numericParts) {
-                        if (!numPart.trim().isEmpty()) {
-                            textPanel.highlightInLastPara(Color.RED, numPart);
-                        }
-                    }
-                    
-                    foundFormatted = true;
-                    break;
-                }
-            }
-            if (!foundFormatted) {
-                textPanel.addPara(logEntry);
-            }
+
+        // Check for miss message
+        Matcher missMatcher = MISS_PATTERN.matcher(logEntry);
+        if (missMatcher.find()) {
+            String attacker = missMatcher.group(1);
+            String target = missMatcher.group(2);
+            textPanel.addPara(attacker + ": ", Color.CYAN);
+            textPanel.highlightInLastPara(Color.GRAY, "Misses " + target);
+            return;
         }
-    }
-    
-    /**
-     * Determines if an affix or prefix is positive or negative based on the configuration
-     */
-    private static Color isPositiveAffix(String affixOrPrefix) {
-        // Check if it's in the positive affix list
-        if (data.scripts.casino.CasinoConfig.ARENA_AFFIX_POS.contains(affixOrPrefix)) {
-            return Color.GREEN;
-        }
-        
-        // Check if it's in the negative affix list
-        if (data.scripts.casino.CasinoConfig.ARENA_AFFIX_NEG.contains(affixOrPrefix)) {
-            return Color.RED;
-        }
-        
-        // Check if it's in the positive prefix list
-        if (data.scripts.casino.CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(affixOrPrefix)) {
-            return Color.GREEN;
-        }
-        
-        // Check if it's in the negative prefix list
-        if (data.scripts.casino.CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(affixOrPrefix)) {
-            return Color.RED;
-        }
-        
-        // Default to green if not found in either list (positive assumption)
-        return Color.GREEN;
+
+        // Default: just add the entry as-is
+        textPanel.addPara(logEntry, Color.WHITE);
     }
 }

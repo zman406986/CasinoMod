@@ -101,9 +101,13 @@ public class CasinoGachaManager {
             if (hullId.startsWith(prefix)) return false;
         }
         
-        // Check for ships in the configured blacklist
+        // Check for ships in the configured blacklist (JSON - deprecated)
         if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
         if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
+        
+        // Check for ships in the CSV blacklist (preferred, allows mod merging)
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST_CSV.contains(hullId)) return false;
+        if (CasinoConfig.GACHA_SHIP_BLACKLIST_CSV.contains(spec.getBaseHullId())) return false;
         
         // Skip extremely high FP ships (likely bosses/uniques)
         if (spec.getFleetPoints() > 60) return false;
@@ -236,7 +240,7 @@ public class CasinoGachaManager {
             ShipHullSpecAPI hullSpec = Global.getSettings().getHullSpec(s);
             if (hullSpec != null) {
                 int val = (int)(hullSpec.getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-                CasinoVIPManager.addStargems(val);
+                CasinoVIPManager.addToBalance(val);
                 return "Auto-Converted: " + hullSpec.getHullName() + " (+" + val + " Gems)";
             }
         }

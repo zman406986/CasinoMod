@@ -5,17 +5,62 @@ import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Handler for displaying help documentation and game rules.
+ * 
+ * RESPONSIBILITIES:
+ * - Display general casino help (currency, financial laws, continuity)
+ * - Display poker rules (hand rankings, game flow, betting actions)
+ * - Display arena help (betting system, chaos events, strategy)
+ * - Display gacha help (rarities, pity mechanics, rotation)
+ * 
+ * NAVIGATION:
+ * HelpHandler supports returning to active games. When the player views help
+ * during an active poker game, the "Back" option returns to the game instead
+ * of the main menu.
+ * 
+ * AI_AGENT NOTES:
+ * - All help text uses Color constants for visual hierarchy
+ * - Cyan: Headers and section titles
+ * - Yellow: Subheaders and important concepts
+ * - Gray: Body text and explanations
+ * - Green: Positive information (winnings, benefits)
+ * - Red: Warnings and negative information
+ * 
+ * - Help text is static and loaded from CasinoConfig where applicable
+ * - Always provide a clear "Back" option that contextually returns to the
+ *   appropriate screen (active game or main menu)
+ * 
+ * @see CasinoInteraction
+ * @see CasinoConfig
+ */
 public class HelpHandler {
 
+    /** Reference to main interaction for UI access and navigation */
     private final CasinoInteraction main;
 
+    /** Map of exact-match option handlers */
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     
+    /**
+     * Constructor initializes handler map.
+     * 
+     * @param main Reference to CasinoInteraction for UI access
+     */
     public HelpHandler(CasinoInteraction main) {
         this.main = main;
         initializeHandlers();
     }
     
+    /**
+     * Initializes all option handlers.
+     * Maps option IDs to their handling logic using lambda expressions.
+     * 
+     * AI_AGENT NOTE: When adding new help topics:
+     * 1. Add handler mapping here
+     * 2. Create display method
+     * 3. Add navigation link in appropriate menu
+     */
     private void initializeHandlers() {
         // Exact match handlers
         handlers.put("how_to_play_main", option -> showGeneralHelp());
@@ -28,6 +73,12 @@ public class HelpHandler {
         handlers.put("arena_lobby", option -> main.arena.handle(option));
     }
 
+    /**
+     * Main entry point for handling help-related options.
+     * Routes to appropriate handler based on option ID.
+     * 
+     * @param option The option ID to handle
+     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -39,6 +90,13 @@ public class HelpHandler {
         main.showMenu();
     }
 
+    /**
+     * Shows the introductory help page.
+     * Displayed on first casino visit or via "How to Play" menu.
+     * 
+     * AI_AGENT NOTE: This is a condensed overview. Detailed rules are in
+     * the specific help methods (showPokerHelp, showArenaHelp, etc.)
+     */
     public void showIntroPage() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -57,10 +115,21 @@ public class HelpHandler {
         main.options.addOption("Continue to Casino", "back_menu");
     }
 
+    /**
+     * Shows the main help menu.
+     * Entry point for accessing all help topics.
+     */
     public void showMainMenu() {
         showGeneralHelp();
     }
 
+    /**
+     * Displays general casino help information.
+     * Covers currency, financial laws, and save/resume functionality.
+     * 
+     * AI_AGENT NOTE: Financial law values are pulled from CasinoConfig
+     * to ensure consistency with actual game mechanics.
+     */
     public void showGeneralHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -84,6 +153,13 @@ public class HelpHandler {
         main.setState(CasinoInteraction.State.HELP);
     }
 
+    /**
+     * Displays comprehensive poker help.
+     * Covers hand rankings, game flow, betting actions, and position strategy.
+     * 
+     * AI_AGENT NOTE: This is the authoritative reference for poker rules.
+     * When modifying poker mechanics, update this help text to match.
+     */
     public void showPokerHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TEXAS HOLD'EM GUIDE ---", Color.CYAN);
@@ -144,6 +220,13 @@ public class HelpHandler {
         }
     }
 
+    /**
+     * Displays comprehensive arena help.
+     * Covers betting system, performance bonuses, champion switching, and chaos events.
+     * 
+     * AI_AGENT NOTE: Odds calculations and bonus formulas are documented here.
+     * When modifying arena mechanics, update this help text to match.
+     */
     public void showArenaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- SPIRAL ABYSS ARENA: SURVIVAL ---", Color.CYAN);
@@ -180,6 +263,13 @@ public class HelpHandler {
         main.options.addOption("Back", "arena_lobby");
     }
 
+    /**
+     * Displays comprehensive gacha help.
+     * Covers rarities, pity mechanics, featured rotation, and auto-convert.
+     * 
+     * AI_AGENT NOTE: Pity thresholds and rotation timing are pulled from CasinoConfig.
+     * When modifying gacha mechanics, update this help text to match.
+     */
     public void showGachaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TACHY-IMPACT: WARP PROTOCOL ---", Color.CYAN);
@@ -194,7 +284,7 @@ public class HelpHandler {
         main.textPanel.addPara("- 50/50 Rule: If your 5* isn't the featured ship, the next one IS guaranteed to be the featured ship.");
         
         main.textPanel.addPara("Featured Rotation:", Color.GRAY);
-        main.textPanel.addPara("- Featured ships rotate every 14 days.");
+        main.textPanel.addPara("- Featured ships rotate every " + CasinoConfig.GACHA_ROTATION_DAYS + " days.");
         main.textPanel.addPara("- One featured 5* capital and three featured 4* cruisers per rotation.");
         main.textPanel.addPara("- Pity carries over between rotations!");
         

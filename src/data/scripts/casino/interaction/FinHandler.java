@@ -103,6 +103,8 @@ public class FinHandler {
         handlers.put("cash_out_captcha", option -> performCashOutCaptcha());
         handlers.put("cash_out_tier1", option -> performCashOutTier1());
         handlers.put("cash_out_escalate", option -> performCashOutEscalate());
+        handlers.put("cash_out_escalate_no", option -> performCashOutEscalate());
+        handlers.put("cash_out_escalate_ships", option -> performCashOutEscalate());
         handlers.put("cash_out_final", option -> performCashOutFinal());
         handlers.put("cash_out_return", option -> performCashOutReturn());
         handlers.put("cash_out_return_hold", option -> performCashOutReturnHold());
@@ -114,9 +116,7 @@ public class FinHandler {
         handlers.put("buy_vip", option -> showTopUpConfirm(-1, true));
         handlers.put("confirm_buy_vip", option -> purchaseVIPPass());
         handlers.put("buy_ship", option -> openShipTradePicker());
-        handlers.put("pay_debt", option -> showDebtPaymentMenu());
-        handlers.put("pay_debt_full", option -> payDebtInFull());
-        handlers.put("pay_debt_partial", option -> showPartialDebtPaymentMenu());
+        handlers.put("toggle_vip_notifications", option -> toggleVIPNotifications());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
 
@@ -128,10 +128,6 @@ public class FinHandler {
         predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
             int index = Integer.parseInt(option.replace("confirm_buy_pack_", ""));
             purchaseGemPack(CasinoConfig.GEM_PACKAGES.get(index).gems, CasinoConfig.GEM_PACKAGES.get(index).cost);
-        });
-        predicateHandlers.put(option -> option.startsWith("pay_debt_amount_"), option -> {
-            int amount = Integer.parseInt(option.replace("pay_debt_amount_", ""));
-            payDebtAmount(amount);
         });
         predicateHandlers.put(option -> option.startsWith("captcha_answer_"), option -> {
             int answerIndex = Integer.parseInt(option.replace("captcha_answer_", ""));
@@ -171,6 +167,9 @@ public class FinHandler {
             return;
         }
         
+        // Display financial status
+        displayFinancialInfo();
+        
         if (CasinoConfig.GEM_PACKAGES != null && !CasinoConfig.GEM_PACKAGES.isEmpty()) {
             for (int i=0; i<CasinoConfig.GEM_PACKAGES.size(); i++) {
                 CasinoConfig.GemPackage pack = CasinoConfig.GEM_PACKAGES.get(i);
@@ -184,14 +183,52 @@ public class FinHandler {
         main.getOptions().addOption("VIP Subscription Pass", "buy_vip");
         main.getOptions().addOption("Cash Out", "cash_out");
         
-        // Show debt payment option if player has debt
-        int currentDebt = CasinoVIPManager.getDebt();
-        if (currentDebt > 0) {
-            main.getOptions().addOption("Pay Off Debt (" + currentDebt + " Stargems owed)", "pay_debt");
-        }
+        // Add notification toggle option
+        boolean monthlyMode = CasinoVIPManager.isMonthlyNotificationMode();
+        String notifyText = monthlyMode ? "VIP Notifications: Monthly" : "VIP Notifications: Daily";
+        main.getOptions().addOption(notifyText, "toggle_vip_notifications");
         
         main.getOptions().addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void displayFinancialInfo() {
+        int currentBalance = CasinoVIPManager.getBalance();
+        int creditCeiling = CasinoVIPManager.getCreditCeiling();
+        int daysRemaining = CasinoVIPManager.getDaysRemaining();
+        
+        main.getTextPanel().addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        
+        // Show balance with color coding
+        Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
+        main.getTextPanel().addPara("Balance: " + currentBalance + " Stargems", balanceColor);
+        
+        main.getTextPanel().addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
+        
+        if (daysRemaining > 0) {
+            main.getTextPanel().addPara("VIP Status: " + daysRemaining + " days remaining", Color.CYAN);
+        } else {
+            main.getTextPanel().addPara("VIP Status: Inactive", Color.GRAY);
+        }
+        
+        // Show interest rate info if in debt
+        if (currentBalance < 0) {
+            boolean hasVIP = daysRemaining > 0;
+            float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NON_VIP_DAILY_INTEREST_RATE;
+            main.getTextPanel().addPara("Daily Interest: " + (int)(interestRate * 100) + "%", Color.YELLOW);
+        }
+        
+        main.getTextPanel().addPara("------------------------", Color.CYAN);
+    }
+    
+    private void toggleVIPNotifications() {
+        boolean newMode = CasinoVIPManager.toggleMonthlyNotificationMode();
+        if (newMode) {
+            main.textPanel.addPara("VIP notifications set to monthly.", Color.CYAN);
+        } else {
+            main.textPanel.addPara("VIP notifications set to daily.", Color.CYAN);
+        }
+        showTopUpMenu();
     }
     
     private void showTopUpConfirm(int index, boolean isVIP) {
@@ -219,7 +256,7 @@ public class FinHandler {
             return;
         }
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
-        CasinoVIPManager.addStargems(gems);
+        CasinoVIPManager.addToBalance(gems);
         main.textPanel.addPara("Purchased " + gems + " Stargems.", Color.GREEN);
         showTopUpMenu();
     }
@@ -424,8 +461,8 @@ public class FinHandler {
         main.textPanel.addPara("Have you tried spending your Stargems on our premium ship collection instead?", Color.ORANGE);
         main.textPanel.addPara("We have some excellent deals right now!", Color.CYAN);
 
-        main.getOptions().addOption("No, I want to cash out", "cash_out_escalate");
-        main.getOptions().addOption("Tell me about the ships", "cash_out_escalate");
+        main.getOptions().addOption("No, I want to cash out", "cash_out_escalate_no");
+        main.getOptions().addOption("Tell me about the ships", "cash_out_escalate_ships");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
@@ -507,8 +544,8 @@ public class FinHandler {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
                      if (members != null) {
                         for (FleetMemberAPI m : members) {
-                            int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE);
-                            CasinoVIPManager.addStargems(val);
+                            int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+                            CasinoVIPManager.addToBalance(val);
                             Global.getSector().getPlayerFleet().getFleetData().removeFleetMember(m);
                             main.getTextPanel().addPara("Traded " + m.getShipName() + " for " + val + " Stargems.", Color.GREEN);
                         }
@@ -517,110 +554,5 @@ public class FinHandler {
                 }
                 public void cancelledFleetMemberPicking() { showTopUpMenu(); }
             });
-    }
-    
-    private void showDebtPaymentMenu() {
-        main.getOptions().clearOptions();
-        int currentDebt = CasinoVIPManager.getDebt();
-        int currentGems = CasinoVIPManager.getStargems();
-        
-        main.textPanel.addPara("IPC Debt Settlement", Color.CYAN);
-        main.textPanel.addPara("Current Debt: " + currentDebt + " Stargems", Color.RED);
-        main.textPanel.addPara("Available Stargems: " + currentGems, Color.WHITE);
-        main.textPanel.addPara("");
-        main.textPanel.addPara("5% monthly interest applies to outstanding balances on the 15th of each month.", Color.YELLOW);
-        main.textPanel.addPara("Corporate Reconciliation Team may be dispatched for delinquent accounts.", Color.GRAY);
-        
-        if (currentGems >= currentDebt && currentDebt > 0) {
-            main.getOptions().addOption("Pay Debt in Full (" + currentDebt + " Stargems)", "pay_debt_full");
-        }
-        
-        if (currentGems > 0 && currentDebt > 0) {
-            main.getOptions().addOption("Pay Partial Amount", "pay_debt_partial");
-        }
-        
-        main.getOptions().addOption("Back", "financial_menu");
-        main.setState(CasinoInteraction.State.FINANCIAL);
-    }
-    
-    private void payDebtInFull() {
-        int currentDebt = CasinoVIPManager.getDebt();
-        int currentGems = CasinoVIPManager.getStargems();
-        
-        if (currentGems >= currentDebt && currentDebt > 0) {
-            CasinoVIPManager.payDebt(currentDebt);
-            main.textPanel.addPara("Debt paid in full! " + currentDebt + " Stargems deducted.", Color.GREEN);
-            main.textPanel.addPara("Your account is now in good standing with the IPC.", Color.CYAN);
-        } else {
-            main.textPanel.addPara("Insufficient Stargems to pay debt in full.", Color.RED);
-        }
-        
-        showTopUpMenu();
-    }
-    
-    private void showPartialDebtPaymentMenu() {
-        main.getOptions().clearOptions();
-        int currentDebt = CasinoVIPManager.getDebt();
-        int currentGems = CasinoVIPManager.getStargems();
-        
-        main.textPanel.addPara("Partial Debt Payment", Color.CYAN);
-        main.textPanel.addPara("Current Debt: " + currentDebt + " Stargems", Color.RED);
-        main.textPanel.addPara("Available Stargems: " + currentGems, Color.WHITE);
-        main.textPanel.addPara("Select amount to pay:");
-        
-        // Offer percentage-based options
-        int[] percentages = {10, 25, 50, 75};
-        for (int percent : percentages) {
-            int amount = (currentDebt * percent) / 100;
-            if (amount > 0 && amount <= currentGems) {
-                main.getOptions().addOption(percent + "% (" + amount + " Stargems)", "pay_debt_amount_" + amount);
-            }
-        }
-        
-        // Offer fixed amount options based on available gems
-        int[] fixedAmounts = {100, 500, 1000, 5000};
-        for (int amount : fixedAmounts) {
-            if (amount > 0 && amount <= currentGems && amount < currentDebt) {
-                main.getOptions().addOption(amount + " Stargems", "pay_debt_amount_" + amount);
-            }
-        }
-        
-        // Option to pay all available gems (up to debt amount)
-        int maxPayable = Math.min(currentGems, currentDebt);
-        if (maxPayable > 0) {
-            main.getOptions().addOption("Pay All Available (" + maxPayable + " Stargems)", "pay_debt_amount_" + maxPayable);
-        }
-        
-        main.getOptions().addOption("Back", "pay_debt");
-        main.setState(CasinoInteraction.State.FINANCIAL);
-    }
-    
-    private void payDebtAmount(int amount) {
-        int currentDebt = CasinoVIPManager.getDebt();
-        int currentGems = CasinoVIPManager.getStargems();
-        
-        // Validate amount
-        if (amount > currentGems) {
-            amount = currentGems;
-        }
-        if (amount > currentDebt) {
-            amount = currentDebt;
-        }
-        
-        if (amount > 0) {
-            CasinoVIPManager.payDebt(amount);
-            main.textPanel.addPara("Paid " + amount + " Stargems toward your debt.", Color.GREEN);
-            
-            int remainingDebt = CasinoVIPManager.getDebt();
-            if (remainingDebt > 0) {
-                main.textPanel.addPara("Remaining Debt: " + remainingDebt + " Stargems", Color.YELLOW);
-            } else {
-                main.textPanel.addPara("Your account is now in good standing with the IPC.", Color.CYAN);
-            }
-        } else {
-            main.textPanel.addPara("Invalid payment amount.", Color.RED);
-        }
-        
-        showTopUpMenu();
     }
 }

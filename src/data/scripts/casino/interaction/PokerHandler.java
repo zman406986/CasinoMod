@@ -48,7 +48,7 @@ public class PokerHandler {
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> {
             if (pokerGame != null && pokerGame.getState().playerStack > 0) {
-                CasinoVIPManager.addStargems(pokerGame.getState().playerStack);
+                CasinoVIPManager.addToBalance(pokerGame.getState().playerStack);
                 main.getTextPanel().addPara("Returned " + pokerGame.getState().playerStack + " Stargems to your wallet.", Color.YELLOW);
                 pokerGame.getState().playerStack = 0;
             }
@@ -64,7 +64,7 @@ public class PokerHandler {
         
         predicateHandlers.put(option -> option.startsWith("poker_stack_"), option -> {
             String stackStr = option.replace("poker_stack_", "");
-            int stackSize = "all".equals(stackStr) ? CasinoVIPManager.getStargems() : Integer.parseInt(stackStr);
+            int stackSize = "all".equals(stackStr) ? CasinoVIPManager.getBalance() : Integer.parseInt(stackStr);
             setupGame(stackSize);
         });
     }
@@ -95,27 +95,27 @@ public class PokerHandler {
         // Display financial info
         displayFinancialInfo();
         
-        int currentGems = CasinoVIPManager.getStargems();
+        int currentBalance = CasinoVIPManager.getBalance();
         int availableCredit = CasinoVIPManager.getAvailableCredit();
         int[] stackSizes = CasinoConfig.POKER_STACK_SIZES;
         String[] stackLabels = {"Small", "Medium", "Large", "Huge"};
         
         for (int i = 0; i < stackSizes.length && i < stackLabels.length; i++) {
-            // Allow option if player has enough gems OR enough available credit (for overdraft)
-            if (currentGems >= stackSizes[i] || availableCredit >= stackSizes[i]) {
+            // Allow option if player has enough balance OR enough available credit (for overdraft)
+            if (currentBalance >= stackSizes[i] || availableCredit >= stackSizes[i]) {
                 main.options.addOption(stackLabels[i] + " Stack (" + stackSizes[i] + " Stargems)", "poker_stack_" + stackSizes[i]);
             }
         }
         
         int minRequiredGems = CasinoConfig.POKER_BIG_BLIND;
-        // Only show "Bring All My Stargems" if player has enough gems in wallet
-        // If wallet is below minimum, player must use fixed stack options (which can use overdraft)
-        if (currentGems >= minRequiredGems) {
-            main.options.addOption("Bring All My Stargems (" + currentGems + ")", "poker_stack_all");
-        } else if (currentGems > 0 && currentGems < minRequiredGems && availableCredit < minRequiredGems) {
+        // Only show "Bring All My Stargems" if player has enough balance
+        // If balance is below minimum, player must use fixed stack options (which can use overdraft)
+        if (currentBalance >= minRequiredGems) {
+            main.options.addOption("Bring All My Stargems (" + currentBalance + ")", "poker_stack_all");
+        } else if (currentBalance > 0 && currentBalance < minRequiredGems && availableCredit < minRequiredGems) {
             main.textPanel.addPara("You need at least " + minRequiredGems + " Stargems (Big Blind) to play.", Color.RED);
-        } else if (currentGems < minRequiredGems) {
-            // Player has insufficient gems but may have credit - show message about using fixed stacks
+        } else if (currentBalance < minRequiredGems) {
+            // Player has insufficient balance but may have credit - show message about using fixed stacks
             main.textPanel.addPara("Your Stargem balance is below the minimum. Choose a fixed stack size to use overdraft.", Color.YELLOW);
         }
         
@@ -125,22 +125,24 @@ public class PokerHandler {
     }
     
     private void displayFinancialInfo() {
-        int currentGems = CasinoVIPManager.getStargems();
-        int debtCeiling = CasinoVIPManager.getDebtCeiling();
-        int currentDebt = CasinoVIPManager.getDebt();
+        int currentBalance = CasinoVIPManager.getBalance();
+        int creditCeiling = CasinoVIPManager.getCreditCeiling();
         int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int daysRemaining = CasinoVIPManager.getDaysRemaining();
         
         main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
-        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
-        main.textPanel.addPara("Overdraft Ceiling: " + debtCeiling, Color.GRAY);
         
-        if (currentDebt > 0) {
-            main.textPanel.addPara("Used Overdraft: " + currentDebt, Color.YELLOW);
-            main.textPanel.addPara("Remaining Credit: " + availableCredit, Color.YELLOW);
-        } else {
-            main.textPanel.addPara("Used Overdraft: 0", Color.GREEN);
-            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        // Show balance with color coding
+        Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
+        main.textPanel.addPara("Balance: " + currentBalance + " Stargems", balanceColor);
+        
+        main.textPanel.addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
+        main.textPanel.addPara("Available Credit: " + availableCredit, Color.YELLOW);
+        
+        if (daysRemaining > 0) {
+            main.textPanel.addPara("VIP: " + daysRemaining + " days", Color.CYAN);
         }
+        
         main.textPanel.addPara("------------------------", Color.CYAN);
     }
 
@@ -150,35 +152,66 @@ public class PokerHandler {
     }
     
     public void setupGame(int stackSize) {
-        playerWallet = CasinoVIPManager.getStargems();
+        playerWallet = CasinoVIPManager.getBalance();
         int availableCredit = CasinoVIPManager.getAvailableCredit();
+        boolean overdraftAvailable = CasinoVIPManager.isOverdraftAvailable();
         
-        // Check if player has enough in wallet OR available credit for the desired stack
-        if (playerWallet < stackSize && availableCredit < stackSize) {
-            main.textPanel.addPara("Not enough Stargems or available credit! You have " + playerWallet + " Stargems and " + availableCredit + " available credit, but requested " + stackSize + ".", Color.RED);
-            showPokerConfirm(); // Return to the confirmation screen
-            return;
+        // Check if player has enough in wallet
+        if (playerWallet < stackSize) {
+            // Player doesn't have enough gems, check if overdraft is available
+            if (!overdraftAvailable) {
+                // No VIP - show promotion and return
+                showVIPPromotionForPoker(stackSize);
+                return;
+            }
+            
+            // VIP player - check if they have enough available credit
+            if (availableCredit < stackSize) {
+                main.textPanel.addPara("Not enough Stargems or available credit! You have " + playerWallet + " Stargems and " + availableCredit + " available credit, but requested " + stackSize + ".", Color.RED);
+                showPokerConfirm(); // Return to the confirmation screen
+                return;
+            }
         }
         
-        // Handle overdraft if needed
+        // Handle overdraft if needed - simply deduct from balance (can go negative)
         if (playerWallet < stackSize) {
             // Player needs to use overdraft
             int overdraftAmount = stackSize - playerWallet;
-            CasinoVIPManager.addDebt(overdraftAmount);
             main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft.", Color.YELLOW);
-            main.textPanel.addPara("Overdraft will be added to your account balance. 5% monthly interest applies.", Color.GRAY);
-            // Deduct all available gems (playerWallet), then add debt for the rest
-            CasinoVIPManager.addStargems(-playerWallet);
-        } else {
-            // Deduct the stack from wallet normally
-            CasinoVIPManager.addStargems(-stackSize);
+            main.textPanel.addPara("Balance will go negative. " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily interest applies.", Color.GRAY);
         }
+        
+        // Deduct the stack from balance (can go negative)
+        CasinoVIPManager.addToBalance(-stackSize);
         
         int opponentStack = Math.max(CasinoConfig.POKER_DEFAULT_OPPONENT_STACK, stackSize);
         
         pokerGame = new PokerGame(stackSize, opponentStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
         
         updateUI();
+    }
+    
+    private void showVIPPromotionForPoker(int stackSize) {
+        main.getOptions().clearOptions();
+        main.textPanel.addPara("INSUFFICIENT STARGEMS", Color.RED);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
+        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
+        main.textPanel.addPara("Required for " + stackSize + " stack: " + stackSize + " Stargems", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
+        main.textPanel.addPara("Overdraft protection is exclusively available to VIP Pass subscribers.", Color.WHITE);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("VIP PASS BENEFITS:", Color.GREEN);
+        main.textPanel.addPara("- Access to IPC Credit Facility (overdraft protection)", Color.GRAY);
+        main.textPanel.addPara("- " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily reward", Color.GRAY);
+        main.textPanel.addPara("- Reduced debt interest rate (" + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily)", Color.GRAY);
+        main.textPanel.addPara("- Increased credit ceiling per purchase", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Purchase a VIP Pass from Financial Services to unlock overdraft protection!", Color.YELLOW);
+        
+        main.getOptions().addOption("Go to Financial Services", "financial_menu");
+        main.getOptions().addOption("Back", "back_menu");
     }
 
     public void updateUI() {
@@ -349,25 +382,19 @@ public class PokerHandler {
         int bbRaise = bigBlind;
         addBetOption.accept(bbRaise, "Big Blind");
         
-        // 2. Quarter Pot
-        int quarterPot = potSize / 4;
-        if (quarterPot > bbRaise) {
-            addBetOption.accept(quarterPot, "Quarter Pot");
-        }
-        
-        // 3. Half Pot
+        // 2. Half Pot
         int halfPot = potSize / 2;
-        if (halfPot > quarterPot) {
+        if (halfPot > bbRaise) {
             addBetOption.accept(halfPot, "Half Pot");
         }
         
-        // 4. Pot
+        // 3. Pot
         int potBet = potSize;
         if (potBet > halfPot) {
             addBetOption.accept(potBet, "Pot");
         }
         
-        // 5. 2x Pot
+        // 4. 2x Pot
         int twoXPot = potSize * 2;
         if (twoXPot > potBet && twoXPot <= playerStackAvailable) {
             addBetOption.accept(twoXPot, "2x Pot");
@@ -469,6 +496,10 @@ public class PokerHandler {
         }
 
         // Showdown - reveal hands and compare
+        // Display community cards first so players can see the complete board
+        main.getTextPanel().addPara("Community Cards: ");
+        displayColoredCards(state.communityCards);
+        
         main.getTextPanel().addPara("Opponent reveals: ");
         displayColoredCards(state.opponentHand);
 
@@ -479,9 +510,6 @@ public class PokerHandler {
         } else {
             main.getTextPanel().addPara("Hand ended before showdown.", Color.GRAY);
         }
-
-        main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
-        main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
 
         // We need detailed comparison (tie breakers) which PokerGame.evaluate() does.
         // Re-evaluate to get HandScore for comparison
@@ -502,18 +530,32 @@ public class PokerHandler {
         if (cmp > 0) {
             main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);
             state.playerStack += state.pot; // Award pot to player stack
+            main.getTextPanel().addPara("You won " + state.pot + " Stargems!", Color.GREEN);
+            state.pot = 0;
+            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
+            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
             endHand(true);
         } else if (cmp < 0) {
             main.getTextPanel().addPara("DEFEAT. The IPC Dealer wins.", Color.RED);
             state.opponentStack += state.pot; // Award pot to opponent
+            main.getTextPanel().addPara("Dealer won " + state.pot + " Stargems.", Color.RED);
+            state.pot = 0;
+            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
+            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
             endHand(false);
         } else {
             main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
-            state.playerStack += state.pot / 2;
-            state.opponentStack += state.pot / 2;
+            int halfPot = state.pot / 2;
+            int remainder = state.pot % 2;
+            state.playerStack += halfPot + remainder; // Player gets remainder if odd
+            state.opponentStack += halfPot;
+            main.getTextPanel().addPara("You receive " + (halfPot + remainder) + " Stargems.", Color.CYAN);
+            main.getTextPanel().addPara("Opponent receives " + halfPot + " Stargems.", Color.ORANGE);
+            state.pot = 0;
+            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
+            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
             endHand(false);
         }
-        state.pot = 0;
     }
 
     private void displayColoredCards(List<PokerGameLogic.Card> cards) {
@@ -537,7 +579,7 @@ public class PokerHandler {
 
     private void returnStacks() {
         if (pokerGame != null) {
-            CasinoVIPManager.addStargems(pokerGame.getState().playerStack);
+            CasinoVIPManager.addToBalance(pokerGame.getState().playerStack);
             pokerGame.getState().playerStack = 0;
         }
     }
@@ -549,7 +591,7 @@ public class PokerHandler {
         if (playerWon) {
             // Wait, chips are in stack now. Payout happens when leaving table?
             // Or does "You win the pot" mean it goes to wallet?
-            // Original code: CasinoVIPManager.addStargems(potSize);
+            // Original code: CasinoVIPManager.addToBalance(potSize);
             // But this is a tournament/stack style game.
             // If the user wants to cash out, they "Leave".
             // So we just update stacks.
@@ -573,4 +615,5 @@ public class PokerHandler {
             main.getOptions().addOption("Next Hand", "next_hand");
             main.getOptions().addOption("Leave Table", "back_menu");
         }
-    }}
+    }
+}

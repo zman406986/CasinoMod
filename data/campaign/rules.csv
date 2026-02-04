@@ -7,3 +7,7 @@ $tradeMode == OPEN
 !$global.casino_disabled",,,8:visit_casino:Visit Casino,
 # Handle when the Visit Casino option is selected from market interaction
 casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartCasinoInteraction,,
+# Debt collector hail when intercepting player
+casino_debtCollectorHail,BeginFleetEncounter,$ipc_debt_collector,"$menuState = main
+FireAll PopulateOptions",,"""The Interstellar Paradise Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance of $playerStargems stargems requires immediate settlement. This is your final warning before we escalate to... alternative collection methods."""
+FireAll PopulateOptions

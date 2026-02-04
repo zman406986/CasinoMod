@@ -1,164 +1,370 @@
 package data.scripts.casino;
 
+import com.fs.starfarer.api.EveryFrameScript;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignClockAPI;
 
 import java.awt.Color;
-import java.util.Map;
 import java.util.Random;
 
-public class CasinoVIPManager {
+/**
+ * Core manager for VIP status, Stargem balance, credit facilities, and daily rewards.
+ * Implements EveryFrameScript to run continuously in the background.
+ * 
+ * RESPONSIBILITIES:
+ * 1. Stargem balance management (get/add to balance)
+ * 2. VIP subscription tracking (days remaining, start time)
+ * 3. Credit ceiling calculation (based on VIP purchases and top-ups)
+ * 4. Daily reward distribution (VIP daily gems)
+ * 5. Interest application (on negative balances)
+ * 6. Notification management (daily/monthly modes)
+ * 
+ * MEMORY KEYS (all prefixed with "$ipc_"):
+ * - $ipc_stargems: Current Stargem balance (can be negative)
+ * - $ipc_vip_start_time: Timestamp when VIP pass started (for calculating remaining days)
+ * - $ipc_vip_duration: Total VIP duration in days
+ * - $ipc_cumulative_vip_purchases: Total VIP passes purchased (affects credit ceiling)
+ * - $ipc_cumulative_topup_amount: Total gems added (affects credit ceiling)
+ * - $ipc_vip_last_reward_time: Timestamp of last daily reward
+ * - $ipc_vip_last_processed_day: Timestamp of last daily processing
+ * - $ipc_vip_monthly_notify_mode: Boolean for notification frequency
+ * - $ipc_vip_last_monthly_notify: Timestamp of last monthly notification
+ * 
+ * CRITICAL IMPLEMENTATION NOTES:
+ * 
+ * AI_AGENT_NOTE: NEVER use clock.getDay() for daily reward tracking!
+ * The getDay() method returns day-of-month (1-31), which causes bugs when crossing
+ * month boundaries (e.g., Jan 31 to Feb 1 appears as day change from 31 to 1).
+ * Always use clock.getTimestamp() which provides continuous time values.
+ * 
+ * AI_AGENT_NOTE: Credit ceiling formula
+ * ceiling = BASE_DEBT_CEILING + (vipPurchases * VIP_PASS_CEILING_INCREASE) + (topupAmount * TOPUP_CEILING_MULTIPLIER)
+ * Available credit = ceiling + balance (balance can be negative)
+ * 
+ * AI_AGENT_NOTE: Interest is applied daily to negative balances
+ * VIP rate: 2% daily (CasinoConfig.VIP_DAILY_INTEREST_RATE)
+ * Non-VIP rate: 5% daily (CasinoConfig.NORMAL_DAILY_INTEREST_RATE)
+ * Interest is subtracted from balance (makes negative balance more negative)
+ * 
+ * AI_AGENT_NOTE: Overdraft is VIP-only feature
+ * Always check isOverdraftAvailable() before allowing negative balance transactions
+ * Non-VIP players should see VIP promotion instead of overdraft option
+ */
+public class CasinoVIPManager implements EveryFrameScript {
+
+    /** Key for storing VIP data structure in player memory */
     private static final String DATA_KEY = "CasinoVIPData";
-    
+
+    /** Memory key for timestamp of last daily reward (used for 24-hour cooldown) */
     private static final String LAST_REWARD_TIME_KEY = "$ipc_vip_last_reward_time";
-    
+    /** Memory key for timestamp of last daily processing (used to detect new day) */
+    private static final String LAST_PROCESSED_DAY_KEY = "$ipc_vip_last_processed_day";
+    /** Memory key for timestamp of last monthly notification */
+    private static final String LAST_MONTHLY_NOTIFY_KEY = "$ipc_vip_last_monthly_notify";
+    /** Memory key for notification mode preference (boolean: true = monthly, false = daily) */
+    private static final String MONTHLY_NOTIFY_MODE_KEY = "$ipc_vip_monthly_notify_mode";
+
     // Performance: We track time to avoid running heavy logic every single frame.
-    private float daysElapsed = 0;
+    /** Timer accumulator for throttling daily checks (runs once per second) */
     private float timer = 0f;
+    /** Random generator for VIP ad selection */
     private final Random random = new Random();
 
-    public boolean isDone() { return false; } // This script never finishes naturally
-    
-    public boolean runWhilePaused() { return false; } // Don't process time while paused
+    /**
+     * Required by EveryFrameScript interface.
+     * This script runs indefinitely until the game ends.
+     */
+    @Override
+    public boolean isDone() { return false; }
 
+    /**
+     * Required by EveryFrameScript interface.
+     * Pauses processing when game is paused to avoid time desync.
+     */
+    @Override
+    public boolean runWhilePaused() { return false; }
+
+    /**
+     * Main update loop called every frame.
+     * Throttled to run daily logic once per in-game day.
+     * 
+     * AI_AGENT_NOTE: The 1-second throttle is for performance.
+     * The actual daily check uses clock.getElapsedDaysSince() for accuracy.
+     */
     public void advance(float amount) {
         // Optimization: Throttle the check so it only runs once per real-world second.
         timer += amount;
         if (timer < 1.0f) return;
         timer -= 1.0f;
 
-        // In-game day check
-        float days = Global.getSector().getClock().getDay();
-        if (days != daysElapsed) {
+        // Check if a new in-game day has passed using timestamp-based tracking
+        CampaignClockAPI clock = Global.getSector().getClock();
+        long lastProcessedDay = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_PROCESSED_DAY_KEY);
+        
+        // If never processed before, set to current time
+        if (lastProcessedDay == 0) {
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
+            return;
+        }
+        
+        // Check if at least one full day has passed since last processing
+        float daysElapsed = clock.getElapsedDaysSince(lastProcessedDay);
+        if (daysElapsed >= 1.0f) {
             checkDaily();
-            checkInterest();
-
-            daysElapsed = days;
+            // Update last processed day to current timestamp
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
         }
     }
 
     /**
-     * Checks if a new day has arrived to give VIP rewards.
+     * Checks if a new day has arrived to give VIP rewards and apply debt interest.
+     * Debt interest applies to all players with negative balance, regardless of VIP status.
+     * VIP players get daily gems + interest notification.
+     * Non-VIP players with negative balance get warning + interest notification.
+     * 
+     * AI_AGENT_NOTE: Uses 24-hour (86400 second) intervals from last reward time
+     * to ensure exactly one reward per day, even if game is loaded multiple times.
      */
     private void checkDaily() {
         int daysRemaining = getDaysRemaining();
-        if (daysRemaining <= 0) return;
+        boolean hasVIP = daysRemaining > 0;
+        int currentBalance = getBalance();
+        boolean hasDebt = currentBalance < 0;
 
         CampaignClockAPI clock = Global.getSector().getClock();
         long currentTime = clock.getTimestamp();
         long lastRewardTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_REWARD_TIME_KEY);
 
-        // Only give reward if we haven't given one today (or within last 24 hours)
+        // Only process if we haven't given one today (or within last 24 hours)
         // Using 24 hours (86400 seconds) to ensure daily rewards
         if (lastRewardTime == 0 || (currentTime - lastRewardTime) >= 86400L) {
-            addStargems(CasinoConfig.VIP_DAILY_REWARD);
-            sendNotification();
             
-            // Mark current time as the time we gave the reward
+            // Apply daily interest if player has negative balance (regardless of VIP status)
+            int interestAmount = 0;
+            if (hasDebt) {
+                float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NORMAL_DAILY_INTEREST_RATE;
+                interestAmount = (int) (-currentBalance * interestRate); // Interest on debt (negative balance)
+                addToBalance(-interestAmount); // Subtract interest from balance (makes it more negative)
+            }
+            
+            if (hasVIP) {
+                // VIP player: give daily reward and show combined notification
+                addToBalance(CasinoConfig.VIP_DAILY_REWARD);
+                
+                // Check if we should show notification (daily or monthly mode)
+                if (shouldShowNotification()) {
+                    sendVIPNotification(interestAmount, currentBalance);
+                }
+            } else if (hasDebt) {
+                // Non-VIP with debt: show debt warning notification
+                sendDebtWarningNotification(interestAmount, currentBalance);
+            }
+            
+            // Mark current time as the time we processed the daily check
             Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, currentTime);
         }
     }
 
     /**
-     * Applies 5% interest to debt on the 15th of every month.
+     * Checks if VIP notification should be shown based on user preference.
+     * Returns true for daily mode, or once per month for monthly mode.
+     * 
+     * AI_AGENT NOTE: Monthly mode uses 30-day intervals, not calendar months.
+     * This ensures consistent timing regardless of month length.
      */
-    private void checkInterest() {
-        int day = Global.getSector().getClock().getDay();
-        int month = Global.getSector().getClock().getMonth();
-        int year = Global.getSector().getClock().getCycle();
-        
-        Map<String, Object> data = Global.getSector().getPersistentData();
-        // We create a unique key for this year/month so interest only applies once per month.
-        String interestKey = "CasinoInterest_" + year + "_" + month;
-        
-        if (day == 15 && !data.containsKey(interestKey)) {
-            int currentDebt = getDebt();
-            if (currentDebt > 0) {
-                int interest = (int) (currentDebt * CasinoConfig.VIP_INTEREST_RATE); 
-                
-                // Add interest to debt (not to stargems)
-                addDebt(interest);
-                
-                Global.getSector().getCampaignUI().addMessage("CORPORATE NOTICE: 5% monthly interest applied to your delinquent Stargem account.", Color.YELLOW);
-                Global.getSector().getCampaignUI().addMessage("Interest added: " + interest + " Stargems to debt", Color.RED);
-            }
-            data.put(interestKey, true);
+    private boolean shouldShowNotification() {
+        boolean monthlyMode = Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
+        if (!monthlyMode) {
+            return true; // Daily mode - always show
         }
+        
+        // Monthly mode - check if a month has passed
+        CampaignClockAPI clock = Global.getSector().getClock();
+        long lastMonthlyNotify = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_MONTHLY_NOTIFY_KEY);
+        
+        if (lastMonthlyNotify == 0) {
+            // First time - show and record
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
+            return true;
+        }
+        
+        float daysSinceLastNotify = clock.getElapsedDaysSince(lastMonthlyNotify);
+        if (daysSinceLastNotify >= 30f) {
+            // A month has passed - show and update timestamp
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
+            return true;
+        }
+        
+        return false; // Don't show yet
     }
 
     /**
-     * Sends a random flavor text advertisement to the player UI.
+     * Sends VIP daily reward notification combined with debt interest info.
+     * Format: +100 daily gem (green) -X interest (red) | Balance: Y | [ad]
+     * 
+     * AI_AGENT NOTE: Each message is sent separately to allow different colors.
+     * This creates a visual hierarchy: reward (green), cost (red), balance (context), ad (cyan).
      */
-    private void sendNotification() {
-        if (CasinoConfig.VIP_ADS.isEmpty()) return;
-        String ad = CasinoConfig.VIP_ADS.get(random.nextInt(CasinoConfig.VIP_ADS.size()));
+    private void sendVIPNotification(int interestAmount, int oldBalance) {
+        int newBalance = getBalance();
+        
+        // Build the message with color-coded parts
+        StringBuilder message = new StringBuilder();
+        
+        // Daily reward (always shown for VIP)
         Global.getSector().getCampaignUI().addMessage(
-            "VIP Pass: " + CasinoConfig.VIP_DAILY_REWARD + " Stargems added. " + ad,
-            Color.GREEN,
-            CasinoConfig.VIP_DAILY_REWARD + " Stargems",
-            "",
-            Color.YELLOW,
-            Color.WHITE
+            "+" + CasinoConfig.VIP_DAILY_REWARD + " daily gem",
+            Color.GREEN
+        );
+        
+        // Interest (only if debt exists)
+        if (interestAmount > 0) {
+            Global.getSector().getCampaignUI().addMessage(
+                "-" + interestAmount + " interest",
+                Color.RED
+            );
+        }
+        
+        // Current balance
+        Color balanceColor = newBalance >= 0 ? Color.GREEN : Color.RED;
+        Global.getSector().getCampaignUI().addMessage(
+            "Balance: " + newBalance + " Stargems",
+            balanceColor
+        );
+        
+        // VIP ad (random)
+        if (!CasinoConfig.VIP_ADS.isEmpty()) {
+            String ad = CasinoConfig.VIP_ADS.get(random.nextInt(CasinoConfig.VIP_ADS.size()));
+            Global.getSector().getCampaignUI().addMessage(
+                "[VIP] " + ad,
+                Color.CYAN
+            );
+        }
+    }
+    
+    /**
+     * Sends debt warning notification for non-VIP players with negative balance.
+     * Format: -X interest (red) | Balance: Y (red) | Warning
+     */
+    private void sendDebtWarningNotification(int interestAmount, int oldBalance) {
+        int newBalance = getBalance();
+        
+        // Interest
+        if (interestAmount > 0) {
+            Global.getSector().getCampaignUI().addMessage(
+                "-" + interestAmount + " interest",
+                Color.RED
+            );
+        }
+        
+        // Current balance (always negative in this case)
+        Global.getSector().getCampaignUI().addMessage(
+            "Balance: " + newBalance + " Stargems",
+            Color.RED
+        );
+        
+        // Warning about debt collector
+        Global.getSector().getCampaignUI().addMessage(
+            "WARNING: Debt collectors may be dispatched!",
+            Color.ORANGE
         );
     }
     
-    // Get player's stargem balance (credit wallet)
-    public static int getStargems() {
+    /**
+     * Get player's Stargem balance.
+     * Can be negative if player is using overdraft facility.
+     *
+     * @return Current balance in Stargems (negative = debt)
+     */
+    public static int getBalance() {
         return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_stargems");
     }
 
-    // Get player's debt amount (debt wallet)
-    public static int getDebt() {
-        return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_debt_amount");
+    /**
+     * Alias for getBalance().
+     * Get player's Stargem balance.
+     *
+     * @return Current balance in Stargems (negative = debt)
+     */
+    public static int getStargems() {
+        return getBalance();
     }
 
-    // Get cumulative VIP passes bought
+    /**
+     * Get cumulative VIP passes purchased.
+     * Used for credit ceiling calculation.
+     * 
+     * @return Total number of VIP passes purchased
+     */
     public static int getCumulativeVIPPurchases() {
         return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_cumulative_vip_purchases");
     }
 
-    // Get cumulative top-up amount (including ship sales)
+    /**
+     * Get cumulative top-up amount (including ship sales).
+     * Used for credit ceiling calculation.
+     * 
+     * @return Total gems added to account
+     */
     public static int getCumulativeTopupAmount() {
         return Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_cumulative_topup_amount");
     }
 
-    // Add to player's stargem balance (credit wallet)
-    public static void addStargems(int amount) {
-        int current = getStargems();
-        int newAmount = Math.max(0, current + amount); // Ensure non-negative balance
+    /**
+     * Add to player's Stargem balance.
+     * Positive amount = add gems, Negative amount = spend gems.
+     * Can result in negative balance (overdraft) if within credit ceiling.
+     * 
+     * AI_AGENT_NOTE: This is the ONLY method that should modify $ipc_stargems.
+     * Never modify the memory key directly - always use this method.
+     * 
+     * @param amount Amount to add (positive) or subtract (negative)
+     */
+    public static void addToBalance(int amount) {
+        int current = getBalance();
+        int newAmount = current + amount;
         Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_stargems", newAmount);
         
         // If adding gems and amount is positive, update cumulative topup amount
         if (amount > 0) {
             addCumulativeTopup(amount);
         }
-        
-        // Check if player has paid off debt and reset debt collector flag if needed
-        checkDebtPayment();
     }
 
-    // Add to player's debt amount (debt wallet)
-    public static void addDebt(int amount) {
-        int current = getDebt();
-        int newAmount = Math.max(0, current + amount); // Ensure non-negative debt value
-        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", newAmount);
-    }
-
-    // Add to cumulative VIP purchases
+    /**
+     * Add to cumulative VIP purchases counter.
+     * Called automatically when VIP pass is purchased.
+     * 
+     * @param passes Number of passes to add (usually 1)
+     */
     public static void addCumulativeVIPPurchases(int passes) {
         int current = getCumulativeVIPPurchases();
         int newAmount = current + passes;
         Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_vip_purchases", newAmount);
     }
 
-    // Add to cumulative top-up amount
+    /**
+     * Add to cumulative top-up amount.
+     * Called automatically when gems are added (including ship conversions).
+     * 
+     * @param amount Amount of gems added
+     */
     public static void addCumulativeTopup(int amount) {
         int current = getCumulativeTopupAmount();
         int newAmount = current + amount;
         Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_topup_amount", newAmount);
     }
 
-    // Get days remaining for VIP status
+    /**
+     * Get days remaining for VIP status.
+     * Calculates based on start time and duration.
+     * 
+     * AI_AGENT_NOTE: Includes backward compatibility for old save format
+     * where start_time was stored as day-of-month instead of timestamp.
+     * Old format values are small (< 1 billion), new format are large timestamps.
+     * 
+     * @return Number of days remaining (0 if expired)
+     */
     public static int getDaysRemaining() {
         CampaignClockAPI clock = Global.getSector().getClock();
         long startTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong("$ipc_vip_start_time");
@@ -183,9 +389,16 @@ public class CasinoVIPManager {
         return Math.max(0, remaining);
     }
 
-
-
-    // Add subscription days to VIP status
+    /**
+     * Add subscription days to VIP status.
+     * If no active VIP, starts new subscription from current time.
+     * If active VIP, extends current subscription.
+     * 
+     * AI_AGENT NOTE: Resets last reward time to -1 to ensure player gets
+     * immediate reward on purchase day (86400L check will pass).
+     * 
+     * @param days Number of days to add
+     */
     public static void addSubscriptionDays(int days) {
         CampaignClockAPI clock = Global.getSector().getClock();
         int newDuration;
@@ -208,65 +421,51 @@ public class CasinoVIPManager {
         addCumulativeVIPPurchases(1); // Count this as one VIP purchase
     }
 
-    // Get the debt ceiling based on dynamic calculation
-    public static int getDebtCeiling() {
+    /**
+     * Calculate credit ceiling based on VIP purchases and top-up history.
+     * 
+     * Formula: BASE + (vipPurchases * VIP_INCREASE) + (topupAmount * MULTIPLIER)
+     * 
+     * @return Maximum credit limit in Stargems
+     */
+    public static int getCreditCeiling() {
         int baseCeiling = CasinoConfig.BASE_DEBT_CEILING;
-        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.VIP_PASS_CEILING_INCREASE;
+        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.CEILING_INCREASE_PER_VIP;
         int topupIncrease = (int) (getCumulativeTopupAmount() * CasinoConfig.TOPUP_CEILING_MULTIPLIER);
         
         return baseCeiling + vipIncrease + topupIncrease;
     }
 
-    // Get available credit (ceiling - current debt)
+    /**
+     * Get available credit for spending.
+     * This is how much more the player can spend before hitting the ceiling.
+     * 
+     * AI_AGENT NOTE: Formula is ceiling + balance (balance can be negative).
+     * Example: ceiling=5000, balance=-2000 -> available=3000
+     * Example: ceiling=5000, balance=1000 -> available=6000
+     * 
+     * @return Available credit in Stargems
+     */
     public static int getAvailableCredit() {
-        int ceiling = getDebtCeiling();
-        int debt = getDebt();
-        return ceiling - debt;
+        int ceiling = getCreditCeiling();
+        int balance = getBalance();
+        
+        // If balance is positive, they can spend up to balance + ceiling (overdraft)
+        // If balance is negative, they can spend up to ceiling - |balance|
+        return ceiling + balance;
     }
 
-    // Apply monthly interest to debt
-    public static void applyInterest() {
-        int currentDebt = getDebt();
-        if (currentDebt > 0) {
-            float interestAmount = currentDebt * CasinoConfig.VIP_INTEREST_RATE;
-            addDebt((int) interestAmount);
-        }
-    }
-    
-    // Pay off debt using stargems
-    public static boolean payDebt(int amount) {
-        int currentStargems = getStargems();
-        int currentDebt = getDebt();
-        
-        if (amount > currentStargems) {
-            return false; // Not enough stargems to pay
-        }
-        
-        if (amount > currentDebt) {
-            amount = currentDebt; // Can't pay more than debt
-        }
-        
-        addStargems(-amount);
-        subtractDebt(amount); // Subtract from debt
-        
-        // Check if player has paid off debt and reset debt collector flag if needed
-        checkDebtPayment();
-        
-        return true;
-    }
-    
-    // Helper method to subtract from debt (when paying)
-    public static void subtractDebt(int amount) {
-        int current = getDebt();
-        int newAmount = Math.max(0, current - amount); // Ensure non-negative debt value
-        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", newAmount);
-    }
-    
-    // Initialize the debt system if not already initialized
-    public static void initializeDebtSystem() {
-        // Initialize debt amount if not set
-        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_debt_amount")) {
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_debt_amount", 0);
+    /**
+     * Initialize the casino system for a new player or save.
+     * Sets default values for all memory keys if not already present.
+     * 
+     * AI_AGENT NOTE: This is safe to call multiple times - it only sets
+     * values if the keys don't already exist (uses contains() check).
+     */
+    public static void initializeSystem() {
+        // Initialize balance if not set
+        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_stargems")) {
+            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_stargems", 0);
         }
         
         // Initialize cumulative VIP purchases if not set
@@ -280,14 +479,50 @@ public class CasinoVIPManager {
         }
     }
     
-    // Check if player has paid off their debt and reset the debt collector flag if needed
-    private static void checkDebtPayment() {
-        int availableCredit = getAvailableCredit();
+    /**
+     * Checks if overdraft is available for the player.
+     * Overdraft is only available to VIP pass subscribers.
+     * 
+     * @return true if player has active VIP pass, false otherwise
+     */
+    public static boolean isOverdraftAvailable() {
+        return getDaysRemaining() > 0;
+    }
+    
+    /**
+     * Gets the current debt amount (absolute value of negative balance).
+     * 
+     * @return debt amount (0 if balance is positive)
+     */
+    public static int getDebt() {
+        int balance = getBalance();
+        return balance < 0 ? -balance : 0;
+    }
+    
+    /**
+     * Toggles between daily and monthly VIP notification modes.
+     * 
+     * @return true if now in monthly mode, false if daily mode
+     */
+    public static boolean toggleMonthlyNotificationMode() {
+        boolean currentMode = Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
+        boolean newMode = !currentMode;
+        Global.getSector().getPlayerMemoryWithoutUpdate().set(MONTHLY_NOTIFY_MODE_KEY, newMode);
         
-        // If player has paid off their debt (available credit is positive again), reset the debt collector flag
-        if (availableCredit >= 0) {
-            // Reset the debt collectors active flag so they can be spawned again if player goes into debt
-            Global.getSector().getMemoryWithoutUpdate().unset("$ipc_debt_collectors_active");
+        if (newMode) {
+            // When enabling monthly mode, set the last notify time to now
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, Global.getSector().getClock().getTimestamp());
         }
+        
+        return newMode;
+    }
+    
+    /**
+     * Checks if monthly notification mode is enabled.
+     * 
+     * @return true if monthly mode, false if daily mode
+     */
+    public static boolean isMonthlyNotificationMode() {
+        return Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
     }
 }

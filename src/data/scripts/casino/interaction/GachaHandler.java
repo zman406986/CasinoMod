@@ -49,26 +49,28 @@ public class GachaHandler {
     
     private boolean canAffordTransaction(int amount) {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
-        return availableCredit >= amount; // Player can afford if they have enough gems or available credit
+        return availableCredit >= amount; // Player can afford if they have enough available credit
     }
     
     private void displayFinancialInfo() {
-        int currentGems = CasinoVIPManager.getStargems();
-        int debtCeiling = CasinoVIPManager.getDebtCeiling();
-        int currentDebt = CasinoVIPManager.getDebt();
+        int currentBalance = CasinoVIPManager.getBalance();
+        int creditCeiling = CasinoVIPManager.getCreditCeiling();
         int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int daysRemaining = CasinoVIPManager.getDaysRemaining();
         
         main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
-        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
-        main.textPanel.addPara("Overdraft Ceiling: " + debtCeiling, Color.GRAY);
         
-        if (currentDebt > 0) {
-            main.textPanel.addPara("Used Overdraft: " + currentDebt, Color.YELLOW);
-            main.textPanel.addPara("Remaining Credit: " + availableCredit, Color.YELLOW);
-        } else {
-            main.textPanel.addPara("Used Overdraft: 0", Color.GREEN);
-            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        // Show balance with color coding
+        Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
+        main.textPanel.addPara("Balance: " + currentBalance + " Stargems", balanceColor);
+        
+        main.textPanel.addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
+        main.textPanel.addPara("Available Credit: " + availableCredit, Color.YELLOW);
+        
+        if (daysRemaining > 0) {
+            main.textPanel.addPara("VIP: " + daysRemaining + " days", Color.CYAN);
         }
+        
         main.textPanel.addPara("------------------------", Color.CYAN);
     }
 
@@ -129,7 +131,7 @@ public class GachaHandler {
         main.textPanel.addPara("- 5* Pity: " + data.pity5 + "/" + CasinoConfig.PITY_HARD_5);
         main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
         
-        // Show account balance in IPC format
+        // Show account balance
         displayFinancialInfo();
         
         // Show pull options if player can afford them within their available credit
@@ -149,18 +151,18 @@ public class GachaHandler {
     private void showGachaConfirm(int times) {
         main.options.clearOptions();
         int cost = times * CasinoConfig.GACHA_COST;
-        int currentGems = CasinoVIPManager.getStargems();
+        int currentBalance = CasinoVIPManager.getBalance();
         
-        if (currentGems < cost) {
+        if (currentBalance < cost) {
             int availableCredit = CasinoVIPManager.getAvailableCredit();
             if (availableCredit < cost) {
-                main.textPanel.addPara("Insufficient Stargems! You have reached your debt ceiling.", Color.RED);
+                main.textPanel.addPara("Insufficient credit! You have reached your credit ceiling.", Color.RED);
                 showGachaMenu();
                 return;
             }
             
-            int debtAmount = cost - currentGems;
-            showOverdraftConfirm(times, cost, debtAmount);
+            int overdraftAmount = cost - currentBalance;
+            showOverdraftConfirm(times, cost, overdraftAmount);
         } else {
             main.textPanel.addPara("Confirm initiating Warp Sequence " + times + "x for " + cost + " Stargems?", Color.YELLOW);
             main.options.addOption("Confirm Warp", "confirm_pull_" + times);
@@ -168,20 +170,48 @@ public class GachaHandler {
         }
     }
     
-    private void showOverdraftConfirm(int times, int cost, int debtAmount) {
+    private void showOverdraftConfirm(int times, int cost, int overdraftAmount) {
         main.options.clearOptions();
+        
+        // Check if overdraft is available (requires VIP)
+        if (!CasinoVIPManager.isOverdraftAvailable()) {
+            showVIPPromotionForOverdraft(times, cost);
+            return;
+        }
         
         main.textPanel.addPara("IPC CREDIT ALERT", Color.ORANGE);
         main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
-        main.textPanel.addPara("Available Stargems: " + CasinoVIPManager.getStargems(), Color.GRAY);
+        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
         main.textPanel.addPara("Transaction Cost: " + cost + " Stargems", Color.GRAY);
-        main.textPanel.addPara("Required Overdraft: " + debtAmount + " Stargems", Color.RED);
+        main.textPanel.addPara("Required Overdraft: " + overdraftAmount + " Stargems", Color.RED);
         main.textPanel.addPara("");
-        main.textPanel.addPara("The IPC extends credit facilities to valued customers. Overdraft will be added to your account balance.", Color.CYAN);
-        main.textPanel.addPara("Note: Outstanding balances accrue 5% monthly interest. The Corporate Reconciliation Team may contact you regarding payment.", Color.YELLOW);
+        main.textPanel.addPara("The IPC extends credit facilities to valued customers. Your balance will go negative.", Color.CYAN);
+        main.textPanel.addPara("Note: Negative balances accrue " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily interest. The Corporate Reconciliation Team may contact you regarding payment.", Color.YELLOW);
         
         main.options.addOption("Authorize Overdraft", "confirm_pull_" + times);
         main.options.addOption("What is IPC Credit?", "explain_ipc_credit");
+        main.options.addOption("Cancel", "gacha_menu");
+    }
+    
+    private void showVIPPromotionForOverdraft(int times, int cost) {
+        main.textPanel.addPara("INSUFFICIENT STARGEMS", Color.RED);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
+        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
+        main.textPanel.addPara("Transaction Cost: " + cost + " Stargems", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
+        main.textPanel.addPara("Overdraft protection is exclusively available to VIP Pass subscribers.", Color.WHITE);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("VIP PASS BENEFITS:", Color.GREEN);
+        main.textPanel.addPara("- Access to IPC Credit Facility (overdraft protection)", Color.GRAY);
+        main.textPanel.addPara("- " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily reward", Color.GRAY);
+        main.textPanel.addPara("- Reduced debt interest rate (" + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily)", Color.GRAY);
+        main.textPanel.addPara("- Increased credit ceiling per purchase", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Purchase a VIP Pass from Financial Services to unlock overdraft protection!", Color.YELLOW);
+        
+        main.options.addOption("Go to Financial Services", "financial_menu");
         main.options.addOption("Cancel", "gacha_menu");
     }
     
@@ -194,13 +224,13 @@ public class GachaHandler {
         main.textPanel.addPara("");
         main.textPanel.addPara("HOW IT WORKS:", Color.YELLOW);
         main.textPanel.addPara("- Your account has a credit ceiling based on your VIP status and purchase history.", Color.GRAY);
-        main.textPanel.addPara("- You may exceed your Stargem balance up to this ceiling.", Color.GRAY);
-        main.textPanel.addPara("- Overdraft amounts are recorded as account balance (debt).", Color.GRAY);
+        main.textPanel.addPara("- You may spend beyond your current balance up to this ceiling.", Color.GRAY);
+        main.textPanel.addPara("- Your balance becomes negative when using credit.", Color.GRAY);
         main.textPanel.addPara("");
         main.textPanel.addPara("INTEREST & COLLECTIONS:", Color.YELLOW);
-        main.textPanel.addPara("- Outstanding balances accrue 5% monthly interest on the 15th.", Color.GRAY);
+        main.textPanel.addPara("- Negative balances accrue daily interest.", Color.GRAY);
         main.textPanel.addPara("- Continued delinquency may prompt Corporate Reconciliation Team intervention.", Color.GRAY);
-        main.textPanel.addPara("- Pay off debt anytime through the Financial Services menu.", Color.GRAY);
+        main.textPanel.addPara("- Earn Stargems through gameplay or purchase packages to restore positive balance.", Color.GRAY);
         main.textPanel.addPara("");
         main.textPanel.addPara("INCREASING YOUR CREDIT CEILING:", Color.YELLOW);
         main.textPanel.addPara("- Purchase VIP Passes for permanent ceiling increases.", Color.GRAY);
@@ -218,35 +248,22 @@ public class GachaHandler {
         }
         
         int cost = times * CasinoConfig.GACHA_COST;
-        int currentGems = CasinoVIPManager.getStargems();
+        int currentBalance = CasinoVIPManager.getBalance();
         
-        // Check if player has enough gems or available credit
-        if (currentGems < cost) {
-            // Check if they have enough available credit to go into debt
-            int availableCredit = CasinoVIPManager.getAvailableCredit();
-            if (availableCredit < cost) {
-                main.textPanel.addPara("IPC CREDIT DENIED: Transaction exceeds your credit ceiling.", Color.RED);
-                main.textPanel.addPara("Please contact Financial Services to increase your credit limit or settle outstanding balances.", Color.YELLOW);
-                showGachaMenu();
-                return;
-            }
-            
-            // Player can afford by going into debt
-            // Add debt equal to the difference
-            int debtToAdd = cost - currentGems;
-            CasinoVIPManager.addDebt(debtToAdd);
-            CasinoVIPManager.addStargems(-currentGems); // Spend all available gems
-        } else {
-            // Player has enough gems to cover the cost
-            CasinoVIPManager.addStargems(-cost);
+        // Check if player has enough available credit
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        if (availableCredit < cost) {
+            main.textPanel.addPara("IPC CREDIT DENIED: Transaction exceeds your credit ceiling.", Color.RED);
+            main.textPanel.addPara("Please contact Financial Services to increase your credit limit.", Color.YELLOW);
+            showGachaMenu();
+            return;
         }
+        
+        // Simply deduct from balance (can go negative)
+        CasinoVIPManager.addToBalance(-cost);
         
         CasinoGachaManager manager = new CasinoGachaManager();
         main.textPanel.addPara("Initiating Warp Sequence...", Color.CYAN);
-        
-        // Play gacha pull sound
-        // Removed sound effect as it was removed from sounds.json
-// Global.getSoundPlayer().playUISound("gacha_pull", 1f, 1f);
         
         // Collect ships that were obtained from the pulls
         List<FleetMemberAPI> obtainedShips = new ArrayList<>();
@@ -360,15 +377,15 @@ public class GachaHandler {
                         // Check if ship is in auto-convert list (highest priority)
                         if (data.autoConvertIds.contains(ship.getHullId())) {
                             // Convert the ship to stargems (regardless of selection)
-                            int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-                            CasinoVIPManager.addStargems(val);
+                            int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+                            CasinoVIPManager.addToBalance(val);
                             main.textPanel.addPara("Auto-converted " + (ship.getShipName() != null ? ship.getShipName() : "Unknown Ship") + " to " + val + " Stargems.", Color.GREEN);
-                        } 
+                        }
                         // Check if ship was selected to be converted (picked by user)
                         else if (selectedHullIds.contains(ship.getHullId())) {
                             // Convert the ship to stargems
-                            int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-                            CasinoVIPManager.addStargems(val);
+                            int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+                            CasinoVIPManager.addToBalance(val);
                             main.textPanel.addPara("Converted " + (ship.getShipName() != null ? ship.getShipName() : "Unknown Ship") + " to " + val + " Stargems.", Color.GREEN);
                         } 
                         // Otherwise, the ship was not selected, so keep it
