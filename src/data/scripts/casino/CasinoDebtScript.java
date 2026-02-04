@@ -219,7 +219,7 @@ public class CasinoDebtScript implements EveryFrameScript {
                         Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
                     } else {
                         // Spawn failed, stay in PENDING and try again
-                        Global.getLogger(this.getClass()).warning("Debt collector fleet spawn failed, will retry");
+                        Global.getLogger(this.getClass()).warn("Debt collector fleet spawn failed, will retry");
                     }
                 }
             }
