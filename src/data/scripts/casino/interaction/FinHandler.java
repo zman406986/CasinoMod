@@ -7,43 +7,119 @@ import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import java.awt.Color;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Predicate;
 
 public class FinHandler {
 
     private final CasinoInteraction main;
+    private final Random random = new Random();
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
-    
+
+    // CAPTCHA question class
+    private static class CaptchaQuestion {
+        final String question;
+        final String[] options;
+        final int correctIndex;
+
+        CaptchaQuestion(String question, String[] options, int correctIndex) {
+            this.question = question;
+            this.options = options;
+            this.correctIndex = correctIndex;
+        }
+    }
+
+    // Pool of CAPTCHA questions
+    private final List<CaptchaQuestion> captchaQuestions = new ArrayList<>();
+    private int currentCaptchaIndex = -1;
+    private int holdWaitCount = 0;
+
     public FinHandler(CasinoInteraction main) {
         this.main = main;
+        initializeCaptchaQuestions();
         initializeHandlers();
+    }
+
+    private void initializeCaptchaQuestions() {
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is 15 + 27?",
+            new String[]{"42", "52", "412"},
+            1
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is (7 × 8) + 3?",
+            new String[]{"59", "77", "83"},
+            0
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is the square root of 144?",
+            new String[]{"12", "14", "24"},
+            0
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is 100 - 37?",
+            new String[]{"53", "63", "73"},
+            1
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is 9 × 7?",
+            new String[]{"56", "63", "72"},
+            1
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: Solve for X: X + 23 = 50",
+            new String[]{"27", "33", "37"},
+            0
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is 144 ÷ 12?",
+            new String[]{"10", "11", "12"},
+            2
+        ));
+        captchaQuestions.add(new CaptchaQuestion(
+            "Security Verification: What is 8² + 4?",
+            new String[]{"64", "68", "72"},
+            1
+        ));
     }
     
     private void initializeHandlers() {
         // Exact match handlers
         handlers.put("financial_menu", option -> showTopUpMenu());
         handlers.put("buy_chips", option -> showTopUpMenu());
+
+        // New ISP/Tech Support themed cashout flow
         handlers.put("cash_out", option -> performCashOut());
-        handlers.put("cash_out_insist", option -> performCashOutInsist());
-        handlers.put("cash_out_queue", option -> performCashOutQueue());
-        handlers.put("cash_out_department", option -> performCashOutDepartment());
-        handlers.put("cash_out_form", option -> performCashOutForm());
-        handlers.put("cash_out_confirm", option -> performCashOutConfirm());
+        handlers.put("cash_out_phone", option -> performCashOutPhone());
+        handlers.put("cash_out_phone_billing", option -> performCashOutPhoneDeadEnd("billing"));
+        handlers.put("cash_out_phone_sales", option -> performCashOutPhoneDeadEnd("sales"));
+        handlers.put("cash_out_phone_support", option -> performCashOutHold());
+        handlers.put("cash_out_hold", option -> performCashOutHold());
+        handlers.put("cash_out_captcha", option -> performCashOutCaptcha());
+        handlers.put("cash_out_tier1", option -> performCashOutTier1());
+        handlers.put("cash_out_escalate", option -> performCashOutEscalate());
         handlers.put("cash_out_final", option -> performCashOutFinal());
         handlers.put("cash_out_return", option -> performCashOutReturn());
-        handlers.put("cash_out_return_queue", option -> performCashOutReturnQueue());
-        handlers.put("cash_out_return_department", option -> performCashOutReturnDepartment());
-        handlers.put("cash_out_return_error", option -> performCashOutReturnDepartment());
+        handlers.put("cash_out_return_hold", option -> performCashOutReturnHold());
+
+        // CAPTCHA answer handlers (will be generated dynamically)
+        handlers.put("captcha_wrong_1", option -> performCashOutCaptchaWrong(1));
+        handlers.put("captcha_wrong_2", option -> performCashOutCaptchaWrong(2));
+
         handlers.put("buy_vip", option -> showTopUpConfirm(-1, true));
         handlers.put("confirm_buy_vip", option -> purchaseVIPPass());
         handlers.put("buy_ship", option -> openShipTradePicker());
+        handlers.put("pay_debt", option -> showDebtPaymentMenu());
+        handlers.put("pay_debt_full", option -> payDebtInFull());
+        handlers.put("pay_debt_partial", option -> showPartialDebtPaymentMenu());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
-        
+
         // Predicate-based handlers for pattern matching
         predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
             int index = Integer.parseInt(option.replace("buy_pack_", ""));
@@ -52,6 +128,14 @@ public class FinHandler {
         predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
             int index = Integer.parseInt(option.replace("confirm_buy_pack_", ""));
             purchaseGemPack(CasinoConfig.GEM_PACKAGES.get(index).gems, CasinoConfig.GEM_PACKAGES.get(index).cost);
+        });
+        predicateHandlers.put(option -> option.startsWith("pay_debt_amount_"), option -> {
+            int amount = Integer.parseInt(option.replace("pay_debt_amount_", ""));
+            payDebtAmount(amount);
+        });
+        predicateHandlers.put(option -> option.startsWith("captcha_answer_"), option -> {
+            int answerIndex = Integer.parseInt(option.replace("captcha_answer_", ""));
+            checkCaptchaAnswer(answerIndex);
         });
     }
 
@@ -99,6 +183,13 @@ public class FinHandler {
         main.getOptions().addOption("Sell Ships for Stargems", "buy_ship");
         main.getOptions().addOption("VIP Subscription Pass", "buy_vip");
         main.getOptions().addOption("Cash Out", "cash_out");
+        
+        // Show debt payment option if player has debt
+        int currentDebt = CasinoVIPManager.getDebt();
+        if (currentDebt > 0) {
+            main.getOptions().addOption("Pay Off Debt (" + currentDebt + " Stargems owed)", "pay_debt");
+        }
+        
         main.getOptions().addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
@@ -146,145 +237,267 @@ public class FinHandler {
         showTopUpMenu();
     }
 
+    // ==================== NEW ISP/TECH SUPPORT CASHOUT FLOW ====================
+
     private void performCashOut() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("We appreciate your business!", Color.YELLOW);
-        main.textPanel.addPara("However, we strongly encourage you to spend all your Stargems on ship pulls.", Color.ORANGE);
-        main.textPanel.addPara("Our collection of rare ships from across the galaxy is truly unmatched.", Color.CYAN);
-        
-        main.getOptions().addOption("I insist on cashing out", "cash_out_insist");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Thank you for calling Tachy-Impact Customer Support!", Color.YELLOW);
+        main.textPanel.addPara("Your credits are important to us. Please listen carefully as our menu options have changed.", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Did you know? You can spend your Stargems on rare ships right now! No waiting required!", Color.CYAN);
+
+        main.getOptions().addOption("Continue to Support Menu", "cash_out_phone");
+        main.getOptions().addOption("Hang Up (Cancel)", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
-    private void performCashOutInsist() {
+
+    private void performCashOutPhone() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Very well. We can process your cashout request.", Color.YELLOW);
-        main.textPanel.addPara("However, please note that this transaction requires multiple levels of approval.", Color.ORANGE);
-        main.textPanel.addPara("Our banking system processes all requests in the order they are received.", Color.GRAY);
-        
-        main.getOptions().addOption("Proceed to queue", "cash_out_queue");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Automated Support System", Color.YELLOW);
+        main.textPanel.addPara("For billing inquiries, press 1.", Color.GRAY);
+        main.textPanel.addPara("For sales and new accounts, press 2.", Color.GRAY);
+        main.textPanel.addPara("For technical support, press 3.", Color.GRAY);
+        main.textPanel.addPara("To speak with a representative, press 0.", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("*Note: Option 0 is currently unavailable in your sector.*", Color.RED);
+
+        main.getOptions().addOption("Press 1 - Billing", "cash_out_phone_billing");
+        main.getOptions().addOption("Press 2 - Sales", "cash_out_phone_sales");
+        main.getOptions().addOption("Press 3 - Technical Support", "cash_out_phone_support");
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
-    private void performCashOutQueue() {
+
+    private void performCashOutPhoneDeadEnd(String department) {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Welcome to the Cashout Queue Management System.", Color.YELLOW);
-        main.textPanel.addPara("Your position in queue: 4,723", Color.RED);
-        main.textPanel.addPara("Estimated wait time: 3-5 business days for queue processing.", Color.ORANGE);
-        main.textPanel.addPara("Please select your preferred queue tier:", Color.GRAY);
-        
-        main.getOptions().addOption("Standard Queue (Free)", "cash_out_department");
-        main.getOptions().addOption("Express Queue (500 Credits)", "cash_out_department");
-        main.getOptions().addOption("VIP Queue (Requires VIP Status)", "cash_out_department");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+
+        if (department.equals("billing")) {
+            main.textPanel.addPara("Billing Department", Color.YELLOW);
+            main.textPanel.addPara("We're sorry, but our billing system is currently experiencing high call volumes.", Color.ORANGE);
+            main.textPanel.addPara("Please try again later or visit our website at www.tachy-impact.nope", Color.GRAY);
+        } else {
+            main.textPanel.addPara("Sales Department", Color.YELLOW);
+            main.textPanel.addPara("Great news! We have a special offer on Stargem packages today!", Color.CYAN);
+            main.textPanel.addPara("Unfortunately, we cannot process cashouts through this line.", Color.ORANGE);
+        }
+
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Returning to main menu...", Color.GRAY);
+
+        main.getOptions().addOption("Return to Phone Menu", "cash_out_phone");
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
-    private void performCashOutDepartment() {
+
+    private void performCashOutHold() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Department Selection", Color.YELLOW);
-        main.textPanel.addPara("Please select the appropriate department for your cashout request:", Color.GRAY);
-        
-        main.getOptions().addOption("Department of Fund Disbursement", "cash_out_form");
-        main.getOptions().addOption("Department of Asset Liquidation", "cash_out_form");
-        main.getOptions().addOption("Department of Transaction Verification", "cash_out_form");
-        main.getOptions().addOption("Department of Regulatory Compliance", "cash_out_form");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        holdWaitCount++;
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Please hold for the next available representative...", Color.YELLOW);
+        main.textPanel.addPara("", Color.GRAY);
+
+        // Escalating wait times
+        String[] waitMessages = {
+            "Your estimated wait time is: 4 minutes",
+            "Your estimated wait time is: 12 minutes",
+            "Your estimated wait time is: 47 minutes",
+            "Your estimated wait time is: 2 hours",
+            "Your estimated wait time is: UNAVAILABLE"
+        };
+
+        String[] holdMusic = {
+            "*Elevator music plays softly in the background...*",
+            "*A synth version of 'Fractured Spacetime' plays on loop...*",
+            "*Static crackles occasionally interrupt the silence...*",
+            "*Someone is humming off-key in the distance...*",
+            "*The hold music skips and repeats the same 3-second clip...*"
+        };
+
+        String[] funFacts = {
+            "Did you know? Tachy-Impact processes over 50 transactions per day!",
+            "Fun fact: Our VIP members enjoy 5% better hold music quality!",
+            "Reminder: Spending Stargems is faster than cashing out!",
+            "Tip of the day: Premium ships appreciate in value!",
+            "Did you know? 9 out of 10 customers give up before reaching a representative!"
+        };
+
+        int index = Math.min(holdWaitCount - 1, waitMessages.length - 1);
+        main.textPanel.addPara(waitMessages[index], Color.ORANGE);
+        main.textPanel.addPara(holdMusic[index], Color.GRAY);
+
+        if (holdWaitCount >= 3) {
+            main.textPanel.addPara(funFacts[random.nextInt(funFacts.length)], Color.CYAN);
+        }
+
+        if (holdWaitCount >= 5) {
+            // Finally connect to someone
+            main.textPanel.addPara("", Color.GRAY);
+            main.textPanel.addPara("A representative is now available!", Color.GREEN);
+            main.getOptions().addOption("Connect to Representative", "cash_out_captcha");
+        } else {
+            main.getOptions().addOption("Continue Holding", "cash_out_hold");
+        }
+
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
-    private void performCashOutForm() {
+
+    private void performCashOutCaptcha() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Form Submission Required", Color.YELLOW);
-        main.textPanel.addPara("Please complete the following forms:", Color.GRAY);
-        main.textPanel.addPara("- Form 7B: Request for Fund Disbursement", Color.ORANGE);
-        main.textPanel.addPara("- Form 12C: Asset Liquidation Authorization", Color.ORANGE);
-        main.textPanel.addPara("- Form 24A: Tax Compliance Declaration", Color.ORANGE);
-        main.textPanel.addPara("- Form 31D: Risk Assessment Questionnaire", Color.ORANGE);
-        main.textPanel.addPara("- Form 45F: Anti-Money Laundering Certification", Color.ORANGE);
-        
-        main.getOptions().addOption("Submit all forms", "cash_out_confirm");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        holdWaitCount = 0; // Reset for potential future holds
+
+        // Pick a random question
+        currentCaptchaIndex = random.nextInt(captchaQuestions.size());
+        CaptchaQuestion q = captchaQuestions.get(currentCaptchaIndex);
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Security Verification Required", Color.YELLOW);
+        main.textPanel.addPara("Before we proceed, please complete this security verification:", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara(q.question, Color.CYAN);
+
+        // Add options for each answer
+        for (int i = 0; i < q.options.length; i++) {
+            String optionId = (i == q.correctIndex) ? "captcha_answer_" + i : "captcha_wrong_" + i;
+            main.getOptions().addOption(q.options[i], optionId);
+        }
+
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
-    private void performCashOutConfirm() {
+
+    private void checkCaptchaAnswer(int answerIndex) {
+        if (currentCaptchaIndex >= 0 && currentCaptchaIndex < captchaQuestions.size()) {
+            CaptchaQuestion q = captchaQuestions.get(currentCaptchaIndex);
+            if (answerIndex == q.correctIndex) {
+                performCashOutTier1();
+            } else {
+                performCashOutCaptchaWrong(answerIndex);
+            }
+        }
+    }
+
+    private void performCashOutCaptchaWrong(int wrongIndex) {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Form Submission Successful", Color.YELLOW);
-        main.textPanel.addPara("Your request has been submitted for review.", Color.ORANGE);
-        main.textPanel.addPara("Processing time: 30 business days.", Color.RED);
-        main.textPanel.addPara("Please note: You must return after 30 business days to complete this transaction.", Color.GRAY);
-        main.textPanel.addPara("Failure to return within 60 business days will result in request cancellation.", Color.RED);
-        
-        main.getOptions().addOption("I understand. Return in 30 business days.", "cash_out_final");
+
+        String[] wrongResponses = {
+            "That answer doesn't match our records. Please try again.",
+            "Incorrect. Are you sure you're not a robot?",
+            "Wrong answer. Let me transfer you back to the beginning... just kidding, try again!",
+            "Error: Mathematical calculation mismatch detected.",
+            "That is not the answer we were looking for."
+        };
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara(wrongResponses[random.nextInt(wrongResponses.length)], Color.RED);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Please try again:", Color.YELLOW);
+
+        // Show the same question again
+        if (currentCaptchaIndex >= 0 && currentCaptchaIndex < captchaQuestions.size()) {
+            CaptchaQuestion q = captchaQuestions.get(currentCaptchaIndex);
+            main.textPanel.addPara(q.question, Color.CYAN);
+
+            for (int i = 0; i < q.options.length; i++) {
+                String optionId = (i == q.correctIndex) ? "captcha_answer_" + i : "captcha_wrong_" + i;
+                main.getOptions().addOption(q.options[i], optionId);
+            }
+        }
+
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
-    
+
+    private void performCashOutTier1() {
+        main.getOptions().clearOptions();
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Representative: 'Steve'", Color.YELLOW);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Hello! Thank you for holding. My name is Steve.", Color.CYAN);
+        main.textPanel.addPara("I understand you'd like to cash out your Stargems.", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Have you tried spending your Stargems on our premium ship collection instead?", Color.ORANGE);
+        main.textPanel.addPara("We have some excellent deals right now!", Color.CYAN);
+
+        main.getOptions().addOption("No, I want to cash out", "cash_out_escalate");
+        main.getOptions().addOption("Tell me about the ships", "cash_out_escalate");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+
+    private void performCashOutEscalate() {
+        main.getOptions().clearOptions();
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Representative: 'Steve'", Color.YELLOW);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("I see. Let me transfer you to our Senior Account Specialist.", Color.CYAN);
+        main.textPanel.addPara("They have the authority to process cashout requests.", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("*Transferring...*", Color.ORANGE);
+        main.textPanel.addPara("*Click...*", Color.GRAY);
+        main.textPanel.addPara("*Hold music resumes...*", Color.GRAY);
+
+        main.getOptions().addOption("Continue Holding", "cash_out_final");
+        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+
     private void performCashOutFinal() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Request Received", Color.YELLOW);
-        main.textPanel.addPara("Your cashout request has been logged in our system.", Color.ORANGE);
-        main.textPanel.addPara("Request ID: " + System.currentTimeMillis(), Color.CYAN);
-        main.textPanel.addPara("Please return in exactly 30 business days.", Color.RED);
-        main.textPanel.addPara("Have a pleasant day.", Color.GRAY);
-        
-        main.getOptions().addOption("Leave", "leave");
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("*Hold music continues for several minutes...*", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("We're sorry.", Color.ORANGE);
+        main.textPanel.addPara("All our senior representatives are currently assisting other customers.", Color.GRAY);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("ERROR CODE: CASH-404", Color.RED);
+        main.textPanel.addPara("Description: Representative not found", Color.RED);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Please call back during normal business hours.", Color.GRAY);
+        main.textPanel.addPara("(Normal business hours: 3:00 AM to 3:15 AM, Tuesdays only)", Color.ORANGE);
+
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
-        
-        Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 1);
+
+        // Reset any stored state
+        Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
     }
-    
+
     private void performCashOutReturn() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Welcome back. We see you have a pending cashout request.", Color.YELLOW);
-        main.textPanel.addPara("Please proceed to the queue to check on your request status.", Color.ORANGE);
-        
-        main.getOptions().addOption("Proceed to queue", "cash_out_return_queue");
-        main.getOptions().addOption("Cancel", "financial_menu");
-        main.setState(CasinoInteraction.State.FINANCIAL);
-    }
-    
-    private void performCashOutReturnQueue() {
-        main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Queue Management System", Color.YELLOW);
-        main.textPanel.addPara("Your position in queue: 8,947", Color.RED);
-        main.textPanel.addPara("Estimated wait time: 2-4 business days.", Color.ORANGE);
-        main.textPanel.addPara("Please select your department:", Color.GRAY);
-        
-        main.getOptions().addOption("Department of Request Processing", "cash_out_return_department");
-        main.getOptions().addOption("Department of Status Verification", "cash_out_return_department");
-        main.getOptions().addOption("Department of Final Approval", "cash_out_return_department");
-        main.getOptions().addOption("Cancel", "financial_menu");
-        main.setState(CasinoInteraction.State.FINANCIAL);
-    }
-    
-    private void performCashOutReturnDepartment() {
-        main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Financial Services", Color.GREEN);
-        main.textPanel.addPara("Processing Request...", Color.YELLOW);
-        main.textPanel.addPara("Accessing database...", Color.GRAY);
-        main.textPanel.addPara("Verifying request ID...", Color.GRAY);
-        main.textPanel.addPara("Checking compliance status...", Color.GRAY);
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Welcome back!", Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("ERROR: SYSTEM MALFUNCTION DETECTED", Color.RED);
-        main.textPanel.addPara("Error Code: 0x5F3A2B1C", Color.RED);
-        main.textPanel.addPara("Our technical team has been notified.", Color.ORANGE);
-        main.textPanel.addPara("Please restart the process from the beginning.", Color.GRAY);
-        
-        main.getOptions().addOption("Return to main menu", "financial_menu");
+        main.textPanel.addPara("We see you have a pending cashout request from your previous call.", Color.CYAN);
+        main.textPanel.addPara("Please hold while we connect you to a representative...", Color.GRAY);
+
+        main.getOptions().addOption("Continue to Hold", "cash_out_return_hold");
+        main.getOptions().addOption("Hang Up", "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
-        
+    }
+
+    private void performCashOutReturnHold() {
+        main.getOptions().clearOptions();
+
+        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara("Please hold...", Color.YELLOW);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Your previous request ID could not be located in our system.", Color.RED);
+        main.textPanel.addPara("Please start the process again from the beginning.", Color.ORANGE);
+        main.textPanel.addPara("", Color.GRAY);
+        main.textPanel.addPara("Thank you for choosing Tachy-Impact Financial Services!", Color.CYAN);
+
+        main.getOptions().addOption("Start Over", "cash_out");
+        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+
         Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
     }
     
@@ -304,5 +517,110 @@ public class FinHandler {
                 }
                 public void cancelledFleetMemberPicking() { showTopUpMenu(); }
             });
+    }
+    
+    private void showDebtPaymentMenu() {
+        main.getOptions().clearOptions();
+        int currentDebt = CasinoVIPManager.getDebt();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        main.textPanel.addPara("IPC Debt Settlement", Color.CYAN);
+        main.textPanel.addPara("Current Debt: " + currentDebt + " Stargems", Color.RED);
+        main.textPanel.addPara("Available Stargems: " + currentGems, Color.WHITE);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("5% monthly interest applies to outstanding balances on the 15th of each month.", Color.YELLOW);
+        main.textPanel.addPara("Corporate Reconciliation Team may be dispatched for delinquent accounts.", Color.GRAY);
+        
+        if (currentGems >= currentDebt && currentDebt > 0) {
+            main.getOptions().addOption("Pay Debt in Full (" + currentDebt + " Stargems)", "pay_debt_full");
+        }
+        
+        if (currentGems > 0 && currentDebt > 0) {
+            main.getOptions().addOption("Pay Partial Amount", "pay_debt_partial");
+        }
+        
+        main.getOptions().addOption("Back", "financial_menu");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void payDebtInFull() {
+        int currentDebt = CasinoVIPManager.getDebt();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        if (currentGems >= currentDebt && currentDebt > 0) {
+            CasinoVIPManager.payDebt(currentDebt);
+            main.textPanel.addPara("Debt paid in full! " + currentDebt + " Stargems deducted.", Color.GREEN);
+            main.textPanel.addPara("Your account is now in good standing with the IPC.", Color.CYAN);
+        } else {
+            main.textPanel.addPara("Insufficient Stargems to pay debt in full.", Color.RED);
+        }
+        
+        showTopUpMenu();
+    }
+    
+    private void showPartialDebtPaymentMenu() {
+        main.getOptions().clearOptions();
+        int currentDebt = CasinoVIPManager.getDebt();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        main.textPanel.addPara("Partial Debt Payment", Color.CYAN);
+        main.textPanel.addPara("Current Debt: " + currentDebt + " Stargems", Color.RED);
+        main.textPanel.addPara("Available Stargems: " + currentGems, Color.WHITE);
+        main.textPanel.addPara("Select amount to pay:");
+        
+        // Offer percentage-based options
+        int[] percentages = {10, 25, 50, 75};
+        for (int percent : percentages) {
+            int amount = (currentDebt * percent) / 100;
+            if (amount > 0 && amount <= currentGems) {
+                main.getOptions().addOption(percent + "% (" + amount + " Stargems)", "pay_debt_amount_" + amount);
+            }
+        }
+        
+        // Offer fixed amount options based on available gems
+        int[] fixedAmounts = {100, 500, 1000, 5000};
+        for (int amount : fixedAmounts) {
+            if (amount > 0 && amount <= currentGems && amount < currentDebt) {
+                main.getOptions().addOption(amount + " Stargems", "pay_debt_amount_" + amount);
+            }
+        }
+        
+        // Option to pay all available gems (up to debt amount)
+        int maxPayable = Math.min(currentGems, currentDebt);
+        if (maxPayable > 0) {
+            main.getOptions().addOption("Pay All Available (" + maxPayable + " Stargems)", "pay_debt_amount_" + maxPayable);
+        }
+        
+        main.getOptions().addOption("Back", "pay_debt");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+    
+    private void payDebtAmount(int amount) {
+        int currentDebt = CasinoVIPManager.getDebt();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        // Validate amount
+        if (amount > currentGems) {
+            amount = currentGems;
+        }
+        if (amount > currentDebt) {
+            amount = currentDebt;
+        }
+        
+        if (amount > 0) {
+            CasinoVIPManager.payDebt(amount);
+            main.textPanel.addPara("Paid " + amount + " Stargems toward your debt.", Color.GREEN);
+            
+            int remainingDebt = CasinoVIPManager.getDebt();
+            if (remainingDebt > 0) {
+                main.textPanel.addPara("Remaining Debt: " + remainingDebt + " Stargems", Color.YELLOW);
+            } else {
+                main.textPanel.addPara("Your account is now in good standing with the IPC.", Color.CYAN);
+            }
+        } else {
+            main.textPanel.addPara("Invalid payment amount.", Color.RED);
+        }
+        
+        showTopUpMenu();
     }
 }

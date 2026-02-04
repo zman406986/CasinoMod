@@ -92,27 +92,56 @@ public class PokerHandler {
         main.options.clearOptions();
         main.textPanel.addPara("The IPC Dealer prepares to deal. How big of a stack would you like to bring to the table?", Color.YELLOW);
         
+        // Display financial info
+        displayFinancialInfo();
+        
         int currentGems = CasinoVIPManager.getStargems();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
         int[] stackSizes = CasinoConfig.POKER_STACK_SIZES;
         String[] stackLabels = {"Small", "Medium", "Large", "Huge"};
         
         for (int i = 0; i < stackSizes.length && i < stackLabels.length; i++) {
-            if (currentGems >= stackSizes[i]) {
+            // Allow option if player has enough gems OR enough available credit (for overdraft)
+            if (currentGems >= stackSizes[i] || availableCredit >= stackSizes[i]) {
                 main.options.addOption(stackLabels[i] + " Stack (" + stackSizes[i] + " Stargems)", "poker_stack_" + stackSizes[i]);
             }
         }
         
-
         int minRequiredGems = CasinoConfig.POKER_BIG_BLIND;
+        // Only show "Bring All My Stargems" if player has enough gems in wallet
+        // If wallet is below minimum, player must use fixed stack options (which can use overdraft)
         if (currentGems >= minRequiredGems) {
             main.options.addOption("Bring All My Stargems (" + currentGems + ")", "poker_stack_all");
-        } else if (currentGems > 0 && currentGems < minRequiredGems) {
+        } else if (currentGems > 0 && currentGems < minRequiredGems && availableCredit < minRequiredGems) {
             main.textPanel.addPara("You need at least " + minRequiredGems + " Stargems (Big Blind) to play.", Color.RED);
+        } else if (currentGems < minRequiredGems) {
+            // Player has insufficient gems but may have credit - show message about using fixed stacks
+            main.textPanel.addPara("Your Stargem balance is below the minimum. Choose a fixed stack size to use overdraft.", Color.YELLOW);
         }
         
         main.options.addOption("How to Play Poker", "how_to_poker");
         main.options.addOption("Wait... (Cancel)", "back_menu");
         main.setState(CasinoInteraction.State.POKER);
+    }
+    
+    private void displayFinancialInfo() {
+        int currentGems = CasinoVIPManager.getStargems();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
+        int currentDebt = CasinoVIPManager.getDebt();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        
+        main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
+        main.textPanel.addPara("Overdraft Ceiling: " + debtCeiling, Color.GRAY);
+        
+        if (currentDebt > 0) {
+            main.textPanel.addPara("Used Overdraft: " + currentDebt, Color.YELLOW);
+            main.textPanel.addPara("Remaining Credit: " + availableCredit, Color.YELLOW);
+        } else {
+            main.textPanel.addPara("Used Overdraft: 0", Color.GREEN);
+            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        }
+        main.textPanel.addPara("------------------------", Color.CYAN);
     }
 
     public void setupGame() {
@@ -122,16 +151,28 @@ public class PokerHandler {
     
     public void setupGame(int stackSize) {
         playerWallet = CasinoVIPManager.getStargems();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
         
-        // Check if player has enough in wallet for the desired stack
-        if (playerWallet < stackSize) {
-            main.textPanel.addPara("Not enough Stargems in wallet! You have " + playerWallet + " but requested " + stackSize + ".", Color.RED);
+        // Check if player has enough in wallet OR available credit for the desired stack
+        if (playerWallet < stackSize && availableCredit < stackSize) {
+            main.textPanel.addPara("Not enough Stargems or available credit! You have " + playerWallet + " Stargems and " + availableCredit + " available credit, but requested " + stackSize + ".", Color.RED);
             showPokerConfirm(); // Return to the confirmation screen
             return;
         }
         
-        // Deduct the stack from wallet
-        CasinoVIPManager.addStargems(-stackSize);
+        // Handle overdraft if needed
+        if (playerWallet < stackSize) {
+            // Player needs to use overdraft
+            int overdraftAmount = stackSize - playerWallet;
+            CasinoVIPManager.addDebt(overdraftAmount);
+            main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft.", Color.YELLOW);
+            main.textPanel.addPara("Overdraft will be added to your account balance. 5% monthly interest applies.", Color.GRAY);
+            // Deduct all available gems (playerWallet), then add debt for the rest
+            CasinoVIPManager.addStargems(-playerWallet);
+        } else {
+            // Deduct the stack from wallet normally
+            CasinoVIPManager.addStargems(-stackSize);
+        }
         
         int opponentStack = Math.max(CasinoConfig.POKER_DEFAULT_OPPONENT_STACK, stackSize);
         
@@ -143,12 +184,16 @@ public class PokerHandler {
     public void updateUI() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
+        int bigBlind = state.bigBlind;
+        float playerBB = bigBlind > 0 ? (float)state.playerStack / bigBlind : 0;
+        float opponentBB = bigBlind > 0 ? (float)state.opponentStack / bigBlind : 0;
         
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("------------------------------------------------");
-        main.getTextPanel().addPara("Pot: " + state.pot + " Stargems", Color.GREEN);
-        main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
-        main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
+        main.getTextPanel().addPara("Pot: " + state.pot + " Stargems (" + String.format("%.1f", bigBlind > 0 ? (float)state.pot / bigBlind : 0) + " BB)", Color.GREEN);
+        main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems (" + String.format("%.1f", playerBB) + " BB)", Color.CYAN);
+        main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems (" + String.format("%.1f", opponentBB) + " BB)", Color.ORANGE);
+        main.getTextPanel().addPara("Big Blind: " + bigBlind + " Stargems", Color.GRAY);
         
         // Display AI personality information
         String aiPersonality = pokerGame.getAIPersonalityDescription();
@@ -262,6 +307,14 @@ public class PokerHandler {
                      main.getTextPanel().addPara("Opponent folds.", Color.CYAN); break;
              }
              
+             // Track if AI is folding to a player bet (for anti-gullibility)
+             if (response.action == PokerGame.SimplePokerAI.Action.FOLD) {
+                 // Only track if player has bet (not when checking through)
+                 if (state.playerBet > state.opponentBet) {
+                     pokerGame.getAI().trackAIFoldedToPlayerBet(state.pot);
+                 }
+             }
+             
              pokerGame.processOpponentAction(response);
              
              // Re-check state after opponent action
@@ -281,21 +334,52 @@ public class PokerHandler {
         PokerGame.PokerState state = pokerGame.getState();
         
         int playerStackAvailable = state.playerStack;
+        int bigBlind = state.bigBlind;
+        int potSize = state.pot;
+        int currentBetToCall = state.opponentBet - state.playerBet;
         
-        if (playerStackAvailable >= 100) main.getOptions().addOption("Raise 100", "poker_raise_100");
-        if (playerStackAvailable >= 500) main.getOptions().addOption("Raise 500", "poker_raise_500");
-        if (playerStackAvailable >= 2000) main.getOptions().addOption("Raise 2000", "poker_raise_2000");
+        // Helper to format bet option with value and BB
+        java.util.function.BiConsumer<Integer, String> addBetOption = (amount, label) -> {
+            if (amount > 0 && amount <= playerStackAvailable) {
+                float bbAmount = bigBlind > 0 ? (float)amount / bigBlind : 0;
+                String optionText = label + " (" + amount + " / " + String.format("%.1f", bbAmount) + " BB)";
+                main.getOptions().addOption(optionText, "poker_raise_" + amount);
+            }
+        };
         
-        // Percentage options
-        int tenPercent = (playerStackAvailable * 10) / 100;
-        if (tenPercent > 0) main.getOptions().addOption("Raise " + tenPercent + " (10% of stack)", "poker_raise_" + tenPercent);
+        // 1. BB (minimum raise)
+        int bbRaise = bigBlind;
+        addBetOption.accept(bbRaise, "Big Blind");
         
-        int fiftyPercent = (playerStackAvailable * 50) / 100;
-        if (fiftyPercent > 0) main.getOptions().addOption("Raise " + fiftyPercent + " (50% of stack)", "poker_raise_" + fiftyPercent);
+        // 2. Quarter Pot
+        int quarterPot = potSize / 4;
+        if (quarterPot > bbRaise) {
+            addBetOption.accept(quarterPot, "Quarter Pot");
+        }
         
-        // All-in
+        // 3. Half Pot
+        int halfPot = potSize / 2;
+        if (halfPot > quarterPot) {
+            addBetOption.accept(halfPot, "Half Pot");
+        }
+        
+        // 4. Pot
+        int potBet = potSize;
+        if (potBet > halfPot) {
+            addBetOption.accept(potBet, "Pot");
+        }
+        
+        // 5. 2x Pot
+        int twoXPot = potSize * 2;
+        if (twoXPot > potBet && twoXPot <= playerStackAvailable) {
+            addBetOption.accept(twoXPot, "2x Pot");
+        }
+        
+        // 6. All-in (always show if player has chips)
         if (playerStackAvailable > 0) {
-            main.getOptions().addOption("All-In (" + playerStackAvailable + " Stargems)", "poker_raise_" + playerStackAvailable);
+            float allInBB = bigBlind > 0 ? (float)playerStackAvailable / bigBlind : 0;
+            String allInText = "All-In (" + playerStackAvailable + " / " + String.format("%.1f", allInBB) + " BB)";
+            main.getOptions().addOption(allInText, "poker_raise_" + playerStackAvailable);
         }
         
         main.getOptions().addOption("Back", "poker_back_action");
@@ -372,16 +456,17 @@ public class PokerHandler {
         
         main.getTextPanel().addPara("Opponent reveals: ");
         displayColoredCards(state.opponentHand);
-        main.getTextPanel().addPara("Your Best: " + state.playerHandRank.name());
-        main.getTextPanel().addPara("Opponent Best: " + state.opponentHandRank.name());
+        
+        // Handle case where hand ranks might be null (early fold, no community cards)
+        if (state.playerHandRank != null && state.opponentHandRank != null) {
+            main.getTextPanel().addPara("Your Best: " + state.playerHandRank.name());
+            main.getTextPanel().addPara("Opponent Best: " + state.opponentHandRank.name());
+        } else {
+            main.getTextPanel().addPara("Hand ended before showdown.", Color.GRAY);
+        }
         
         main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
         main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
-        
-        // HandRank value: higher is better? 
-        // PokerGame logic uses value for comparison
-        int playerVal = state.playerHandRank.value;
-        int oppVal = state.opponentHandRank.value;
         
         // We need detailed comparison (tie breakers) which PokerGame.evaluate() does.
         // Re-evaluate to get HandScore for comparison
@@ -389,6 +474,15 @@ public class PokerHandler {
         PokerGame.PokerGameLogic.HandScore oppScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
         
         int cmp = playerScore.compareTo(oppScore);
+        
+        // Track showdown for anti-gullibility AI
+        // Check if player was bluffing (had weak hand but AI folded earlier)
+        boolean playerWasBluffing = false;
+        if (cmp < 0) {
+            // Player lost - they were bluffing if they had weak hand
+            playerWasBluffing = playerScore.rank.value <= PokerGame.PokerGameLogic.HandRank.PAIR.value;
+        }
+        pokerGame.getAI().trackPlayerShowdown(playerWasBluffing);
         
         if (cmp > 0) {
             main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);

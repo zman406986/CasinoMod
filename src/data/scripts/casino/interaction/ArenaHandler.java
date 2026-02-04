@@ -137,6 +137,26 @@ public class ArenaHandler {
             }
         }
     }
+    
+    private void displayFinancialInfo() {
+        int currentGems = CasinoVIPManager.getStargems();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
+        int currentDebt = CasinoVIPManager.getDebt();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        
+        main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
+        main.textPanel.addPara("Overdraft Ceiling: " + debtCeiling, Color.GRAY);
+        
+        if (currentDebt > 0) {
+            main.textPanel.addPara("Used Overdraft: " + currentDebt, Color.YELLOW);
+            main.textPanel.addPara("Remaining Credit: " + availableCredit, Color.YELLOW);
+        } else {
+            main.textPanel.addPara("Used Overdraft: 0", Color.GREEN);
+            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        }
+        main.textPanel.addPara("------------------------", Color.CYAN);
+    }
 
     public void showArenaLobby() {
         main.options.clearOptions();
@@ -272,8 +292,15 @@ public class ArenaHandler {
             return;
         }
         
-        // Deduct the additional bet amount from player's gems (will go into debt if needed)
-        CasinoVIPManager.addStargems(-additionalAmount);
+        // Handle overdraft if needed
+        if (currentGems < additionalAmount) {
+            int overdraftAmount = additionalAmount - currentGems;
+            CasinoVIPManager.addDebt(overdraftAmount);
+            main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft.", Color.YELLOW);
+            CasinoVIPManager.addStargems(-currentGems); // Deduct all available gems
+        } else {
+            CasinoVIPManager.addStargems(-additionalAmount);
+        }
         
         // Add the new bet with the same multiplier as the last bet, tracking the round
         float currentMultiplier = 1.0f;
@@ -290,8 +317,8 @@ public class ArenaHandler {
     private void showAddBetMenu() {
         main.options.clearOptions();
         main.textPanel.addPara("Add to your bet:", Color.YELLOW);
+        displayFinancialInfo();
         main.textPanel.addPara("Current Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
-        main.textPanel.addPara("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
         
         int playerBalance = CasinoVIPManager.getStargems();
         
@@ -682,14 +709,25 @@ public class ArenaHandler {
         // Calculate switching penalty
         int penaltyFee = (int)(arenaBets.get(arenaBets.size()-1).amount * 0.5);
         
-        // Check if player has enough gems to pay the switching penalty
-        if (CasinoVIPManager.getStargems() < penaltyFee) {
-            main.getTextPanel().addPara("Not enough Stargems to switch champion! You need " + penaltyFee + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+        // Check if player has enough gems or available credit to pay the switching penalty
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        if (currentGems < penaltyFee && availableCredit < penaltyFee) {
+            main.getTextPanel().addPara("Not enough Stargems or available credit to switch champion! You need " + penaltyFee + " but only have " + currentGems + " gems and " + availableCredit + " available credit.", Color.RED);
             showArenaStatus(); // Return to the arena status menu
             return;
         }
         
-        CasinoVIPManager.addStargems(-penaltyFee);
+        // Handle overdraft if needed
+        if (currentGems < penaltyFee) {
+            int overdraftAmount = penaltyFee - currentGems;
+            CasinoVIPManager.addDebt(overdraftAmount);
+            main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft for switch fee.", Color.YELLOW);
+            CasinoVIPManager.addStargems(-currentGems); // Deduct all available gems
+        } else {
+            CasinoVIPManager.addStargems(-penaltyFee);
+        }
         
         // Update multiplier to half of current
         float currentMultiplier = arenaBets.get(arenaBets.size()-1).multiplier;
@@ -735,8 +773,8 @@ public class ArenaHandler {
         // Highlight the odds in yellow to make them stand out
         main.textPanel.highlightInLastPara(Color.YELLOW, oddsText);
         
+        displayFinancialInfo();
         main.getTextPanel().addPara("Current Total Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
-        main.getTextPanel().addPara("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
         
         int playerBalance = CasinoVIPManager.getStargems();
         
@@ -812,8 +850,8 @@ public class ArenaHandler {
         // First, show champions to bet on
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("Choose a champion to place a bet on:", Color.YELLOW);
+        displayFinancialInfo();
         main.getTextPanel().addPara("Current Total Bet: " + getCurrentTotalBet() + " Stargems", Color.CYAN);
-        main.getTextPanel().addPara("Balance: " + CasinoVIPManager.getStargems() + " Stargems", Color.CYAN);
         
         // Show all alive champions as options
         for (int i = 0; i < arenaCombatants.size(); i++) {
@@ -863,15 +901,25 @@ public class ArenaHandler {
     }
     
     private void performAddAnotherBet(int additionalAmount) {
-        // Check if player has enough gems to add another bet
-        if (CasinoVIPManager.getStargems() < additionalAmount) {
-            main.getTextPanel().addPara("Not enough Stargems! You need " + additionalAmount + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+        // Check if player has enough gems or available credit
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        if (currentGems < additionalAmount && availableCredit < additionalAmount) {
+            main.getTextPanel().addPara("Not enough Stargems or available credit! You need " + additionalAmount + " but only have " + currentGems + " gems and " + availableCredit + " available credit.", Color.RED);
             showArenaStatus(); // Return to the arena status menu
             return;
         }
         
-        // Deduct the additional bet amount from player's gems
-        CasinoVIPManager.addStargems(-additionalAmount);
+        // Handle overdraft if needed
+        if (currentGems < additionalAmount) {
+            int overdraftAmount = additionalAmount - currentGems;
+            CasinoVIPManager.addDebt(overdraftAmount);
+            main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft.", Color.YELLOW);
+            CasinoVIPManager.addStargems(-currentGems); // Deduct all available gems
+        } else {
+            CasinoVIPManager.addStargems(-additionalAmount);
+        }
         
         // Add a new bet with a base multiplier of 1.0 - each bet is locked in separately like horse betting
         arenaBets.add(new BetInfo(additionalAmount, 1.0f, chosenChampion, currentRound));
@@ -881,9 +929,12 @@ public class ArenaHandler {
     }
     
     private void performAddBetToChampion(int championIndex, int additionalAmount) {
-        // Check if player has enough gems to add another bet
-        if (CasinoVIPManager.getStargems() < additionalAmount) {
-            main.getTextPanel().addPara("Not enough Stargems! You need " + additionalAmount + " but only have " + CasinoVIPManager.getStargems() + ".", Color.RED);
+        // Check if player has enough gems or available credit
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int currentGems = CasinoVIPManager.getStargems();
+        
+        if (currentGems < additionalAmount && availableCredit < additionalAmount) {
+            main.getTextPanel().addPara("Not enough Stargems or available credit! You need " + additionalAmount + " but only have " + currentGems + " gems and " + availableCredit + " available credit.", Color.RED);
             showArenaStatus(); // Return to the arena status menu
             return;
         }
@@ -896,8 +947,15 @@ public class ArenaHandler {
             return;
         }
         
-        // Deduct the additional bet amount from player's gems
-        CasinoVIPManager.addStargems(-additionalAmount);
+        // Handle overdraft if needed
+        if (currentGems < additionalAmount) {
+            int overdraftAmount = additionalAmount - currentGems;
+            CasinoVIPManager.addDebt(overdraftAmount);
+            main.textPanel.addPara("IPC Credit Alert: Using " + overdraftAmount + " Stargems of overdraft.", Color.YELLOW);
+            CasinoVIPManager.addStargems(-currentGems); // Deduct all available gems
+        } else {
+            CasinoVIPManager.addStargems(-additionalAmount);
+        }
         
         // Add a new bet with a base multiplier of 1.0 - each bet is locked in separately like horse betting
         arenaBets.add(new BetInfo(additionalAmount, 1.0f, targetChampion, currentRound));

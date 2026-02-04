@@ -72,17 +72,15 @@ public class CasinoVIPManager {
         String interestKey = "CasinoInterest_" + year + "_" + month;
         
         if (day == 15 && !data.containsKey(interestKey)) {
-            int gems = getStargems();
-            if (gems < 0) {
-                int interest = (int) (gems * CasinoConfig.VIP_INTEREST_RATE); 
+            int currentDebt = getDebt();
+            if (currentDebt > 0) {
+                int interest = (int) (currentDebt * CasinoConfig.VIP_INTEREST_RATE); 
                 
-                // Memory markers are great for passing localized flags between methods.
-                Global.getSector().getMemoryWithoutUpdate().set("$ipc_processing_interest", true, 0f);
-                addStargems(interest); 
-                Global.getSector().getMemoryWithoutUpdate().unset("$ipc_processing_interest");
+                // Add interest to debt (not to stargems)
+                addDebt(interest);
                 
                 Global.getSector().getCampaignUI().addMessage("CORPORATE NOTICE: 5% monthly interest applied to your delinquent Stargem account.", Color.YELLOW);
-                Global.getSector().getCampaignUI().addMessage("Interest added: " + interest + " Stargems", Color.RED);
+                Global.getSector().getCampaignUI().addMessage("Interest added: " + interest + " Stargems to debt", Color.RED);
             }
             data.put(interestKey, true);
         }

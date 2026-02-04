@@ -119,11 +119,18 @@ public class HelpHandler {
         main.textPanel.addPara("- Raise: Increase the current bet amount.");
         main.textPanel.addPara("- Fold: Surrender hand and forfeit any bets made.");
         main.textPanel.addPara("");
+        main.textPanel.addPara("Position & Blinds (Heads-Up):", Color.CYAN);
+        main.textPanel.addPara("- Dealer Button: The dealer posts the Small Blind and acts FIRST post-flop.");
+        main.textPanel.addPara("- Big Blind: The non-dealer posts the Big Blind and acts LAST pre-flop.");
+        main.textPanel.addPara("- Pre-Flop: Big Blind acts last (can check or raise after seeing the flop for free).");
+        main.textPanel.addPara("- Post-Flop: Dealer (SB) acts first, Big Blind acts last.");
+        main.textPanel.addPara("- Acting last is a strategic advantage - you see what your opponent does first!");
+        main.textPanel.addPara("");
         main.textPanel.addPara("Tips:", Color.YELLOW);
-        main.textPanel.addPara("- Blinds: Small blind is posted by player after dealer, big blind by next player.");
-        main.textPanel.addPara("- Position: Being the dealer (or acting last) gives strategic advantage.");
         main.textPanel.addPara("- Pot Odds: Consider the ratio of current bet to potential winnings.");
         main.textPanel.addPara("- Bankroll: Manage your stack carefully to stay competitive.");
+        main.textPanel.addPara("- The IPC Dealer adapts to your play style. Mix up your strategy!");
+        main.textPanel.addPara("- The dealer will always call to see the flop when you just complete the Big Blind.");
         main.textPanel.addPara("- The IPC Dealer calculates pot odds. Don't let them bully you!", Color.ORANGE);
         
         // Check if we're in an active poker game (has cards dealt)

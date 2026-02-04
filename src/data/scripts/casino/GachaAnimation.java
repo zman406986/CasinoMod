@@ -124,12 +124,12 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             }
         }
 
-        // Get dark color for spinning phase
+        // Get dark color for spinning phase (60% brightness instead of 40%)
         public Color getDarkColor() {
             return new Color(
-                (int)(color.getRed() * 0.4f),
-                (int)(color.getGreen() * 0.4f),
-                (int)(color.getBlue() * 0.4f)
+                (int)(color.getRed() * 0.6f),
+                (int)(color.getGreen() * 0.6f),
+                (int)(color.getBlue() * 0.6f)
             );
         }
 

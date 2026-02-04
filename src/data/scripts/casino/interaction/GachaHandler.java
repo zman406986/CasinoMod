@@ -51,6 +51,26 @@ public class GachaHandler {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
         return availableCredit >= amount; // Player can afford if they have enough gems or available credit
     }
+    
+    private void displayFinancialInfo() {
+        int currentGems = CasinoVIPManager.getStargems();
+        int debtCeiling = CasinoVIPManager.getDebtCeiling();
+        int currentDebt = CasinoVIPManager.getDebt();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        
+        main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
+        main.textPanel.addPara("Overdraft Ceiling: " + debtCeiling, Color.GRAY);
+        
+        if (currentDebt > 0) {
+            main.textPanel.addPara("Used Overdraft: " + currentDebt, Color.YELLOW);
+            main.textPanel.addPara("Remaining Credit: " + availableCredit, Color.YELLOW);
+        } else {
+            main.textPanel.addPara("Used Overdraft: 0", Color.GREEN);
+            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
+        }
+        main.textPanel.addPara("------------------------", Color.CYAN);
+    }
 
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
@@ -110,18 +130,7 @@ public class GachaHandler {
         main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
         
         // Show account balance in IPC format
-        main.textPanel.addPara("IPC ACCOUNT STATUS:", Color.CYAN);
-        int currentGems = CasinoVIPManager.getStargems();
-        int availableCredit = CasinoVIPManager.getAvailableCredit();
-        int debtCeiling = CasinoVIPManager.getDebtCeiling();
-        
-        main.textPanel.addPara("Stargem Balance: " + currentGems, Color.WHITE);
-        if (availableCredit < currentGems) {
-            main.textPanel.addPara("Available Credit: " + availableCredit + " (Credit in use: " + (currentGems - availableCredit) + ")", Color.YELLOW);
-        } else {
-            main.textPanel.addPara("Available Credit: " + availableCredit, Color.GREEN);
-        }
-        main.textPanel.addPara("Credit Ceiling: " + debtCeiling, Color.GRAY);
+        displayFinancialInfo();
         
         // Show pull options if player can afford them within their available credit
         if (canAffordTransaction(CasinoConfig.GACHA_COST)) {
