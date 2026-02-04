@@ -27,6 +27,7 @@ public class PokerGame {
         public PokerGameLogic.HandRank opponentHandRank;
         public CurrentPlayer currentPlayer;
         public int bigBlind;
+        public CurrentPlayer folder = null; // Tracks who folded (if anyone)
     }
 
     private PokerState state;
@@ -1497,6 +1498,7 @@ public class PokerGame {
         state.playerBet = 0;
         state.opponentBet = 0;
         state.pot = 0;
+        state.folder = null; // Reset folder for new hand
 
         state.dealer = state.dealer == Dealer.PLAYER ? Dealer.OPPONENT : Dealer.PLAYER;
 
@@ -1568,6 +1570,7 @@ public class PokerGame {
                 state.opponentStack += state.pot;
                 state.pot = 0;
                 state.round = Round.SHOWDOWN;
+                state.folder = CurrentPlayer.PLAYER; // Track that player folded
                 break;
             case CHECK:
                 break;
@@ -1616,6 +1619,7 @@ public class PokerGame {
                 state.playerStack += state.pot;
                 state.pot = 0;
                 state.round = Round.SHOWDOWN;
+                state.folder = CurrentPlayer.OPPONENT; // Track that opponent folded
                 break;
             case CHECK:
                 break;

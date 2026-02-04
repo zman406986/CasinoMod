@@ -260,9 +260,7 @@ public class PokerHandler {
     public void handlePokerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot.", Color.GRAY);
-        // End hand logic handled by pokerGame state check in updateGameState or similar?
-        // Actually pokerGame.processPlayerAction(FOLD) sets round to SHOWDOWN.
+        // Fold handling and messaging is done in determineWinner()
         updateGameState();
     }
     
@@ -453,28 +451,45 @@ public class PokerHandler {
     private void determineWinner() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
-        
+
+        // Check if someone folded - if so, no showdown, just award the pot
+        if (state.folder != null) {
+            if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
+                // Player folded - opponent wins
+                main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot of " + state.pot + " Stargems.", Color.GRAY);
+                state.opponentStack += state.pot;
+            } else {
+                // Opponent folded - player wins
+                main.getTextPanel().addPara("The IPC Dealer folds. You scoop the pot of " + state.pot + " Stargems!", Color.CYAN);
+                state.playerStack += state.pot;
+            }
+            state.pot = 0;
+            endHand(state.folder == PokerGame.CurrentPlayer.OPPONENT);
+            return;
+        }
+
+        // Showdown - reveal hands and compare
         main.getTextPanel().addPara("Opponent reveals: ");
         displayColoredCards(state.opponentHand);
-        
-        // Handle case where hand ranks might be null (early fold, no community cards)
+
+        // Handle case where hand ranks might be null (shouldn't happen at showdown, but just in case)
         if (state.playerHandRank != null && state.opponentHandRank != null) {
             main.getTextPanel().addPara("Your Best: " + state.playerHandRank.name());
             main.getTextPanel().addPara("Opponent Best: " + state.opponentHandRank.name());
         } else {
             main.getTextPanel().addPara("Hand ended before showdown.", Color.GRAY);
         }
-        
+
         main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
         main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
-        
+
         // We need detailed comparison (tie breakers) which PokerGame.evaluate() does.
         // Re-evaluate to get HandScore for comparison
         PokerGame.PokerGameLogic.HandScore playerScore = PokerGame.PokerGameLogic.evaluate(state.playerHand, state.communityCards);
         PokerGame.PokerGameLogic.HandScore oppScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
-        
+
         int cmp = playerScore.compareTo(oppScore);
-        
+
         // Track showdown for anti-gullibility AI
         // Check if player was bluffing (had weak hand but AI folded earlier)
         boolean playerWasBluffing = false;
@@ -483,7 +498,7 @@ public class PokerHandler {
             playerWasBluffing = playerScore.rank.value <= PokerGame.PokerGameLogic.HandRank.PAIR.value;
         }
         pokerGame.getAI().trackPlayerShowdown(playerWasBluffing);
-        
+
         if (cmp > 0) {
             main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);
             state.playerStack += state.pot; // Award pot to player stack
@@ -496,10 +511,7 @@ public class PokerHandler {
             main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
             state.playerStack += state.pot / 2;
             state.opponentStack += state.pot / 2;
-            CasinoVIPManager.addStargems(state.pot / 2); // Split logic for wallet?
-            // Actually chips stay on table mostly. But endHand(false) adds payout?
-            // Original code: CasinoVIPManager.addStargems(potSize / 2);
-            endHand(false); 
+            endHand(false);
         }
         state.pot = 0;
     }
