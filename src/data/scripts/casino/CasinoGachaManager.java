@@ -36,7 +36,6 @@ public class CasinoGachaManager {
         
         public String featuredCapital;      // Featured 5-star capital ship
         public List<String> featuredCruisers = new ArrayList<>(); // Featured 4-star cruisers
-        public List<String> autoConvertIds = new ArrayList<>();   // IDs of ships to auto-convert
     }
     
     public GachaData getData() {
@@ -86,8 +85,7 @@ public class CasinoGachaManager {
         // Skip station/module hulls - these are not standalone ships
         if (spec.getHints().contains(ShipTypeHints.STATION)) return false;
         if (spec.getHints().contains(ShipTypeHints.MODULE)) return false;
-        
-        // Skip hulls that should be hidden (usually secret/special ships)
+        if (spec.getHints().contains(ShipTypeHints.UNBOARDABLE)) return false;
         if (spec.getHints().contains(ShipTypeHints.HIDE_IN_CODEX)) return false;
         
         // Skip fighters - not valid for gacha
@@ -100,15 +98,7 @@ public class CasinoGachaManager {
         for (String prefix : DISALLOWED_PREFIXES) {
             if (hullId.startsWith(prefix)) return false;
         }
-        
-        // Check for ships in the configured blacklist (JSON - deprecated)
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(hullId)) return false;
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST.contains(spec.getBaseHullId())) return false;
-        
-        // Check for ships in the CSV blacklist (preferred, allows mod merging)
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST_CSV.contains(hullId)) return false;
-        if (CasinoConfig.GACHA_SHIP_BLACKLIST_CSV.contains(spec.getBaseHullId())) return false;
-        
+
         // Skip extremely high FP ships (likely bosses/uniques)
         if (spec.getFleetPoints() > 60) return false;
         
@@ -122,24 +112,16 @@ public class CasinoGachaManager {
             // This is a skin - skip it, we'll use the base hull instead
             return false;
         }
-        
-        // Skip Remnant ships (automated, usually dangerous/special)
-        if (spec.hasTag(Tags.SHIP_REMNANTS)) return false;
-        
-        // Skip ships marked as unrecoverable (usually very special)
-        if (spec.hasTag(Tags.UNRECOVERABLE)) return false;
-        
-        // Skip Omega ships (extremely rare/special)
-        if (spec.hasTag(Tags.OMEGA)) return false;
-        
-        // Skip Threat ships (abyssal entities)
-        if (spec.hasTag(Tags.THREAT)) return false;
-        
-        // Skip Dweller ships (abyssal entities)
-        if (spec.hasTag(Tags.DWELLER)) return false;
-        
-        // Skip Fragment ships (abyssal entities)
-        if (spec.hasTag(Tags.FRAGMENT)) return false;
+
+        if (spec.hasTag("no_dealer")) return false;
+        if (spec.hasTag("omega")) return false;
+        if (spec.hasTag("derelict")) return false;
+        if (spec.hasTag("remnant")) return false;
+        if (spec.hasTag("no_sim")) return false;
+        if (spec.hasTag("dweller")) return false;
+        if (spec.hasTag("restricted")) return false;
+        if (spec.hasTag("threat_swarm_ai")) return false;
+        if (spec.hasTag("swarm_fighter")) return false;
         
         return true;
     }
@@ -154,7 +136,7 @@ public class CasinoGachaManager {
              
              // Use the hull ID to identify unique ships (not the hull name)
              String hullId = spec.getHullId();
-             if (!uniqueHullIds.contains(hullId) && list.size() < 20) { // Limit to 20 ships
+             if (!uniqueHullIds.contains(hullId) && list.size() < CasinoConfig.GACHA_POOL_SIZE) { // Configurable pool size
                  uniqueHullIds.add(hullId);
                  
                  // Create a fleet member with a proper variant to ensure names are populated
@@ -234,16 +216,6 @@ public class CasinoGachaManager {
         
         // --- 3. Trash (3*) ---
         String s = getRandomHull(random.nextBoolean() ? ShipAPI.HullSize.DESTROYER : ShipAPI.HullSize.FRIGATE);
-             
-        // Auto Convert Check - still do this immediately with null safety
-        if (s != null && data.autoConvertIds.contains(s)) {
-            ShipHullSpecAPI hullSpec = Global.getSettings().getHullSpec(s);
-            if (hullSpec != null) {
-                int val = (int)(hullSpec.getBaseValue() / CasinoConfig.SHIP_TRADE_RATE);
-                CasinoVIPManager.addToBalance(val);
-                return "Auto-Converted: " + hullSpec.getHullName() + " (+" + val + " Gems)";
-            }
-        }
              
         FleetMemberAPI m = createShip(s);
         if (m != null) {

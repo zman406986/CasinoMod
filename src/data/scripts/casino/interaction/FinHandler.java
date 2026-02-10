@@ -3,7 +3,9 @@ package data.scripts.casino.interaction;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FleetMemberPickerListener;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
+import com.fs.starfarer.api.util.Misc;
 import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.CasinoDebtScript;
 import data.scripts.casino.CasinoVIPManager;
 import java.awt.Color;
 import java.util.List;
@@ -90,8 +92,7 @@ public class FinHandler {
     
     private void initializeHandlers() {
         // Exact match handlers
-        handlers.put("financial_menu", option -> showTopUpMenu());
-        handlers.put("buy_chips", option -> showTopUpMenu());
+        handlers.put("financial_menu", option -> showFinancialMenu());
 
         // New ISP/Tech Support themed cashout flow
         handlers.put("cash_out", option -> performCashOut());
@@ -110,25 +111,19 @@ public class FinHandler {
         handlers.put("cash_out_return_hold", option -> performCashOutReturnHold());
 
         // CAPTCHA answer handlers (will be generated dynamically)
-        handlers.put("captcha_wrong_1", option -> performCashOutCaptchaWrong(1));
-        handlers.put("captcha_wrong_2", option -> performCashOutCaptchaWrong(2));
+        handlers.put("captcha_wrong_1", option -> performCashOutCaptchaWrong());
+        handlers.put("captcha_wrong_2", option -> performCashOutCaptchaWrong());
 
-        handlers.put("buy_vip", option -> showTopUpConfirm(-1, true));
+        handlers.put("buy_vip", option -> showVIPConfirm());
         handlers.put("confirm_buy_vip", option -> purchaseVIPPass());
         handlers.put("buy_ship", option -> openShipTradePicker());
+        handlers.put("confirm_ship_trade", option -> confirmShipTrade());
+        handlers.put("cancel_ship_trade", option -> showFinancialMenu());
         handlers.put("toggle_vip_notifications", option -> toggleVIPNotifications());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
 
         // Predicate-based handlers for pattern matching
-        predicateHandlers.put(option -> option.startsWith("buy_pack_"), option -> {
-            int index = Integer.parseInt(option.replace("buy_pack_", ""));
-            showTopUpConfirm(index, false);
-        });
-        predicateHandlers.put(option -> option.startsWith("confirm_buy_pack_"), option -> {
-            int index = Integer.parseInt(option.replace("confirm_buy_pack_", ""));
-            purchaseGemPack(CasinoConfig.GEM_PACKAGES.get(index).gems, CasinoConfig.GEM_PACKAGES.get(index).cost);
-        });
         predicateHandlers.put(option -> option.startsWith("captcha_answer_"), option -> {
             int answerIndex = Integer.parseInt(option.replace("captcha_answer_", ""));
             checkCaptchaAnswer(answerIndex);
@@ -151,43 +146,35 @@ public class FinHandler {
         }
     }
 
-    public void showTopUpMenu() {
+    public void showFinancialMenu() {
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("Financial Services Terminal", Color.GREEN);
-        
+
         int cashoutStage = 0;
         if (Global.getSector().getMemoryWithoutUpdate().contains("$casino_cashout_stage")) {
             cashoutStage = Global.getSector().getMemoryWithoutUpdate().getInt("$casino_cashout_stage");
         }
-        
+
         if (cashoutStage == 1) {
             main.getOptions().addOption("Check Cashout Status", "cash_out_return");
             main.getOptions().addOption("Back", "back_menu");
             main.setState(CasinoInteraction.State.FINANCIAL);
             return;
         }
-        
+
         // Display financial status
         displayFinancialInfo();
-        
-        if (CasinoConfig.GEM_PACKAGES != null && !CasinoConfig.GEM_PACKAGES.isEmpty()) {
-            for (int i=0; i<CasinoConfig.GEM_PACKAGES.size(); i++) {
-                CasinoConfig.GemPackage pack = CasinoConfig.GEM_PACKAGES.get(i);
-                main.getOptions().addOption(pack.gems + " Gems (" + pack.cost + " Credits)", "buy_pack_" + i);
-            }
-        } else {
-            main.getTextPanel().addPara("No gem packages currently available.", Color.ORANGE);
-        }
-        
+
         main.getOptions().addOption("Sell Ships for Stargems", "buy_ship");
         main.getOptions().addOption("VIP Subscription Pass", "buy_vip");
-        main.getOptions().addOption("Cash Out", "cash_out");
-        
+
         // Add notification toggle option
         boolean monthlyMode = CasinoVIPManager.isMonthlyNotificationMode();
         String notifyText = monthlyMode ? "VIP Notifications: Monthly" : "VIP Notifications: Daily";
         main.getOptions().addOption(notifyText, "toggle_vip_notifications");
-        
+
+        main.getOptions().addOption("Cash Out", "cash_out");
+
         main.getOptions().addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
@@ -217,7 +204,14 @@ public class FinHandler {
             float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NON_VIP_DAILY_INTEREST_RATE;
             main.getTextPanel().addPara("Daily Interest: " + (int)(interestRate * 100) + "%", Color.YELLOW);
         }
-        
+
+        // Show debt collector status
+        if (CasinoDebtScript.isCollectorActive()) {
+            main.getTextPanel().addPara("WARNING: Corporate Reconciliation Team is actively pursuing you!", Color.RED);
+        } else if (CasinoDebtScript.isCollectorPending()) {
+            main.getTextPanel().addPara("CAUTION: A Corporate Reconciliation Team has been dispatched.", Misc.getHighlightColor());
+        }
+
         main.getTextPanel().addPara("------------------------", Color.CYAN);
     }
     
@@ -228,50 +222,32 @@ public class FinHandler {
         } else {
             main.textPanel.addPara("VIP notifications set to daily.", Color.CYAN);
         }
-        showTopUpMenu();
+        showFinancialMenu();
     }
-    
-    private void showTopUpConfirm(int index, boolean isVIP) {
+
+    private void showVIPConfirm() {
         main.getOptions().clearOptions();
-        if (isVIP) {
-            int currentDays = CasinoVIPManager.getDaysRemaining();
-            String message = "Purchase VIP Subscription (" + CasinoConfig.VIP_PASS_DAYS + " Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
-            if (currentDays > 0) {
-                message += " (Current VIP: " + currentDays + " days remaining)";
-            }
-            main.textPanel.addPara(message, Color.YELLOW);
-            main.getOptions().addOption("Confirm Purchase", "confirm_buy_vip");
-        } else {
-            CasinoConfig.GemPackage pack = CasinoConfig.GEM_PACKAGES.get(index);
-            main.textPanel.addPara("Purchase " + pack.gems + " Gems for " + pack.cost + " Credits?", Color.YELLOW);
-            main.getOptions().addOption("Confirm Purchase", "confirm_buy_pack_" + index);
+        int currentDays = CasinoVIPManager.getDaysRemaining();
+        String message = "Purchase VIP Subscription (" + CasinoConfig.VIP_PASS_DAYS + " Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
+        if (currentDays > 0) {
+            message += " (Current VIP: " + currentDays + " days remaining)";
         }
+        main.textPanel.addPara(message, Color.YELLOW);
+        main.getOptions().addOption("Confirm Purchase", "confirm_buy_vip");
         main.getOptions().addOption("Cancel", "financial_menu");
     }
-    
-    private void purchaseGemPack(int gems, int cost) {
-        if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
-            main.textPanel.addPara("Insufficient Credits!", Color.RED);
-            showTopUpMenu();
-            return;
-        }
-        Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
-        CasinoVIPManager.addToBalance(gems);
-        main.textPanel.addPara("Purchased " + gems + " Stargems.", Color.GREEN);
-        showTopUpMenu();
-    }
-    
+
     private void purchaseVIPPass() {
         int cost = CasinoConfig.VIP_PASS_COST;
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
             main.textPanel.addPara("Insufficient Credits!", Color.RED);
-            showTopUpMenu();
+            showFinancialMenu();
             return;
         }
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
         CasinoVIPManager.addSubscriptionDays(CasinoConfig.VIP_PASS_DAYS);
         main.textPanel.addPara("VIP Status Activated! Enjoy your benefits.", Color.CYAN);
-        showTopUpMenu();
+        showFinancialMenu();
     }
 
     // ==================== NEW ISP/TECH SUPPORT CASHOUT FLOW ====================
@@ -413,12 +389,12 @@ public class FinHandler {
             if (answerIndex == q.correctIndex) {
                 performCashOutTier1();
             } else {
-                performCashOutCaptchaWrong(answerIndex);
+                performCashOutCaptchaWrong();
             }
         }
     }
 
-    private void performCashOutCaptchaWrong(int wrongIndex) {
+    private void performCashOutCaptchaWrong() {
         main.getOptions().clearOptions();
 
         String[] wrongResponses = {
@@ -538,21 +514,56 @@ public class FinHandler {
         Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
     }
     
+    private List<FleetMemberAPI> pendingShipTrade = null;
+
     private void openShipTradePicker() {
-        main.getDialog().showFleetMemberPickerDialog("Select ships to sell for Stargems:", "Trade for Gems", "Cancel", 10, 7, 88, true, true, Global.getSector().getPlayerFleet().getFleetData().getMembersListCopy(), 
+        main.getDialog().showFleetMemberPickerDialog("Select ships to sell for Stargems:", "Review Trade", "Cancel", 10, 7, 88, true, true, Global.getSector().getPlayerFleet().getFleetData().getMembersListCopy(),
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
-                     if (members != null) {
-                        for (FleetMemberAPI m : members) {
-                            int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
-                            CasinoVIPManager.addToBalance(val);
-                            Global.getSector().getPlayerFleet().getFleetData().removeFleetMember(m);
-                            main.getTextPanel().addPara("Traded " + m.getShipName() + " for " + val + " Stargems.", Color.GREEN);
-                        }
+                     if (members != null && !members.isEmpty()) {
+                        pendingShipTrade = members;
+                        showShipTradeConfirmation(members);
+                     } else {
+                         showFinancialMenu();
                      }
-                     showTopUpMenu();
                 }
-                public void cancelledFleetMemberPicking() { showTopUpMenu(); }
+                public void cancelledFleetMemberPicking() { showFinancialMenu(); }
             });
+    }
+
+    private void showShipTradeConfirmation(List<FleetMemberAPI> members) {
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("Confirm Ship Trade", Color.YELLOW);
+        main.getTextPanel().addPara("");
+
+        int totalValue = 0;
+        for (FleetMemberAPI m : members) {
+            int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+            totalValue += val;
+            main.getTextPanel().addPara("  " + m.getShipName() + " (" + m.getHullSpec().getHullName() + "): " + val + " Stargems", Color.CYAN);
+        }
+
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("Total: " + totalValue + " Stargems", Color.GREEN);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("WARNING: You will NOT be able to buy these ships back!", Color.RED);
+        main.getTextPanel().addPara("This action is permanent.", Color.RED);
+
+        main.getOptions().addOption("Confirm Trade", "confirm_ship_trade");
+        main.getOptions().addOption("Cancel", "cancel_ship_trade");
+        main.setState(CasinoInteraction.State.FINANCIAL);
+    }
+
+    private void confirmShipTrade() {
+        if (pendingShipTrade != null) {
+            for (FleetMemberAPI m : pendingShipTrade) {
+                int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+                CasinoVIPManager.addToBalance(val);
+                Global.getSector().getPlayerFleet().getFleetData().removeFleetMember(m);
+                main.getTextPanel().addPara("Traded " + m.getShipName() + " for " + val + " Stargems.", Color.GREEN);
+            }
+            pendingShipTrade = null;
+        }
+        showFinancialMenu();
     }
 }

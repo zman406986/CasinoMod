@@ -80,8 +80,6 @@ public class CasinoConfig {
     public static float POKER_AI_STACK_PERCENT_CALL_LIMIT = 0.30f;
     
     // Poker Raise Configuration
-    /** Available raise amounts as absolute values in Stargems */
-    public static int[] POKER_RAISE_AMOUNTS = {200, 400, 1000, 5000};
     /** Maximum random addition to AI raise (in Stargems) */
     public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION = 200;
     /** Minimum raise value (in Stargems) */
@@ -90,6 +88,8 @@ public class CasinoConfig {
     // Gacha Configuration
     /** Cost per gacha pull (in Stargems) */
     public static int GACHA_COST = 160;
+    /** Number of ships in the gacha pool (default 32 = 1.6x of traditional 20) */
+    public static int GACHA_POOL_SIZE = 32;
     /** Hard pity threshold for 5-star items (guaranteed at this count) */
     public static int PITY_HARD_5 = 90;
     /** Soft pity start threshold for 5-star items (rate increases after this) */
@@ -108,38 +108,64 @@ public class CasinoConfig {
     public static int ARENA_SHIP_COUNT = 5;
     /** Maximum agility value for arena ships (prevents invincibility) */
     public static float ARENA_AGILITY_CAP = 0.75f;
-    /** Base odds multiplier for arena betting (1.7 = 1:1.7 return) */
-    public static float ARENA_BASE_ODDS = 1.7f;
-    /** Odds reduction for positive perks (0.8 = 20% reduction) */
-    public static float ARENA_POSITIVE_PERK_MULTIPLIER = 0.8f;
-    /** Odds increase for negative perks (1.3 = 30% increase) */
-    public static float ARENA_NEGATIVE_PERK_MULTIPLIER = 1.3f;
+    /**
+     * Base odds multiplier for arena betting.
+     * 
+     * MATHEMATICAL ANALYSIS for 10% house edge on random bets:
+     * - With 5 ships, random bet has 20% win probability
+     * - For 10% house edge: player should get 90% of fair return
+     * - Fair odds = 1/0.2 = 5.0
+     * - Target effective payout = 5.0 * 0.9 = 4.5
+     * - With survivalMult = 0.9: 5.0 * 0.9 = 4.5 effective
+     * 
+     * Perk adjustments:
+     * - Positive ships (stronger): 5.0 * 0.75 = 3.75
+     * - Average ships: 5.0
+     * - Negative ships (weaker): 5.0 * 1.25 = 6.25
+     * 
+     * This gives a range of 3.75 to 6.25, with average around 5.0
+     */
+    public static float ARENA_BASE_ODDS = 5.0f;
+    /** Odds reduction for positive perks (0.75 = 25% reduction) - stronger ships pay less */
+    public static float ARENA_POSITIVE_PERK_MULTIPLIER = 0.75f;
+    /** Odds increase for negative perks (1.25 = 25% increase) - weaker ships pay more */
+    public static float ARENA_NEGATIVE_PERK_MULTIPLIER = 1.25f;
     /** Minimum odds regardless of perks (prevents 0 return) */
-    public static float ARENA_MIN_ODDS = 1.2f;
-    /** Cost to switch champions mid-battle (as percentage of current bet, 0.5 = 50%) */
-    public static float ARENA_SWITCH_COST_PERCENT = 0.5f;
-    /** Multiplier penalty when switching champions (0.5 = halved) */
-    public static float ARENA_SWITCH_MULTIPLIER_PENALTY = 0.5f;
+    public static float ARENA_MIN_ODDS = 2.0f;
     /** Entry fee for arena betting (default bet amount) */
     public static int ARENA_ENTRY_FEE = 100;
-    /** Survival reward multiplier for arena betting */
-    public static float ARENA_SURVIVAL_REWARD_MULT = 2.0f;
-    /** Survival bonus per turn survived in arena */
-    public static float ARENA_SURVIVAL_BONUS_PER_TURN = 0.1f;
-    /** Kill bonus per kill in arena */
-    public static float ARENA_KILL_BONUS_PER_KILL = 0.2f;
-
-    // Debt Configuration
-    /** Minimum debt (in credits) before collectors start spawning */
-    public static int DEBT_COLLECTOR_THRESHOLD = 100000;
-    /** Alias for DEBT_COLLECTOR_THRESHOLD for backward compatibility */
-    public static int VIP_DEBT_HUNTER_THRESHOLD = 100000;
-    /** Interest is applied on these days of each month */
-    public static int[] INTEREST_DAYS = {1, 15};
+    /** Survival reward multiplier for arena betting (0.9 = 90% of odds, creating 10% house edge) */
+    public static float ARENA_SURVIVAL_REWARD_MULT = 0.9f;
+    /** Survival bonus per turn survived in arena (reduced to balance house edge) */
+    public static float ARENA_SURVIVAL_BONUS_PER_TURN = 0.05f;
+    /** Kill bonus per kill in arena (reduced to balance house edge) */
+    public static float ARENA_KILL_BONUS_PER_KILL = 0.1f;
+    /** Multiplier for consolation rewards given to defeated champions (0.3 = 30% of calculated value) */
+    public static float ARENA_DEFEATED_CONSOLATION_MULT = 0.3f;
+    /** Action multiplier for arena combat - increases actions per round (1.5 = 50% more actions) */
+    public static float ARENA_ACTION_MULTIPLIER = 1.5f;
+    /** Diminishing returns per round for late bets (0.20 = 20% reduction per round, min 0.4) */
+    public static float ARENA_DIMINISHING_RETURNS_PER_ROUND = 0.20f;
+    /** Minimum diminishing returns multiplier (0.4 = 40% of original value) */
+    public static float ARENA_DIMINISHING_RETURNS_MIN = 0.4f;
     
+    // HP-Based Dynamic Odds Configuration
+    /** Factor for how much HP affects odds mid-battle (2.0 = up to 2x difference between low and high HP) */
+    public static float ARENA_HP_ODDS_FACTOR = 2.0f;
+    /** Base HP reference for odds calculation (used to normalize HP ratios) */
+    public static float ARENA_BASE_HP_REFERENCE = 100.0f;
+    /** Maximum odds multiplier from HP factor (prevents extreme odds) */
+    public static float ARENA_MAX_HP_ODDS_MULT = 3.0f;
+    /** Minimum odds multiplier from HP factor */
+    public static float ARENA_MIN_HP_ODDS_MULT = 0.5f;
+
     // Credit Ceiling Configuration
-    /** Multiplier for top-up amount when calculating credit ceiling (0.5 = 50% of top-ups add to ceiling) */
-    public static float TOPUP_CEILING_MULTIPLIER = 0.5f;
+    /** Maximum debt multiplier - debt cannot exceed credit_ceiling * this value (default 2.0 = 2x ceiling) */
+    public static float MAX_DEBT_MULTIPLIER = 2.0f;
+    /** Multiplier for player level to calculate overdraft ceiling (default 1000 = level 10 player has 10,000 ceiling) */
+    public static float OVERDRAFT_CEILING_LEVEL_MULTIPLIER = 1000f;
+    /** Debt collector threshold as percentage above ceiling (0.0 = 0%, spawn immediately when exceeding ceiling) */
+    public static float DEBT_COLLECTOR_THRESHOLD_PERCENT = 0.0f;
 
     // Market Configuration
     /** Minimum market size for player-owned casinos */
@@ -216,8 +242,14 @@ public class CasinoConfig {
     // Arena Chaos Event Configuration
     /** Chance per simulation step for a chaos event to occur (0.1 = 10%) */
     public static float ARENA_CHAOS_EVENT_CHANCE = 0.1f;
-    /** Hull damage percentage from Hull Breach event (0.2 = 20% of max HP) */
-    public static float ARENA_HULL_BREACH_DAMAGE_PERCENT = 0.2f;
+    /** Hull damage percentage from single ship damage event (0.15 = 15% of max HP) */
+    public static float ARENA_SINGLE_SHIP_DAMAGE_PERCENT = 0.15f;
+    /** Hull damage percentage from multi ship damage event (0.10 = 10% of max HP per ship) */
+    public static float ARENA_MULTI_SHIP_DAMAGE_PERCENT = 0.10f;
+    /** Descriptions for single ship damage events (use $ship for ship name placeholder) */
+    public static List<String> ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS = new ArrayList<>();
+    /** Descriptions for multi ship damage events */
+    public static List<String> ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS = new ArrayList<>();
     
     // Flavor Text Lists (initialized with defaults, overwritten from JSON)
     /** Attack flavor text lines for arena combat (referenced as ARENA_FLAVOR_TEXTS in arena code) */
@@ -246,9 +278,7 @@ public class CasinoConfig {
     public static List<String> ARENA_AFFIX_NEG = new ArrayList<>();
 
     // Ship Blacklist (hulls excluded from gacha pool)
-    /** Ship hull IDs that should never appear in gacha pulls (from JSON - deprecated) */
-    public static Set<String> GACHA_SHIP_BLACKLIST = new HashSet<>();
-    /** Ship hull IDs that should never appear in gacha pulls (from CSV - preferred, allows mod merging) */
+    /** Ship hull IDs that should never appear in gacha pulls (from CSV - allows mod merging) */
     public static Set<String> GACHA_SHIP_BLACKLIST_CSV = new HashSet<>();
     
     // Gacha Probability Configuration
@@ -285,27 +315,41 @@ public class CasinoConfig {
         ARENA_KILL_LINES.add("$attacker annihilates $target!");
         ARENA_KILL_LINES.add("$target is blown apart by $attacker!");
         
-        // Initialize default prefixes
-        ARENA_PREFIX_STRONG_POS.add("Giant");
-        ARENA_PREFIX_STRONG_POS.add("Strong");
+        // Initialize default prefixes (must match casino_settings.json)
+        ARENA_PREFIX_STRONG_POS.add("Durable");
+        ARENA_PREFIX_STRONG_POS.add("Mightly");
         ARENA_PREFIX_STRONG_POS.add("Swift");
         ARENA_PREFIX_STRONG_POS.add("Fierce");
         
-        ARENA_PREFIX_STRONG_NEG.add("Tiny");
-        ARENA_PREFIX_STRONG_NEG.add("Weak");
-        ARENA_PREFIX_STRONG_NEG.add("Clumsy");
-        ARENA_PREFIX_STRONG_NEG.add("Cowardly");
+        ARENA_PREFIX_STRONG_NEG.add("Brittle");
+        ARENA_PREFIX_STRONG_NEG.add("Feeble");
+        ARENA_PREFIX_STRONG_NEG.add("Sluggish");
+        ARENA_PREFIX_STRONG_NEG.add("Timid");
         
-        // Initialize default affixes
-        ARENA_AFFIX_POS.add("of the Titan");
-        ARENA_AFFIX_POS.add("of Might");
+        // Initialize default affixes (must match casino_settings.json)
+        ARENA_AFFIX_POS.add("of Sturdiness");
+        ARENA_AFFIX_POS.add("of Strength");
         ARENA_AFFIX_POS.add("of Speed");
         ARENA_AFFIX_POS.add("of Courage");
         
-        ARENA_AFFIX_NEG.add("of the Mouse");
-        ARENA_AFFIX_NEG.add("of Frailty");
-        ARENA_AFFIX_NEG.add("of Slowness");
-        ARENA_AFFIX_NEG.add("of Fear");
+        ARENA_AFFIX_NEG.add("of Fragility");
+        ARENA_AFFIX_NEG.add("of Weakness");
+        ARENA_AFFIX_NEG.add("of Clumsiness");
+        ARENA_AFFIX_NEG.add("of Cowardice");
+        
+        // Initialize default single ship damage event descriptions
+        ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS.add("Maintenance accident damages $ship");
+        ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS.add("Asteroid impact hits $ship");
+        ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS.add("Micro-meteorite swarm strikes $ship");
+        ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS.add("Reactor fluctuation damages $ship");
+        ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS.add("Structural fatigue weakens $ship");
+        
+        // Initialize default multi ship damage event descriptions
+        ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS.add("Collision between ships causes damage");
+        ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS.add("Explosive debris strikes the arena");
+        ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS.add("Chain reaction explosion spreads across ships");
+        ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS.add("Electromagnetic pulse damages multiple systems");
+        ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS.add("Arena hazard activation damages combatants");
     }
 
     /**
@@ -390,13 +434,6 @@ public class CasinoConfig {
             if (settings.has("pokerAIStackPercentCallLimit")) {
                 POKER_AI_STACK_PERCENT_CALL_LIMIT = (float) settings.getDouble("pokerAIStackPercentCallLimit");
             }
-            if (settings.has("pokerRaiseAmounts")) {
-                JSONArray raiseAmounts = settings.getJSONArray("pokerRaiseAmounts");
-                POKER_RAISE_AMOUNTS = new int[raiseAmounts.length()];
-                for (int i = 0; i < raiseAmounts.length(); i++) {
-                    POKER_RAISE_AMOUNTS[i] = raiseAmounts.getInt(i);
-                }
-            }
             if (settings.has("pokerAIMaxRaiseRandomAddition")) {
                 POKER_AI_MAX_RAISE_RANDOM_ADDITION = settings.getInt("pokerAIMaxRaiseRandomAddition");
             }
@@ -407,6 +444,9 @@ public class CasinoConfig {
             // Load gacha settings
             if (settings.has("gachaCost")) {
                 GACHA_COST = settings.getInt("gachaCost");
+            }
+            if (settings.has("gachaPoolSize")) {
+                GACHA_POOL_SIZE = settings.getInt("gachaPoolSize");
             }
             if (settings.has("pityHard5")) {
                 PITY_HARD_5 = settings.getInt("pityHard5");
@@ -446,12 +486,6 @@ public class CasinoConfig {
             if (settings.has("arenaMinOdds")) {
                 ARENA_MIN_ODDS = (float) settings.getDouble("arenaMinOdds");
             }
-            if (settings.has("arenaSwitchCostPercent")) {
-                ARENA_SWITCH_COST_PERCENT = (float) settings.getDouble("arenaSwitchCostPercent");
-            }
-            if (settings.has("arenaSwitchMultiplierPenalty")) {
-                ARENA_SWITCH_MULTIPLIER_PENALTY = (float) settings.getDouble("arenaSwitchMultiplierPenalty");
-            }
             if (settings.has("arenaEntryFee")) {
                 ARENA_ENTRY_FEE = settings.getInt("arenaEntryFee");
             }
@@ -463,6 +497,32 @@ public class CasinoConfig {
             }
             if (settings.has("arenaKillBonusPerKill")) {
                 ARENA_KILL_BONUS_PER_KILL = (float) settings.getDouble("arenaKillBonusPerKill");
+            }
+            if (settings.has("arenaDefeatedConsolationMult")) {
+                ARENA_DEFEATED_CONSOLATION_MULT = (float) settings.getDouble("arenaDefeatedConsolationMult");
+            }
+            if (settings.has("arenaActionMultiplier")) {
+                ARENA_ACTION_MULTIPLIER = (float) settings.getDouble("arenaActionMultiplier");
+            }
+            if (settings.has("arenaDiminishingReturnsPerRound")) {
+                ARENA_DIMINISHING_RETURNS_PER_ROUND = (float) settings.getDouble("arenaDiminishingReturnsPerRound");
+            }
+            if (settings.has("arenaDiminishingReturnsMin")) {
+                ARENA_DIMINISHING_RETURNS_MIN = (float) settings.getDouble("arenaDiminishingReturnsMin");
+            }
+            
+            // Load HP-based dynamic odds settings
+            if (settings.has("arenaHpOddsFactor")) {
+                ARENA_HP_ODDS_FACTOR = (float) settings.getDouble("arenaHpOddsFactor");
+            }
+            if (settings.has("arenaBaseHpReference")) {
+                ARENA_BASE_HP_REFERENCE = (float) settings.getDouble("arenaBaseHpReference");
+            }
+            if (settings.has("arenaMaxHpOddsMult")) {
+                ARENA_MAX_HP_ODDS_MULT = (float) settings.getDouble("arenaMaxHpOddsMult");
+            }
+            if (settings.has("arenaMinHpOddsMult")) {
+                ARENA_MIN_HP_ODDS_MULT = (float) settings.getDouble("arenaMinHpOddsMult");
             }
             
             // Load arena prefix/affix multipliers
@@ -495,8 +555,11 @@ public class CasinoConfig {
             if (settings.has("arenaChaosEventChance")) {
                 ARENA_CHAOS_EVENT_CHANCE = (float) settings.getDouble("arenaChaosEventChance");
             }
-            if (settings.has("arenaHullBreachDamagePercent")) {
-                ARENA_HULL_BREACH_DAMAGE_PERCENT = (float) settings.getDouble("arenaHullBreachDamagePercent");
+            if (settings.has("arenaSingleShipDamagePercent")) {
+                ARENA_SINGLE_SHIP_DAMAGE_PERCENT = (float) settings.getDouble("arenaSingleShipDamagePercent");
+            }
+            if (settings.has("arenaMultiShipDamagePercent")) {
+                ARENA_MULTI_SHIP_DAMAGE_PERCENT = (float) settings.getDouble("arenaMultiShipDamagePercent");
             }
             
             // Load arena base stats from JSON if provided
@@ -518,22 +581,15 @@ public class CasinoConfig {
                 }
             }
 
-            // Load debt settings
-            if (settings.has("debtCollectorThreshold")) {
-                DEBT_COLLECTOR_THRESHOLD = settings.getInt("debtCollectorThreshold");
-                VIP_DEBT_HUNTER_THRESHOLD = DEBT_COLLECTOR_THRESHOLD; // Keep alias in sync
-            }
-            if (settings.has("interestDays")) {
-                JSONArray interestDays = settings.getJSONArray("interestDays");
-                INTEREST_DAYS = new int[interestDays.length()];
-                for (int i = 0; i < interestDays.length(); i++) {
-                    INTEREST_DAYS[i] = interestDays.getInt(i);
-                }
-            }
-            
             // Load credit ceiling settings
-            if (settings.has("topupCeilingMultiplier")) {
-                TOPUP_CEILING_MULTIPLIER = (float) settings.getDouble("topupCeilingMultiplier");
+            if (settings.has("maxDebtMultiplier")) {
+                MAX_DEBT_MULTIPLIER = (float) settings.getDouble("maxDebtMultiplier");
+            }
+            if (settings.has("overdraftCeilingLevelMultiplier")) {
+                OVERDRAFT_CEILING_LEVEL_MULTIPLIER = (float) settings.getDouble("overdraftCeilingLevelMultiplier");
+            }
+            if (settings.has("debtCollectorThresholdPercent")) {
+                DEBT_COLLECTOR_THRESHOLD_PERCENT = (float) settings.getDouble("debtCollectorThresholdPercent");
             }
 
             // Load market settings
@@ -580,10 +636,11 @@ public class CasinoConfig {
             loadStringList(settings, "arenaPrefixStrongNeg", ARENA_PREFIX_STRONG_NEG);
             loadStringList(settings, "arenaAffixPos", ARENA_AFFIX_POS);
             loadStringList(settings, "arenaAffixNeg", ARENA_AFFIX_NEG);
-
-            // Load ship blacklist (JSON - deprecated)
-            loadStringSet(settings, "shipBlacklist", GACHA_SHIP_BLACKLIST);
             
+            // Load arena event description lists
+            loadStringList(settings, "arenaSingleShipDamageDescriptions", ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS);
+            loadStringList(settings, "arenaMultiShipDamageDescriptions", ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS);
+
             // Load gacha probabilities
             if (settings.has("prob5Star")) {
                 PROB_5_STAR = (float) settings.getDouble("prob5Star");
@@ -653,26 +710,4 @@ public class CasinoConfig {
         }
     }
 
-    /**
-     * Helper method to load a set of strings from JSON.
-     * 
-     * @param settings The JSON object containing the configuration
-     * @param key The key for the array to load
-     * @param set The set to populate with values
-     * 
-     * AI_AGENT NOTE: Sets are used for O(1) lookup performance (e.g., ship blacklist).
-     */
-    private static void loadStringSet(JSONObject settings, String key, Set<String> set) {
-        if (settings.has(key)) {
-            try {
-                JSONArray array = settings.getJSONArray(key);
-                set.clear();
-                for (int i = 0; i < array.length(); i++) {
-                    set.add(array.getString(i));
-                }
-            } catch (JSONException e) {
-                Global.getLogger(CasinoConfig.class).warn("Error loading " + key + ": " + e.getMessage());
-            }
-        }
-    }
 }

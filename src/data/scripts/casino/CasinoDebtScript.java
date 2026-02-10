@@ -57,12 +57,11 @@ public class CasinoDebtScript implements EveryFrameScript {
     // Instance variables (not persisted, recalculated)
     private StarSystemAPI systemPlayerIsIn = null;
     private float daysInSystem = 0f;
-    private long seed;
-    private Random random;
+    private boolean shouldSpawnCollector = false; // Flag set when spawn conditions are met
+    private final long seed;
 
     public CasinoDebtScript() {
         seed = Misc.genRandomSeed();
-        random = new Random(seed);
     }
 
     @Override
@@ -87,7 +86,7 @@ public class CasinoDebtScript implements EveryFrameScript {
 
         // Update system tracking for spawn conditions
         updateSystemTracking(playerFleet, days);
-        
+
         // Update collector state machine
         updateCollectorState(days, playerFleet);
     }
@@ -98,23 +97,32 @@ public class CasinoDebtScript implements EveryFrameScript {
      */
     private void updateSystemTracking(CampaignFleetAPI playerFleet, float days) {
         float distFromCore = playerFleet.getLocationInHyperspace().length();
-        
+
         // If too far from core, reset tracking
         if (distFromCore > MAX_DIST_FROM_CORE) {
             daysInSystem = 0f;
             systemPlayerIsIn = null;
+            shouldSpawnCollector = false;
             return;
         }
-        
+
         // Check if player is in hyperspace (exiting a system)
         if (!(playerFleet.getContainingLocation() instanceof StarSystemAPI)) {
-            // Player is in hyperspace - check if we should spawn
-            // This is handled in updateCollectorState
+            // Player is in hyperspace - check spawn conditions BEFORE clearing tracking
+            // This follows the TriTachLoanIncentiveScript pattern
+            if (systemPlayerIsIn != null && daysInSystem >= DAYS_IN_SYSTEM_THRESHOLD) {
+                float dist = Misc.getDistance(systemPlayerIsIn.getLocation(), playerFleet.getLocationInHyperspace());
+                if (dist < SPAWN_DIST_FROM_SYSTEM || DebugFlags.BAR_DEBUG) {
+                    // Spawn conditions met! Set flag for handlePendingState to pick up
+                    shouldSpawnCollector = true;
+                }
+            }
+            // NOW clear tracking after checking conditions
             daysInSystem = 0f;
             systemPlayerIsIn = null;
             return;
         }
-        
+
         // Player is in a system - track time
         systemPlayerIsIn = (StarSystemAPI) playerFleet.getContainingLocation();
         daysInSystem += days;
@@ -126,9 +134,17 @@ public class CasinoDebtScript implements EveryFrameScript {
     private void updateCollectorState(float days, CampaignFleetAPI playerFleet) {
         String state = getCollectorState();
         int currentBalance = CasinoVIPManager.getBalance();
-        int debtThreshold = Math.abs(CasinoConfig.VIP_DEBT_HUNTER_THRESHOLD);
-        // Debt is negative balance - check if balance is below negative threshold
-        boolean debtAboveThreshold = currentBalance <= -debtThreshold;
+        int ceiling = CasinoVIPManager.getCreditCeiling();
+        
+        // Calculate how much debt exceeds the ceiling as a percentage
+        // Debt is negative balance, so -currentBalance is the debt amount
+        boolean debtAboveThreshold = false;
+        if (currentBalance < 0 && ceiling > 0) {
+            int debtAmount = -currentBalance; // Convert negative balance to positive debt
+            int debtAboveCeiling = Math.max(0, debtAmount - ceiling); // How much above ceiling
+            float percentAboveCeiling = (float) debtAboveCeiling / ceiling;
+            debtAboveThreshold = percentAboveCeiling >= CasinoConfig.DEBT_COLLECTOR_THRESHOLD_PERCENT;
+        }
         
         switch (state) {
             case STATE_NONE:
@@ -186,6 +202,7 @@ public class CasinoDebtScript implements EveryFrameScript {
         if (!debtAboveThreshold) {
             setCollectorState(STATE_NONE);
             Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
+            shouldSpawnCollector = false; // Clear spawn flag
             Global.getLogger(this.getClass()).info("Debt collector spawn cancelled - debt paid below threshold");
             Global.getSector().getCampaignUI().addMessage(
                 "The Corporate Reconciliation Team has been recalled - your debt is below the collection threshold.",
@@ -193,37 +210,56 @@ public class CasinoDebtScript implements EveryFrameScript {
             );
             return;
         }
-        
+
         // Check if enough time has passed since pending started
-        Long pendingStart = Global.getSector().getMemoryWithoutUpdate().getLong(MEM_PENDING_START_TIME);
-        if (pendingStart == null || pendingStart == 0) {
+        long pendingStart = Global.getSector().getMemoryWithoutUpdate().getLong(MEM_PENDING_START_TIME);
+        if (pendingStart == 0) {
             pendingStart = Global.getSector().getClock().getTimestamp();
             Global.getSector().getMemoryWithoutUpdate().set(MEM_PENDING_START_TIME, pendingStart);
         }
-        
+
         float daysSincePending = Global.getSector().getClock().getElapsedDaysSince(pendingStart);
         if (daysSincePending < PENDING_DELAY_DAYS && !DebugFlags.BAR_DEBUG) {
             return; // Still in delay period
         }
-        
-        // Check spawn location conditions (following TriTachLoanIncentiveScript pattern)
-        // Player must be exiting a system after being in it for 7+ days
-        if (!(playerFleet.getContainingLocation() instanceof StarSystemAPI)) {
-            if (systemPlayerIsIn != null) {
-                float dist = Misc.getDistance(systemPlayerIsIn.getLocation(), playerFleet.getLocationInHyperspace());
-                if (dist < SPAWN_DIST_FROM_SYSTEM || DebugFlags.BAR_DEBUG) {
-                    // Conditions met - spawn the collector
-                    if (spawnDebtCollector(systemPlayerIsIn)) {
-                        setCollectorState(STATE_ACTIVE);
-                        recordSpawnTime();
-                        Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
-                    } else {
-                        // Spawn failed, stay in PENDING and try again
-                        Global.getLogger(this.getClass()).warn("Debt collector fleet spawn failed, will retry");
-                    }
-                }
+
+        // Check if spawn flag was set by updateSystemTracking
+        // This happens when player exits a system after 7+ days and is within 3k units
+        if (shouldSpawnCollector) {
+            shouldSpawnCollector = false; // Clear the flag
+
+            // Get the system to use as spawn reference (from tracking before it was cleared)
+            // We need to find a nearby system since systemPlayerIsIn is now null
+            StarSystemAPI nearestSystem = findNearestSystemToPlayer(playerFleet);
+
+            if (nearestSystem != null && spawnDebtCollector(nearestSystem)) {
+                setCollectorState(STATE_ACTIVE);
+                recordSpawnTime();
+                Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
+            } else {
+                // Spawn failed, stay in PENDING and try again
+                Global.getLogger(this.getClass()).warn("Debt collector fleet spawn failed, will retry");
             }
         }
+    }
+
+    /**
+     * Find the nearest star system to the player's current location in hyperspace
+     */
+    private StarSystemAPI findNearestSystemToPlayer(CampaignFleetAPI playerFleet) {
+        StarSystemAPI nearest = null;
+        float minDist = Float.MAX_VALUE;
+        Vector2f playerLoc = playerFleet.getLocationInHyperspace();
+
+        for (StarSystemAPI system : Global.getSector().getStarSystems()) {
+            float dist = Misc.getDistance(system.getLocation(), playerLoc);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = system;
+            }
+        }
+
+        return nearest;
     }
     
     /**
@@ -270,18 +306,25 @@ public class CasinoDebtScript implements EveryFrameScript {
     
     /**
      * STATE_DEFEATED: Collector was defeated
-     * - Stay in this state until debt drops below threshold
-     * - Once debt is resolved, reset to NONE
-     * - This prevents immediate re-spawning after defeat
+     * - Stay in this state until debt drops below threshold OR cooldown expires
+     * - Once cooldown expires with debt still above threshold, reset to NONE for new spawn attempt
+     * - This allows monthly spawn checks for players with persistent high debt
      */
     private void handleDefeatedState(boolean debtAboveThreshold) {
         if (!debtAboveThreshold) {
             // Debt has been paid off, reset system
             setCollectorState(STATE_NONE);
             Global.getLogger(this.getClass()).info("Debt resolved - collector system reset");
+            return;
         }
-        // If debt is still above threshold, stay in DEFEATED state
-        // The 1-month cooldown in canSpawnCollector() prevents spam spawning
+        
+        // Debt is still above threshold - check if cooldown has expired for next spawn attempt
+        if (canSpawnCollector()) {
+            // Cooldown expired and debt still high - reset to NONE to allow new spawn cycle
+            setCollectorState(STATE_NONE);
+            Global.getLogger(this.getClass()).info("Debt collector cooldown expired - resetting for new spawn attempt");
+        }
+        // If cooldown hasn't expired, stay in DEFEATED state
     }
     
     /**
@@ -352,9 +395,16 @@ public class CasinoDebtScript implements EveryFrameScript {
         // Add the fleet to hyperspace
         Global.getSector().getHyperspace().addEntity(debtCollectorFleet);
         
-        // Position the fleet near the player (following TriTachLoanIncentiveScript pattern)
-        Vector2f collectorLoc = Misc.getPointAtRadius(playerFleet.getLocationInHyperspace(), 500f);
-        debtCollectorFleet.setLocation(collectorLoc.x, collectorLoc.y);
+        // Position the fleet near the source system or player (following TriTachLoanIncentiveScript pattern)
+        Vector2f spawnLoc;
+        if (sourceSystem != null) {
+            // Spawn near the system the player just exited
+            spawnLoc = Misc.getPointAtRadius(sourceSystem.getLocation(), 500f);
+        } else {
+            // Fallback: spawn near player
+            spawnLoc = Misc.getPointAtRadius(playerFleet.getLocationInHyperspace(), 500f);
+        }
+        debtCollectorFleet.setLocation(spawnLoc.x, spawnLoc.y);
         
         // Set the fleet to intercept the player
         debtCollectorFleet.getAI().addAssignmentAtStart(FleetAssignment.INTERCEPT, playerFleet, 1000f, null);
@@ -385,6 +435,32 @@ public class CasinoDebtScript implements EveryFrameScript {
     private CampaignFleetAPI createDebtCollectorFleet() {
         // Create a bounty hunter style fleet for collecting debt
         // Following TriTachLoanIncentiveScript pattern
+        FleetParamsV3 params = createDebtCollectorFleetParams();
+        
+        // Create the fleet using the factory
+        CampaignFleetAPI fleet = FleetFactoryV3.createFleet(params);
+        if (fleet == null || fleet.isEmpty()) {
+            return null;
+        }
+        
+        // Set the fleet to independent faction so it can be hostile (following TriTach pattern)
+        fleet.setFaction(Factions.INDEPENDENT, true);
+        Misc.makeLowRepImpact(fleet, "ipc_debt");
+        
+        // Make the fleet despawn after some time if not engaged
+        fleet.addScript(new AutoDespawnScript(fleet));
+        
+        // Set memory flags to make the fleet hostile
+        MemoryAPI memory = fleet.getMemoryWithoutUpdate();
+        memory.set(MemFlags.MEMORY_KEY_MAKE_HOSTILE, true);
+        
+        return fleet;
+    }
+    
+    /**
+     * Create fleet parameters for debt collector fleet
+     */
+    private FleetParamsV3 createDebtCollectorFleetParams() {
         float fleetPoints = 200f; // Size of the fleet (matching TriTach)
         
         FleetParamsV3 params = new FleetParamsV3(
@@ -414,24 +490,7 @@ public class CasinoDebtScript implements EveryFrameScript {
         
         params.random = new Random(seed);
         
-        // Create the fleet using the factory
-        CampaignFleetAPI fleet = FleetFactoryV3.createFleet(params);
-        if (fleet == null || fleet.isEmpty()) {
-            return null;
-        }
-        
-        // Set the fleet to independent faction so it can be hostile (following TriTach pattern)
-        fleet.setFaction(Factions.INDEPENDENT, true);
-        Misc.makeLowRepImpact(fleet, "ipc_debt");
-        
-        // Make the fleet despawn after some time if not engaged
-        fleet.addScript(new AutoDespawnScript(fleet));
-        
-        // Set memory flags to make the fleet hostile
-        MemoryAPI memory = fleet.getMemoryWithoutUpdate();
-        memory.set(MemFlags.MEMORY_KEY_MAKE_HOSTILE, true);
-        
-        return fleet;
+        return params;
     }
     
     /**

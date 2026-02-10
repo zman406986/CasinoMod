@@ -63,7 +63,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     // Callback for when animation completes
     protected GachaAnimationCallback callback;
 
-    public static interface GachaAnimationCallback {
+    public interface GachaAnimationCallback {
         void onAnimationComplete(List<GachaItem> results);
     }
 
@@ -88,14 +88,14 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
 
         private void setColorForRarity() {
-            switch(rarity) {
-                case 1: color = new Color(150, 150, 150); break;
-                case 2: color = new Color(100, 200, 100); break;
-                case 3: color = new Color(100, 150, 255); break;
-                case 4: color = new Color(200, 100, 255); break;
-                case 5: color = new Color(255, 215, 0); break;
-                default: color = Color.WHITE; break;
-            }
+            color = switch(rarity) {
+                case 1 -> new Color(150, 150, 150);
+                case 2 -> new Color(100, 200, 100);
+                case 3 -> new Color(100, 150, 255);
+                case 4 -> new Color(200, 100, 255);
+                case 5 -> new Color(255, 215, 0);
+                default -> Color.WHITE;
+            };
         }
 
         public void setHullId(String hullId) {
@@ -106,41 +106,35 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             this.weaponId = weaponId;
         }
 
-        public void setHullModId(String hullModId) {
-            this.hullModId = hullModId;
-        }
 
-        public void setSpritePath(String spritePath) {
-            this.spritePath = spritePath;
-        }
 
         // Get spin speed based on rarity
         public float getSpinSpeed() {
-            switch(rarity) {
-                case 5: return 12f;
-                case 4: return 9f;
-                case 3: return 7f;
-                default: return 6f;
-            }
+            return switch(rarity) {
+                case 5 -> 12f;
+                case 4 -> 9f;
+                case 3 -> 7f;
+                default -> 6f;
+            };
         }
 
-        // Get dark color for spinning phase (60% brightness instead of 40%)
+        // Get dark color for spinning phase (brighter for visibility against dark bg)
         public Color getDarkColor() {
             return new Color(
-                (int)(color.getRed() * 0.6f),
-                (int)(color.getGreen() * 0.6f),
-                (int)(color.getBlue() * 0.6f)
+                (int)(color.getRed() * 0.7f),
+                (int)(color.getGreen() * 0.7f),
+                (int)(color.getBlue() * 0.7f)
             );
         }
 
-        // Get background alpha based on rarity
+        // Get background alpha based on rarity (higher for visibility against dark bg)
         public float getBackgroundAlpha() {
             switch(rarity) {
-                case 5: return 0.6f;
-                case 4: return 0.5f;
-                case 3: return 0.4f;
-                case 2: return 0.35f;
-                default: return 0.3f;
+                case 5: return 0.95f;
+                case 4: return 0.9f;
+                case 3: return 0.85f;
+                case 2: return 0.8f;
+                default: return 0.75f;
             }
         }
     }
@@ -234,7 +228,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
     }
 
-    public void render(float alphaMult) {
+    public void renderBelow(float alphaMult) {
         if (p == null) return;
 
         float x = p.getX();
@@ -247,31 +241,34 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         float s = Global.getSettings().getScreenScaleMult();
         GL11.glScissor((int)(x * s), (int)(y * s), (int)(w * s), (int)(h * s));
 
-        // Draw background effect
+        // Draw background - use a darker base color for better contrast
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        Misc.renderQuad(x, y, w, h, new Color(15, 15, 20), alphaMult);
+
+        // Draw background effect with lower alpha so it doesn't brighten too much
         if (backgroundSprite != null) {
             backgroundSprite.setSize(w, h);
             backgroundSprite.setAlphaMult(alphaMult * 0.3f);
             backgroundSprite.render(x, y);
         }
 
-        // Draw title
-        drawTitle(alphaMult);
-
-        // Draw revealed items in multi-column layout
+        // Draw all items in multi-column layout
         drawRevealedItems(alphaMult);
 
-        // Draw "click to continue" hint if waiting
-        if (waitingForClick && currentRevealIndex < allItems.size()) {
-            drawContinueHint(alphaMult);
+        // Draw particle bursts
+        for (ParticleBurst burst : activeBursts) {
+            burst.render(alphaMult);
         }
 
         // Disable scissor test after rendering
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
 
-    private void drawTitle(float alphaMult) {
-        // Title is drawn via the dialog's text panel, not here
+    public void render(float alphaMult) {
+        // All rendering is done in renderBelow() for proper layering
+        // This follows the pattern used by DuelPanel
     }
+
 
     private void drawRevealedItems(float alphaMult) {
         if (revealedItems.isEmpty()) return;
@@ -316,10 +313,10 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         float bgAlpha;
 
         if (!item.isFixed) {
-            // Spinning phase - use dark color
+            // Spinning phase - use brighter dark color for better visibility
             displayColor = item.getDarkColor();
-            borderColor = new Color(100, 100, 100);
-            bgAlpha = 0.2f;
+            borderColor = new Color(150, 150, 150);
+            bgAlpha = 0.4f;
         } else {
             // Fixed/bright phase - use full color
             displayColor = item.color;
@@ -405,21 +402,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
     }
 
-    private void drawContinueHint(float alphaMult) {
-        String hint = "Click or press SPACE to reveal next";
-        float hintY = p.getY() + 40f;
 
-        // Draw hint background
-        float hintWidth = 300f;
-        float hintHeight = 30f;
-        float hintX = centerX - hintWidth / 2f;
-
-        Misc.renderQuad(hintX, hintY - hintHeight/2, hintWidth, hintHeight, new Color(0, 0, 0, 150), alphaMult * 0.7f);
-
-        // Pulsing effect
-        float pulse = 0.7f + 0.3f * (float)Math.sin(animationTimer * 4f);
-        Misc.renderQuad(hintX, hintY - 1, hintWidth, 2, new Color(255, 255, 255, (int)(200 * pulse)), alphaMult);
-    }
 
     public void advance(float amount) {
         if (p == null) return;
@@ -444,13 +427,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
 
         // Update particle bursts
-        Iterator<ParticleBurst> burstIter = activeBursts.iterator();
-        while (burstIter.hasNext()) {
-            ParticleBurst burst = burstIter.next();
-            if (!burst.advance(amount)) {
-                burstIter.remove();
-            }
-        }
+        activeBursts.removeIf(burst -> !burst.advance(amount));
 
         // Check if all items revealed and all fixed
         if (currentRevealIndex >= allItems.size() && !animationComplete) {
@@ -613,7 +590,4 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         return animationComplete;
     }
 
-    public boolean isAnimationRunning() {
-        return animationRunning;
-    }
 }

@@ -93,7 +93,7 @@ public class HelpHandler {
     /**
      * Shows the introductory help page.
      * Displayed on first casino visit or via "How to Play" menu.
-     * 
+     *
      * AI_AGENT NOTE: This is a condensed overview. Detailed rules are in
      * the specific help methods (showPokerHelp, showArenaHelp, etc.)
      */
@@ -109,7 +109,7 @@ public class HelpHandler {
         main.textPanel.addPara("");
         main.textPanel.addPara("Currency & Economy:", Color.YELLOW);
         main.textPanel.addPara("- Stargems are the local currency (1 Gem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits)");
-        main.textPanel.addPara("- VIP Pass grants exclusive reputation bonuses");
+        main.textPanel.addPara("- VIP Pass (" + CasinoConfig.VIP_PASS_DAYS + " Days) grants " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily");
         main.textPanel.addPara("");
         main.textPanel.addPara("Click 'How to Play' anytime for detailed game rules and tips.");
         main.options.addOption("Continue to Casino", "back_menu");
@@ -126,7 +126,7 @@ public class HelpHandler {
     /**
      * Displays general casino help information.
      * Covers currency, financial laws, and save/resume functionality.
-     * 
+     *
      * AI_AGENT NOTE: Financial law values are pulled from CasinoConfig
      * to ensure consistency with actual game mechanics.
      */
@@ -135,17 +135,23 @@ public class HelpHandler {
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
         main.textPanel.addPara("Stargems & Credits:", Color.GRAY);
         main.textPanel.addPara("- Stargems are the local currency. 1 Gem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits.");
-        main.textPanel.addPara("- VIP Pass (30 Days) grants exclusive reputation bonuses.");
-        
+        main.textPanel.addPara("- VIP Pass (" + CasinoConfig.VIP_PASS_DAYS + " Days) grants " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily.");
+        main.textPanel.addPara("- VIP Pass costs " + CasinoConfig.VIP_PASS_COST + " Credits.");
+
         main.textPanel.addPara("Financial Laws:", Color.GRAY);
-        main.textPanel.addPara("- Debt Ceiling: Base " + (int)CasinoConfig.BASE_DEBT_CEILING + " Credits + VIP Pass bonuses + Top-up bonuses.");
-        main.textPanel.addPara("- Interest: 5% accumulated on the 15th if Stargem balance is negative.");
-        
+        main.textPanel.addPara("- Debt Ceiling: Base " + (int)CasinoConfig.BASE_DEBT_CEILING + " Stargems + " + CasinoConfig.CEILING_INCREASE_PER_VIP + " per VIP Pass purchased.");
+        main.textPanel.addPara("- Interest: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily for VIP, " + (int)(CasinoConfig.NORMAL_DAILY_INTEREST_RATE * 100) + "% daily for non-VIP (applied when balance is negative).");
+        main.textPanel.addPara("- Max Debt: Cannot exceed " + (int)(CasinoConfig.MAX_DEBT_MULTIPLIER * 100) + "% of your credit ceiling.");
+
+        main.textPanel.addPara("Ship Trading:", Color.GRAY);
+        main.textPanel.addPara("- Ships can be converted to Stargems (base value / " + (int)CasinoConfig.SHIP_TRADE_RATE + " = gems).");
+        main.textPanel.addPara("- Sell multiplier: " + (int)(CasinoConfig.SHIP_SELL_MULTIPLIER * 100) + "% of calculated value.");
+
         main.textPanel.addPara("Continuity (Save/Resume):", Color.GRAY);
         main.textPanel.addPara("- You can 'Tell Them to Wait' to suspend an active game.");
         main.textPanel.addPara("- Suspended games persist in memory and can be resumed later.");
         main.textPanel.addPara("- WARNING: Leaving mid-hand or flipping the table forfeits your current bet!", Color.RED);
-        
+
         main.options.addOption("About Poker (Hands & Rules)", "how_to_poker");
         main.options.addOption("About Spiral Abyss Arena", "how_to_arena");
         main.options.addOption("About Tachy-Impact", "how_to_gacha");
@@ -156,7 +162,7 @@ public class HelpHandler {
     /**
      * Displays comprehensive poker help.
      * Covers hand rankings, game flow, betting actions, and position strategy.
-     * 
+     *
      * AI_AGENT NOTE: This is the authoritative reference for poker rules.
      * When modifying poker mechanics, update this help text to match.
      */
@@ -165,6 +171,11 @@ public class HelpHandler {
         main.textPanel.addPara("\n--- TEXAS HOLD'EM GUIDE ---", Color.CYAN);
         main.textPanel.addPara("Objective:", Color.GRAY);
         main.textPanel.addPara("- Make the best 5-card hand using your 2 hole cards and 5 community cards.");
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Blinds & Stakes:", Color.GRAY);
+        main.textPanel.addPara("- Small Blind: " + CasinoConfig.POKER_SMALL_BLIND + " Stargems");
+        main.textPanel.addPara("- Big Blind: " + CasinoConfig.POKER_BIG_BLIND + " Stargems");
+        main.textPanel.addPara("- Opponent Stack: " + CasinoConfig.POKER_DEFAULT_OPPONENT_STACK + " Stargems");
         main.textPanel.addPara("");
         main.textPanel.addPara("Hand Rankings (Strongest to Weakest):", Color.GRAY);
         main.textPanel.addPara("1. Royal Flush - A, K, Q, J, 10, all same suit");
@@ -192,7 +203,7 @@ public class HelpHandler {
         main.textPanel.addPara("Betting Actions:", Color.CYAN);
         main.textPanel.addPara("- Call: Match the current bet amount.");
         main.textPanel.addPara("- Check: Pass action without betting (only if no bet to call).");
-        main.textPanel.addPara("- Raise: Increase the current bet amount.");
+        main.textPanel.addPara("- Raise: Increase the current bet amount (min " + CasinoConfig.POKER_AI_MIN_RAISE_VALUE + " Stargems).");
         main.textPanel.addPara("- Fold: Surrender hand and forfeit any bets made.");
         main.textPanel.addPara("");
         main.textPanel.addPara("Position & Blinds (Heads-Up):", Color.CYAN);
@@ -208,11 +219,12 @@ public class HelpHandler {
         main.textPanel.addPara("- The IPC Dealer adapts to your play style. Mix up your strategy!");
         main.textPanel.addPara("- The dealer will always call to see the flop when you just complete the Big Blind.");
         main.textPanel.addPara("- The IPC Dealer calculates pot odds. Don't let them bully you!", Color.ORANGE);
-        
-        // Check if we're in an active poker game (has cards dealt)
-        if (main.poker.getPokerGame() != null && 
-            main.poker.getPokerGame().getState() != null && 
-            main.poker.getPokerGame().getState().playerHand != null && 
+
+        // Check if we're in an active poker game (has cards dealt AND player has chips)
+        if (main.poker.getPokerGame() != null &&
+            main.poker.getPokerGame().getState() != null &&
+            main.poker.getPokerGame().getState().playerStack > 0 &&
+            main.poker.getPokerGame().getState().playerHand != null &&
             !main.poker.getPokerGame().getState().playerHand.isEmpty()) {
             main.options.addOption("Back to Game", "poker_back_action"); // Return to active game
         } else {
@@ -222,8 +234,8 @@ public class HelpHandler {
 
     /**
      * Displays comprehensive arena help.
-     * Covers betting system, performance bonuses, champion switching, and chaos events.
-     * 
+     * Covers betting system, dynamic odds, performance bonuses, and chaos events.
+     *
      * AI_AGENT NOTE: Odds calculations and bonus formulas are documented here.
      * When modifying arena mechanics, update this help text to match.
      */
@@ -233,66 +245,84 @@ public class HelpHandler {
         main.textPanel.addPara("Objective:", Color.GRAY);
         main.textPanel.addPara("- Bet on one or more ships to survive the battle royale.");
         main.textPanel.addPara("- Last ship standing wins!");
-        
-        main.textPanel.addPara("Betting System:", Color.GRAY);
-        main.textPanel.addPara("- Each ship has base odds (e.g., 1:2.0 means 2x return).");
-        main.textPanel.addPara("- Odds are affected by ship perks (positive perks lower odds, negative perks raise odds).");
+
+        main.textPanel.addPara("Entry & Ships:", Color.GRAY);
+        main.textPanel.addPara("- Entry Fee: " + CasinoConfig.ARENA_ENTRY_FEE + " Stargems");
+        main.textPanel.addPara("- Ships per Battle: " + CasinoConfig.ARENA_SHIP_COUNT);
+        main.textPanel.addPara("- Ships have random prefixes and affixes that modify stats!");
+
+        main.textPanel.addPara("Betting System & Dynamic Odds:", Color.YELLOW);
+        main.textPanel.addPara("- Base Odds: 1:" + CasinoConfig.ARENA_BASE_ODDS + " (e.g., " + CasinoConfig.ARENA_BASE_ODDS + "x return on win).");
+        main.textPanel.addPara("- Positive Perks: Odds reduced by " + (int)((1 - CasinoConfig.ARENA_POSITIVE_PERK_MULTIPLIER) * 100) + "% (stronger ship = lower payout).");
+        main.textPanel.addPara("- Negative Perks: Odds increased by " + (int)((CasinoConfig.ARENA_NEGATIVE_PERK_MULTIPLIER - 1) * 100) + "% (weaker ship = higher payout).");
+        main.textPanel.addPara("- Minimum Odds: 1:" + CasinoConfig.ARENA_MIN_ODDS);
         main.textPanel.addPara("- You can bet on multiple ships at once.");
-        main.textPanel.addPara("- Add additional bets during battle (later bets have reduced effectiveness).");
-        
+        main.textPanel.addPara("");
+        main.textPanel.addPara("DYNAMIC ODDS (Mid-Battle Betting):", Color.CYAN);
+        main.textPanel.addPara("- Odds change based on current HP and round number!", Color.YELLOW);
+        main.textPanel.addPara("- Higher HP = WORSE odds (lower payout) - the ship is more likely to win.");
+        main.textPanel.addPara("- Lower HP = BETTER odds (higher payout) - riskier bet, bigger reward.");
+        main.textPanel.addPara("- HP Factor Range: " + CasinoConfig.ARENA_MIN_HP_ODDS_MULT + "x to " + CasinoConfig.ARENA_MAX_HP_ODDS_MULT + "x base odds.");
+        main.textPanel.addPara("- Later bets have diminishing returns (" + (int)(CasinoConfig.ARENA_DIMINISHING_RETURNS_PER_ROUND * 100) + "% reduction per round, min " + (int)(CasinoConfig.ARENA_DIMINISHING_RETURNS_MIN * 100) + "%).");
+        main.textPanel.addPara("- Your bet is LOCKED at the odds shown when you place it.");
+
         main.textPanel.addPara("Performance Bonuses:", Color.GRAY);
-        main.textPanel.addPara("- Survival Bonus: Each turn survived adds to your multiplier.");
-        main.textPanel.addPara("- Kill Bonus: Each kill adds to your multiplier.");
-        main.textPanel.addPara("- Performance bonuses are proportional modifiers to your ship's odds.");
-        
-        main.textPanel.addPara("Champion Switching:", Color.GRAY);
-        main.textPanel.addPara("- You can switch champions during battle.");
-        main.textPanel.addPara("- Cost: 50% of your current bet as a switching fee.");
-        main.textPanel.addPara("- Penalty: Your multiplier is halved when switching.");
-        
+        main.textPanel.addPara("- Survival Bonus: +" + (int)(CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN * 100) + "% per turn survived.");
+        main.textPanel.addPara("- Kill Bonus: +" + (int)(CasinoConfig.ARENA_KILL_BONUS_PER_KILL * 100) + "% per kill.");
+        main.textPanel.addPara("- House Edge: ~10% (survival multiplier: " + CasinoConfig.ARENA_SURVIVAL_REWARD_MULT + "x).");
+
+        main.textPanel.addPara("Consolation Prizes:", Color.GRAY);
+        main.textPanel.addPara("- Defeated ships may still earn consolation based on performance.");
+        main.textPanel.addPara("- Consolation factor: " + (int)(CasinoConfig.ARENA_DEFEATED_CONSOLATION_MULT * 100) + "% of calculated value.");
+
         main.textPanel.addPara("Chaos Events:", Color.GRAY);
-        main.textPanel.addPara("- Solar Flare: Reduces all ships' agility.");
-        main.textPanel.addPara("- Hull Breach: Deals damage to random ships.");
-        main.textPanel.addPara("- Power Surge: Doubles damage for one round.");
-        
-        main.textPanel.addPara("Strategy:", Color.GRAY);
-        main.textPanel.addPara("- Bet early for maximum effectiveness.");
-        main.textPanel.addPara("- Monitor ship performance to decide when to switch.");
+        main.textPanel.addPara("- Chance per turn: " + (int)(CasinoConfig.ARENA_CHAOS_EVENT_CHANCE * 100) + "%");
+        main.textPanel.addPara("- Single Ship Damage: Deals " + (int)(CasinoConfig.ARENA_SINGLE_SHIP_DAMAGE_PERCENT * 100) + "% damage to one ship.");
+        main.textPanel.addPara("- Multi Ship Damage: Deals " + (int)(CasinoConfig.ARENA_MULTI_SHIP_DAMAGE_PERCENT * 100) + "% damage to multiple ships.");
+
+        main.textPanel.addPara("Strategy:", Color.YELLOW);
+        main.textPanel.addPara("- Bet early for maximum odds (before HP damage and diminishing returns).");
+        main.textPanel.addPara("- Look for wounded champions with good perks for high-value mid-battle bets.");
+        main.textPanel.addPara("- Higher HP champions are safer but pay less; low HP = high risk, high reward.");
         main.textPanel.addPara("- Watch for chaos events that can change the tide of battle!");
-        
+
         main.options.addOption("Back", "arena_lobby");
     }
 
     /**
      * Displays comprehensive gacha help.
-     * Covers rarities, pity mechanics, featured rotation, and auto-convert.
-     * 
+     * Covers rarities, pity mechanics, and featured rotation.
+     *
      * AI_AGENT NOTE: Pity thresholds and rotation timing are pulled from CasinoConfig.
      * When modifying gacha mechanics, update this help text to match.
      */
     public void showGachaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TACHY-IMPACT: WARP PROTOCOL ---", Color.CYAN);
+        main.textPanel.addPara("Cost & Pool:", Color.GRAY);
+        main.textPanel.addPara("- Cost per Pull: " + CasinoConfig.GACHA_COST + " Stargems");
+        main.textPanel.addPara("- Pool Size: " + CasinoConfig.GACHA_POOL_SIZE + " ships");
+
         main.textPanel.addPara("Ship Rarities:", Color.GRAY);
-        main.textPanel.addPara("- 5* (Capital Ships): Rare featured ships with high value.");
-        main.textPanel.addPara("- 4* (Cruisers): Featured ships with good value.");
-        main.textPanel.addPara("- 3* (Destroyers/Frigates): Common ships.");
-        
+        main.textPanel.addPara("- 5* (Capital Ships): " + (CasinoConfig.PROB_5_STAR * 100) + "% base rate. Rare featured ships with high value.");
+        main.textPanel.addPara("- 4* (Cruisers): " + (CasinoConfig.PROB_4_STAR * 100) + "% base rate. Featured ships with good value.");
+        main.textPanel.addPara("- 3* (Destroyers/Frigates): Common ships fill the remaining rate.");
+
         main.textPanel.addPara("Pity Mechanics:", Color.GRAY);
-        main.textPanel.addPara("- 5* Pity: Guaranteed at " + CasinoConfig.PITY_HARD_5 + " pulls. Chance increases after " + CasinoConfig.PITY_SOFT_START_5 + ".");
+        main.textPanel.addPara("- 5* Pity: Guaranteed at " + CasinoConfig.PITY_HARD_5 + " pulls. Soft pity starts at " + CasinoConfig.PITY_SOFT_START_5 + " pulls (rate increases).");
         main.textPanel.addPara("- 4* Pity: Guaranteed at " + CasinoConfig.PITY_HARD_4 + " pulls.");
         main.textPanel.addPara("- 50/50 Rule: If your 5* isn't the featured ship, the next one IS guaranteed to be the featured ship.");
-        
+
         main.textPanel.addPara("Featured Rotation:", Color.GRAY);
         main.textPanel.addPara("- Featured ships rotate every " + CasinoConfig.GACHA_ROTATION_DAYS + " days.");
-        main.textPanel.addPara("- One featured 5* capital and three featured 4* cruisers per rotation.");
+        main.textPanel.addPara("- One featured 5* capital and featured 4* cruisers per rotation.");
         main.textPanel.addPara("- Pity carries over between rotations!");
-        
-        main.textPanel.addPara("Auto-Convert:", Color.GRAY);
-        main.textPanel.addPara("- Select ships to automatically convert to Stargems.");
-        main.textPanel.addPara("- Converted ships give gems based on their credit value.");
+
+        main.textPanel.addPara("Ship Conversion:", Color.GRAY);
+        main.textPanel.addPara("- Ships can be converted to Stargems (base value / " + (int)CasinoConfig.SHIP_TRADE_RATE + " = gems).");
+        main.textPanel.addPara("- Sell multiplier: " + (int)(CasinoConfig.SHIP_SELL_MULTIPLIER * 100) + "% of calculated value.");
         main.textPanel.addPara("- You can keep or convert ships after each pull.");
-        
+
         main.options.addOption("Back", "gacha_menu");
     }
 }

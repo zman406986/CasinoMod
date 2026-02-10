@@ -1,13 +1,20 @@
 id,trigger,conditions,script,text,options
 # Add the Visit Casino option to markets (both stations and colonies)
-casino_add_option,PopulateOptions,"$hasMarket
+# Only available on player-owned markets and Tri-Tachyon markets
+casino_add_option_player,PopulateOptions,"$hasMarket
 $marketSize >= 3
 $menuState == main
 $tradeMode == OPEN
-!$global.casino_disabled",,,8:visit_casino:Visit Casino,
+!$global.casino_disabled
+$faction.id == player",,,20:visit_casino:Visit Casino,
+casino_add_option_tritachyon,PopulateOptions,"$hasMarket
+$marketSize >= 3
+$menuState == main
+$tradeMode == OPEN
+!$global.casino_disabled
+$faction.id == tritachyon",,,20:visit_casino:Visit Casino,
 # Handle when the Visit Casino option is selected from market interaction
 casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartCasinoInteraction,,
 # Debt collector hail when intercepting player
 casino_debtCollectorHail,BeginFleetEncounter,$ipc_debt_collector,"$menuState = main
-FireAll PopulateOptions",,"""The Interstellar Paradise Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance of $playerStargems stargems requires immediate settlement. This is your final warning before we escalate to... alternative collection methods."""
-FireAll PopulateOptions
+FireAll PopulateOptions","The Interstellar Paradise Casino sends its regards, a stern voice crackles over the comms. Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.",

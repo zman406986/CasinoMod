@@ -5,6 +5,8 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignClockAPI;
 
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -63,6 +65,8 @@ public class CasinoVIPManager implements EveryFrameScript {
     private static final String LAST_MONTHLY_NOTIFY_KEY = "$ipc_vip_last_monthly_notify";
     /** Memory key for notification mode preference (boolean: true = monthly, false = daily) */
     private static final String MONTHLY_NOTIFY_MODE_KEY = "$ipc_vip_monthly_notify_mode";
+    /** Memory key for storing recent VIP ad messages (to prevent duplicates within 4 messages) */
+    private static final String VIP_AD_HISTORY_KEY = "$ipc_vip_ad_history";
 
     // Performance: We track time to avoid running heavy logic every single frame.
     /** Timer accumulator for throttling daily checks (runs once per second) */
@@ -122,8 +126,9 @@ public class CasinoVIPManager implements EveryFrameScript {
      * VIP players get daily gems + interest notification.
      * Non-VIP players with negative balance get warning + interest notification.
      * 
-     * AI_AGENT_NOTE: Uses 24-hour (86400 second) intervals from last reward time
-     * to ensure exactly one reward per day, even if game is loaded multiple times.
+     * AI_AGENT_NOTE: Uses getElapsedDaysSince() to check if at least 1 day has passed.
+     * This is the correct way to measure game days in Starsector.
+     * Never use raw timestamp arithmetic - timestamps are internal time values, not seconds.
      */
     private void checkDaily() {
         int daysRemaining = getDaysRemaining();
@@ -132,19 +137,44 @@ public class CasinoVIPManager implements EveryFrameScript {
         boolean hasDebt = currentBalance < 0;
 
         CampaignClockAPI clock = Global.getSector().getClock();
-        long currentTime = clock.getTimestamp();
         long lastRewardTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_REWARD_TIME_KEY);
 
         // Only process if we haven't given one today (or within last 24 hours)
-        // Using 24 hours (86400 seconds) to ensure daily rewards
-        if (lastRewardTime == 0 || (currentTime - lastRewardTime) >= 86400L) {
+        // Using getElapsedDaysSince() to properly measure game days
+        // Note: -1L indicates first-time VIP (immediate reward), 0 indicates uninitialized
+        float daysSinceLastReward;
+        if (lastRewardTime == 0 || lastRewardTime == -1L) {
+            daysSinceLastReward = 0;
+        } else {
+            daysSinceLastReward = clock.getElapsedDaysSince(lastRewardTime);
+        }
+        if (lastRewardTime == 0 || daysSinceLastReward >= 1.0f || lastRewardTime == -1L) {
             
             // Apply daily interest if player has negative balance (regardless of VIP status)
             int interestAmount = 0;
             if (hasDebt) {
-                float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NORMAL_DAILY_INTEREST_RATE;
-                interestAmount = (int) (-currentBalance * interestRate); // Interest on debt (negative balance)
-                addToBalance(-interestAmount); // Subtract interest from balance (makes it more negative)
+                // Check if debt has hit the ceiling
+                int currentDebt = -currentBalance; // Convert negative balance to positive debt
+                int maxDebt = getMaxDebt();
+                
+                if (currentDebt >= maxDebt) {
+                    // Debt at ceiling - no more interest accrual
+                    Global.getSector().getCampaignUI().addMessage(
+                        "Debt has reached maximum limit. Interest accrual paused.",
+                        Color.ORANGE
+                    );
+                } else {
+                    // Calculate interest
+                    float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NORMAL_DAILY_INTEREST_RATE;
+                    interestAmount = (int) (currentDebt * interestRate);
+                    
+                    // Cap interest to not exceed max debt
+                    if (currentDebt + interestAmount > maxDebt) {
+                        interestAmount = maxDebt - currentDebt;
+                    }
+                    
+                    addToBalance(-interestAmount); // Subtract interest from balance (makes it more negative)
+                }
             }
             
             if (hasVIP) {
@@ -161,7 +191,7 @@ public class CasinoVIPManager implements EveryFrameScript {
             }
             
             // Mark current time as the time we processed the daily check
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, currentTime);
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
         }
     }
 
@@ -232,9 +262,9 @@ public class CasinoVIPManager implements EveryFrameScript {
             balanceColor
         );
         
-        // VIP ad (random)
+        // VIP ad (random, no duplicates within 4 messages)
         if (!CasinoConfig.VIP_ADS.isEmpty()) {
-            String ad = CasinoConfig.VIP_ADS.get(random.nextInt(CasinoConfig.VIP_ADS.size()));
+            String ad = selectNonDuplicateAd();
             Global.getSector().getCampaignUI().addMessage(
                 "[VIP] " + ad,
                 Color.CYAN
@@ -359,10 +389,6 @@ public class CasinoVIPManager implements EveryFrameScript {
      * Get days remaining for VIP status.
      * Calculates based on start time and duration.
      * 
-     * AI_AGENT_NOTE: Includes backward compatibility for old save format
-     * where start_time was stored as day-of-month instead of timestamp.
-     * Old format values are small (< 1 billion), new format are large timestamps.
-     * 
      * @return Number of days remaining (0 if expired)
      */
     public static int getDaysRemaining() {
@@ -374,17 +400,15 @@ public class CasinoVIPManager implements EveryFrameScript {
 
         float elapsedDays;
         
-        // Backward compatibility: if startTime is a small number (old-style day value), convert it
-        if (startTime < 1000000000L) {
-            // Old format: startTime was stored as clock.getDay() (day of month, 1-31)
-            // We can't accurately convert this, so we'll assume it was recent
-            // and set remaining days based on duration minus a reasonable elapsed time
+        // Handle uninitialized start_time (fresh VIP activation)
+        // In Starsector, getTimestamp() returns game days (not Unix epoch)
+        // A value of 0 or negative means VIP was never activated
+        if (startTime <= 0) {
             elapsedDays = 0;
         } else {
-            // New format: startTime is a timestamp
             elapsedDays = clock.getElapsedDaysSince(startTime);
         }
-
+        
         int remaining = duration - (int) elapsedDays;
         return Math.max(0, remaining);
     }
@@ -394,8 +418,8 @@ public class CasinoVIPManager implements EveryFrameScript {
      * If no active VIP, starts new subscription from current time.
      * If active VIP, extends current subscription.
      * 
-     * AI_AGENT NOTE: Resets last reward time to -1 to ensure player gets
-     * immediate reward on purchase day (86400L check will pass).
+     * AI_AGENT NOTE: Triggers immediate daily reward on purchase by calling checkDaily() directly.
+     * This ensures the player gets their first reward immediately rather than waiting for next day.
      * 
      * @param days Number of days to add
      */
@@ -407,33 +431,118 @@ public class CasinoVIPManager implements EveryFrameScript {
             Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
             newDuration = days;
         } else {
-            // Extend current VIP - reset start time to today and add remaining days
+            // Extend current VIP - calculate new total duration and reset start time to now
             newDuration = getDaysRemaining() + days;
             Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
         }
 
         Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_duration", newDuration);
         
-        // Reset the last reward time so the player gets a reward on the day they purchase
-        Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, -1L);
-        
         // Add to cumulative VIP purchases
         addCumulativeVIPPurchases(1); // Count this as one VIP purchase
+        
+        // Trigger immediate reward for the purchase day
+        // This ensures player gets their first reward immediately
+        Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, -1L);
+        processImmediateDailyReward();
+    }
+    
+    /**
+     * Processes daily reward immediately for VIP purchase.
+     * Called by addSubscriptionDays() to give immediate first reward.
+     */
+    private static void processImmediateDailyReward() {
+        int daysRemaining = getDaysRemaining();
+        boolean hasVIP = daysRemaining > 0;
+        int currentBalance = getBalance();
+        boolean hasDebt = currentBalance < 0;
+
+        if (hasVIP) {
+            // Give daily reward
+            addToBalance(CasinoConfig.VIP_DAILY_REWARD);
+            
+            // Apply interest if in debt
+            int interestAmount = 0;
+            if (hasDebt) {
+                int currentDebt = -currentBalance;
+                int maxDebt = getMaxDebt();
+                
+                if (currentDebt < maxDebt) {
+                    float interestRate = CasinoConfig.VIP_DAILY_INTEREST_RATE;
+                    interestAmount = (int) (currentDebt * interestRate);
+                    
+                    if (currentDebt + interestAmount > maxDebt) {
+                        interestAmount = maxDebt - currentDebt;
+                    }
+                    
+                    addToBalance(-interestAmount);
+                }
+            }
+            
+            // Send notification
+            CampaignClockAPI clock = Global.getSector().getClock();
+            sendVIPNotificationImmediate(interestAmount, currentBalance);
+            
+            // Mark reward as processed
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
+        }
+    }
+    
+    /**
+     * Sends VIP notification for immediate reward (simplified version).
+     */
+    private static void sendVIPNotificationImmediate(int interestAmount, int oldBalance) {
+        int newBalance = getBalance();
+        
+        // Daily reward
+        Global.getSector().getCampaignUI().addMessage(
+            "+" + CasinoConfig.VIP_DAILY_REWARD + " daily gem (VIP Purchase Bonus)",
+            Color.GREEN
+        );
+        
+        // Interest (only if debt exists)
+        if (interestAmount > 0) {
+            Global.getSector().getCampaignUI().addMessage(
+                "-" + interestAmount + " interest",
+                Color.RED
+            );
+        }
+        
+        // Current balance
+        Color balanceColor = newBalance >= 0 ? Color.GREEN : Color.RED;
+        Global.getSector().getCampaignUI().addMessage(
+            "Balance: " + newBalance + " Stargems",
+            balanceColor
+        );
     }
 
     /**
-     * Calculate credit ceiling based on VIP purchases and top-up history.
+     * Calculate credit ceiling based on player level, VIP purchases, and topup amount.
      * 
-     * Formula: BASE + (vipPurchases * VIP_INCREASE) + (topupAmount * MULTIPLIER)
+     * Formula: BASE_DEBT_CEILING + (vipPurchases * CEILING_INCREASE_PER_VIP) + (playerLevel * OVERDRAFT_CEILING_LEVEL_MULTIPLIER)
+     * Example: Level 10 player with 2 VIP purchases = 5000 + (2 * 10000) + (10 * 1000) = 35,000 Stargems ceiling
      * 
      * @return Maximum credit limit in Stargems
      */
     public static int getCreditCeiling() {
-        int baseCeiling = CasinoConfig.BASE_DEBT_CEILING;
-        int vipIncrease = getCumulativeVIPPurchases() * CasinoConfig.CEILING_INCREASE_PER_VIP;
-        int topupIncrease = (int) (getCumulativeTopupAmount() * CasinoConfig.TOPUP_CEILING_MULTIPLIER);
+        int playerLevel = Global.getSector().getPlayerStats().getLevel();
+        int vipPurchases = getCumulativeVIPPurchases();
         
-        return baseCeiling + vipIncrease + topupIncrease;
+        return CasinoConfig.BASE_DEBT_CEILING 
+            + (vipPurchases * CasinoConfig.CEILING_INCREASE_PER_VIP)
+            + (int) (playerLevel * CasinoConfig.OVERDRAFT_CEILING_LEVEL_MULTIPLIER);
+    }
+    
+    /**
+     * Get maximum allowed debt (debt ceiling).
+     * Debt cannot grow beyond this amount due to interest.
+     * 
+     * Formula: creditCeiling * MAX_DEBT_MULTIPLIER (default 2x)
+     * 
+     * @return Maximum debt allowed in Stargems
+     */
+    public static int getMaxDebt() {
+        return (int) (getCreditCeiling() * CasinoConfig.MAX_DEBT_MULTIPLIER);
     }
 
     /**
@@ -519,10 +628,51 @@ public class CasinoVIPManager implements EveryFrameScript {
     
     /**
      * Checks if monthly notification mode is enabled.
-     * 
+     *
      * @return true if monthly mode, false if daily mode
      */
     public static boolean isMonthlyNotificationMode() {
         return Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
+    }
+
+    /**
+     * Selects a VIP ad that hasn't been shown in the last 4 messages.
+     * Uses player memory to track recent ad history.
+     *
+     * AI_AGENT NOTE: This prevents the same ad from appearing twice within 4 messages.
+     * If all ads are in history (when total ads <= 4), history is cleared.
+     *
+     * @return Selected ad message string
+     */
+    private String selectNonDuplicateAd() {
+        @SuppressWarnings("unchecked")
+        List<String> recentAds = (List<String>) Global.getSector().getPlayerMemoryWithoutUpdate().get(VIP_AD_HISTORY_KEY);
+        if (recentAds == null) {
+            recentAds = new ArrayList<>();
+        }
+
+        // Create a copy of available ads and remove recently shown ones
+        List<String> availableAds = new ArrayList<>(CasinoConfig.VIP_ADS);
+        availableAds.removeAll(recentAds);
+
+        // If no ads available (all are in history), clear history
+        if (availableAds.isEmpty()) {
+            recentAds.clear();
+            availableAds.addAll(CasinoConfig.VIP_ADS);
+        }
+
+        // Select random ad from available ones
+        String selectedAd = availableAds.get(random.nextInt(availableAds.size()));
+
+        // Update history: add new ad and trim to last 4
+        recentAds.add(selectedAd);
+        while (recentAds.size() > 4) {
+            recentAds.remove(0);
+        }
+
+        // Store updated history
+        Global.getSector().getPlayerMemoryWithoutUpdate().set(VIP_AD_HISTORY_KEY, recentAds);
+
+        return selectedAd;
     }
 }

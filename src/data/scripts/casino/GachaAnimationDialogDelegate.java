@@ -52,8 +52,8 @@ public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate 
     }
     
     public float getNoiseAlpha() {
-        // No noise for gacha animation
-        return 0;
+        // Add noise for better panel blending and visibility
+        return 0.3f;
     }
     
     public void advance(float amount) {

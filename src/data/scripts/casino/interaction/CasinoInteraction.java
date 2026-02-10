@@ -5,8 +5,6 @@ import com.fs.starfarer.api.campaign.*;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
 import data.scripts.CasinoMusicPlugin;
-import data.scripts.CasinoUIPanels;
-import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 
 import java.awt.Color;
@@ -26,6 +24,7 @@ import java.util.Map;
  * - PokerHandler: Texas Hold'em poker game
  * - ArenaHandler: Spiral Abyss Arena betting
  * - FinHandler: Financial services (VIP, credit, debt)
+ * - TopupHandler: Stargem top-up/purchasing
  * - HelpHandler: Help documentation and rules
  * 
  * STATE MANAGEMENT:
@@ -62,8 +61,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
     protected TextPanelAPI textPanel;
     /** Reference to the option panel for showing menu choices */
     protected OptionPanelAPI options;
-    /** Reference to the visual panel for custom UI elements */
-    private VisualPanelAPI visual;
 
     // Handler instances - each manages a specific feature
     /** Handler for gacha/pull mechanics */
@@ -74,6 +71,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
     protected final ArenaHandler arena;
     /** Handler for financial services */
     protected final FinHandler financial;
+    /** Handler for Stargem top-up */
+    protected final TopupHandler topup;
     /** Handler for help/documentation */
     protected final HelpHandler help;
 
@@ -98,6 +97,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         ARENA,
         /** Financial services interface */
         FINANCIAL,
+        /** Stargem top-up interface */
+        TOPUP,
         /** Help/documentation interface */
         HELP
     }
@@ -129,6 +130,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         this.poker = new PokerHandler(this);
         this.arena = new ArenaHandler(this);
         this.financial = new FinHandler(this);
+        this.topup = new TopupHandler(this);
         this.help = new HelpHandler(this);
     }
 
@@ -144,7 +146,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         this.dialog = dialog;
         this.textPanel = dialog.getTextPanel();
         this.options = dialog.getOptionPanel();
-        this.visual = dialog.getVisualPanel();
 
         // Check if there's a suspended poker game to resume
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
@@ -176,9 +177,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             CasinoMusicPlugin.startCasinoMusic();
         }
         
-        // Show custom UI panel for the casino
-        dialog.getVisualPanel().showCustomPanel(400, 500, new CasinoUIPanels.GachaUIPanel());
-
         textPanel.addPara("Welcome to the Interastral Peace Casino.", Color.CYAN);
         textPanel.addPara("How may we assist you today?", Color.GRAY);
 
@@ -196,7 +194,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // Main menu options
         options.addOption("Tachy-Impact (Gacha)", "gacha_menu");
         options.addOption("Texas Hold'em (Poker)", "play");
-        options.addOption("Spiral Abyss (Arena)", "arena_lobby");
+        options.addOption("Spiral Abyss (Battle Royale Arena)", "arena_lobby");
+        options.addOption("Stargem Top-up", "topup_menu");
         options.addOption("Financial Services", "financial_menu");
         options.addOption("How to Play", "how_to_play_main");
         options.addOption("Leave", "leave");
@@ -236,11 +235,14 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             poker.handle(option);
         } else if (option.startsWith("arena_")) {
             arena.handle(option);
-        } else if (option.startsWith("financial_") || option.startsWith("buy_vip") || option.startsWith("buy_pack_") ||
-                   option.startsWith("confirm_buy_pack_") || option.startsWith("buy_ship") ||
-                   option.startsWith("toggle_vip_notifications") || option.startsWith("captcha_answer_") ||
-                   option.startsWith("captcha_wrong_") || option.startsWith("topup_") ||
-                   option.startsWith("cashout") || option.startsWith("explain_")) {
+        } else if (option.startsWith("topup_") || option.startsWith("topup_pack_") || option.startsWith("confirm_topup_pack_")) {
+            topup.handle(option);
+        } else if (option.startsWith("financial_") || option.startsWith("buy_vip") ||
+                   option.startsWith("confirm_buy_vip") ||
+                   option.startsWith("buy_ship") || option.startsWith("confirm_ship_trade") ||
+                   option.startsWith("cancel_ship_trade") || option.startsWith("toggle_vip_notifications") ||
+                   option.startsWith("captcha_answer_") || option.startsWith("captcha_wrong_") ||
+                   option.startsWith("cashout")) {
             financial.handle(option);
         } else if (option.startsWith("how_to_")) {
             help.handle(option);

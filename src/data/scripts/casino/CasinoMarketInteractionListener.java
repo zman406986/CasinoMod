@@ -37,10 +37,16 @@ public class CasinoMarketInteractionListener implements ColonyInteractionListene
     }
     
     private boolean shouldAddCasinoOption(MarketAPI market) {
-        // According to project requirements, market size limitations have been removed
-        // The casino is available in all markets regardless of faction or industry
-        // This ensures broad accessibility as per the design
-        return true;
+        // Casino is only available on player-owned markets and Tri-Tachyon markets
+        if (market == null || market.getFaction() == null) {
+            return false;
+        }
+        
+        String factionId = market.getFactionId();
+        boolean isPlayerMarket = market.getFaction().isPlayerFaction();
+        boolean isTriTachyon = "tritachyon".equals(factionId);
+        
+        return isPlayerMarket || isTriTachyon;
     }
 
     private void addCasinoOptionToMarket(MarketAPI market) {

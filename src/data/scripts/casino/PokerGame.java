@@ -30,52 +30,57 @@ public class PokerGame {
         public CurrentPlayer folder = null; // Tracks who folded (if anyone)
     }
 
-    private PokerState state;
-    private SimplePokerAI ai;
+    private final PokerState state;
+    private final SimplePokerAI ai;
     private PokerGameLogic.Deck deck;
-    private int startingStack;
-    private int smallBlind;
-    private int bigBlindAmount;
+    private final int smallBlind;
+    private final int bigBlindAmount;
 
     public PokerGame() {
         this(1000, 1000, 10, 20);
     }
 
-    public PokerGame(int playerStack, int opponentStack, int smallBlind, int bigBlind) {
+    @SuppressWarnings("unused")
+    public PokerGame(int playerStack, int opponentStack, int unusedSmallBlind, int unusedBigBlind) {
         ai = new SimplePokerAI();
         state = new PokerState();
-        this.startingStack = playerStack; // Keep for reference, though state.playerStack is initialized in startNewHand
-        
-        // Calculate BB proportional to stack size - 4x deeper than before for longer games
-        // For smaller games: BB = stack / 80
-        // For larger games: BB = stack / 200 (much deeper stack)
+
+        // Note: unusedSmallBlind and unusedBigBlind are intentionally ignored.
+        // The game calculates blinds proportionally to stack sizes for balanced gameplay.
         int avgStack = (playerStack + opponentStack) / 2;
-        int calculatedBB;
-        if (avgStack <= 5000) {
-            // Small game: BB = 1/80 of stack, round to nearest 10
-            calculatedBB = Math.max(10, avgStack / 80);
-            calculatedBB = (calculatedBB / 10) * 10; // Round down to nearest 10
-            if (calculatedBB < 10) calculatedBB = 10;
-        } else if (avgStack <= 20000) {
-            // Medium game: BB = 1/120 of stack, round to nearest 10
-            calculatedBB = Math.max(50, avgStack / 120);
-            calculatedBB = (calculatedBB / 10) * 10; // Round down to nearest 10
-            if (calculatedBB < 50) calculatedBB = 50;
-        } else {
-            // Large game: BB = 1/200 of stack, round to nearest 50
-            calculatedBB = Math.max(100, avgStack / 200);
-            calculatedBB = (calculatedBB / 50) * 50; // Round down to nearest 50
-            if (calculatedBB < 100) calculatedBB = 100;
-        }
-        
+        int calculatedBB = calculateBigBlind(avgStack);
+
         this.bigBlindAmount = calculatedBB;
         this.smallBlind = calculatedBB / 2;
         
         state.playerStack = playerStack;
         state.opponentStack = opponentStack;
         state.bigBlind = bigBlindAmount;
-        
+
         startNewHand();
+    }
+
+    /**
+     * Calculate big blind amount based on average stack size.
+     * Uses proportional sizing for balanced gameplay:
+     * - Small games (<= 5000): BB = stack / 80, rounded to nearest 10
+     * - Medium games (<= 20000): BB = stack / 120, rounded to nearest 10
+     * - Large games: BB = stack / 200, rounded to nearest 50
+     */
+    private static int calculateBigBlind(int avgStack) {
+        if (avgStack <= 5000) {
+            // Small game: BB = 1/80 of stack, round to nearest 10
+            int calculatedBB = Math.max(10, avgStack / 80);
+            return (calculatedBB / 10) * 10; // Round down to nearest 10
+        } else if (avgStack <= 20000) {
+            // Medium game: BB = 1/120 of stack, round to nearest 10
+            int calculatedBB = Math.max(50, avgStack / 120);
+            return (calculatedBB / 10) * 10; // Round down to nearest 10
+        } else {
+            // Large game: BB = 1/200 of stack, round to nearest 50
+            int calculatedBB = Math.max(100, avgStack / 200);
+            return (calculatedBB / 50) * 50; // Round down to nearest 50
+        }
     }
 
     public static class PokerGameLogic {
@@ -293,19 +298,21 @@ public class PokerGame {
         }
         
         // Monte Carlo result holder
+        @SuppressWarnings("unused")
         public static class MonteCarloResult {
             public int wins;
             public int ties;
             public int losses;
             public int samples;
-            
+
             public MonteCarloResult(int wins, int ties, int losses, int samples) {
                 this.wins = wins;
                 this.ties = ties;
                 this.losses = losses;
                 this.samples = samples;
             }
-            
+
+            // Note: These probability methods are available for future use in AI decision-making
             public float getWinProbability() { return (float) wins / samples; }
             public float getTieProbability() { return (float) ties / samples; }
             public float getLossProbability() { return (float) losses / samples; }
@@ -320,11 +327,26 @@ public class PokerGame {
         private int totalPlayerActions = 0;
         private int totalRaises = 0;
         private int totalCalls = 0;
+        // Note: totalFolds tracked for potential future statistics display
+        @SuppressWarnings("unused")
         private int totalFolds = 0;
         private int handsPlayed = 0;
         private int vpipCount = 0;                               // Voluntarily Put $ In Pot
         private int pfrCount = 0;                                // Pre-Flop Raise count
         private Personality personality = Personality.CALCULATED;
+
+        // Hand strength classification for preflop decisions
+        private enum HandCategory {
+            PREMIUM,      // AA, KK, QQ, JJ, AKs, AKo - call any all-in
+            STRONG,       // TT-99, AQs-AJs, KQs, AQo - call all-in with good odds
+            PLAYABLE,     // 88-22, ATs-A2s, KJs-KTs, QJs, JTs - fold to all-in
+            WEAK          // Everything else - always fold to all-in
+        }
+
+        // Player all-in tracking for adaptation
+        private int playerAllInCount = 0;                        // Times player went all-in preflop
+        private int playerAllInOpportunities = 0;                // Hands where all-in was possible
+        private boolean playerIsAllInLoose = false;              // True if player shoves too much
         
         // Position tracking
         private boolean isInPosition = false;                    // Is AI acting after player (dealer position)
@@ -337,12 +359,14 @@ public class PokerGame {
         private boolean isSuspicious = false;                    // Currently suspicious of player bluffs
         private int playerCheckRaises = 0;                       // Track check-raise frequency
         private int handsSinceLastShowdown = 0;                  // Hands without seeing player cards
+        // Note: lastHandPot tracked for potential future AI adaptation based on pot sizes
+        @SuppressWarnings("unused")
         private int lastHandPot = 0;                             // Pot size of last hand
         private int timesBluffedByPlayer = 0;                    // Times player successfully bluffed AI
+        private int largeBetsWithoutShowdown = 0;                // Track oversized bets that didn't show down
+        int aiCommittedThisRound = 0;                            // Chips AI has committed in current betting round (package-private for PokerGame access)
 
         public SimplePokerAI() {
-            // Initialize with CALCULATED personality as default
-            personality = Personality.CALCULATED;
             // Initialize aggression history array with Arrays.fill()
             Arrays.fill(aggressionHistory, 0.5f);
         }
@@ -435,42 +459,9 @@ public class PokerGame {
             }
         }
         
-        private int calculateBetSize(float equity, int potSize, int stackSize) {
-            // Use configured raise amounts as base, with pot-based adjustments
-            int[] raiseAmounts = CasinoConfig.POKER_RAISE_AMOUNTS;
-            
-            // Select base raise amount based on equity strength
-            int baseRaise;
-            if (equity > 0.65f) {
-                // High strength - use largest raise or pot-based
-                baseRaise = raiseAmounts[Math.min(raiseAmounts.length - 1, 3)];
-                int potBasedBet = (int)(potSize * (0.6f + (random.nextFloat() * 0.2f - 0.1f)));
-                baseRaise = Math.max(baseRaise, potBasedBet);
-            } else if (equity > 0.45f) {
-                // Medium strength - use middle raise
-                baseRaise = raiseAmounts[Math.min(raiseAmounts.length - 1, 2)];
-                int potBasedBet = (int)(potSize * (0.45f + (random.nextFloat() * 0.1f - 0.05f)));
-                baseRaise = Math.max(baseRaise, potBasedBet);
-            } else {
-                // Bluff sizing - use smallest raise
-                baseRaise = raiseAmounts[0];
-                int potBasedBet = (int)(potSize * (0.35f + (random.nextFloat() * 0.1f - 0.05f)));
-                baseRaise = Math.max(baseRaise, potBasedBet);
-            }
-            
-            // Add random variation if configured
-            if (CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION > 0) {
-                baseRaise += random.nextInt(CasinoConfig.POKER_AI_MAX_RAISE_RANDOM_ADDITION);
-            }
-            
-            return Math.min(baseRaise, stackSize); // Don't bet more than we have
-        }
-        
         private AIResponse randomDeviation(float equity, float potOdds, int stackSize, int potSize) {
             int deviationType = random.nextInt(4) + 1; // 1-4
-            int bluffRaise = 0;
-            int overbet = 0;
-            
+
             switch(deviationType) {
                 case 1: // Hero call
                     if (equity > potOdds * 0.8f) {
@@ -479,7 +470,7 @@ public class PokerGame {
                     break;
                 case 2: // Bluff raise
                     if (equity < 0.4f && random.nextFloat() < 0.3f) {
-                        bluffRaise = (int)(potSize * 0.5f);
+                        int bluffRaise = (int)(potSize * 0.5f);
                         bluffRaise = Math.min(bluffRaise, stackSize);
                         return new AIResponse(Action.RAISE, bluffRaise);
                     }
@@ -491,13 +482,13 @@ public class PokerGame {
                     break;
                 case 4: // Overbet
                     if (equity > 0.75f) {
-                        overbet = (int)(potSize * 1.5f);
+                        int overbet = (int)(potSize * 1.5f);
                         overbet = Math.min(overbet, stackSize);
                         return new AIResponse(Action.RAISE, overbet);
                     }
                     break;
             }
-            
+
             // Default decision if no condition met
             if (equity > potOdds) {
                 return new AIResponse(Action.CALL, 0);
@@ -506,9 +497,8 @@ public class PokerGame {
             }
         }
         
-        public AIResponse decide(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, 
-                                int currentBetToCall, int potSize, int stackSize, int opponentStackSize) {
-            // Removed unused opponentStackSize parameter
+        public AIResponse decide(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
+                                int currentBetToCall, int potSize, int stackSize) {
             // Determine if this is pre-flop or post-flop
             if (communityCards.isEmpty()) {
                 return preFlopDecision(holeCards, currentBetToCall, potSize, stackSize);
@@ -552,7 +542,7 @@ public class PokerGame {
                     return new AIResponse(Action.CALL, 0); // Call to see flop
                 }
             } else {
-                // Player bet/raised - use EV-based decision making
+                // Player bet/raised - use EV-based decision-making
                 float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
 
                 // SPECIAL RULE: Always call to BB (currentBetToCall == bigBlind) to not deny the game
@@ -567,6 +557,24 @@ public class PokerGame {
                         return new AIResponse(Action.RAISE, Math.max(threeBetSize, CasinoConfig.POKER_AI_MIN_RAISE_VALUE));
                     }
                     return new AIResponse(Action.CALL, 0);
+                }
+
+                // CRITICAL: Check for preflop all-in situation first
+                // Use hand classification for tight calling ranges
+                boolean isAllIn = currentBetToCall >= stackSize * 0.9f;
+                if (isAllIn) {
+                    HandCategory handStrength = classifyPreflopHand(holeCards);
+                    // Track player all-in tendency
+                    trackPlayerAllIn(true);
+                    // Use tight ranges to call all-in
+                    if (!shouldCallPreflopAllIn(handStrength, potOdds, bbStack)) {
+                        return new AIResponse(Action.FOLD, 0);
+                    }
+                    // Only reach here with premium/strong hands - call the all-in
+                    return new AIResponse(Action.CALL, 0);
+                } else {
+                    // Track that all-in was possible but player didn't use it
+                    trackPlayerAllIn(false);
                 }
 
                 // Calculate EV of calling
@@ -589,18 +597,18 @@ public class PokerGame {
                     evRaise = Math.max(evRaise, bluffEV);
                 }
 
-                // Apply frequency cap: only 3-bet ~30% of the time when facing a raise
-                // This prevents the re-raise spiral
+                // Apply frequency cap: only 3-bet conservatively when facing a raise
+                // This prevents the re-raise spiral and all-in abuse
                 boolean should3Bet = false;
-                if (equity > 0.65f) {
-                    // Premium hands: 3-bet for value 60% of the time
-                    should3Bet = random.nextFloat() < 0.60f;
-                } else if (equity > 0.55f) {
-                    // Strong hands: 3-bet 30% of the time
-                    should3Bet = random.nextFloat() < 0.30f;
-                } else if (equity > 0.45f && foldProb > 0.40f) {
-                    // Bluff 3-bet: only with good fold equity, 20% frequency
+                if (equity > 0.70f) {
+                    // Premium hands: 3-bet for value 40% of the time (reduced from 60%)
+                    should3Bet = random.nextFloat() < 0.40f;
+                } else if (equity > 0.60f) {
+                    // Strong hands: 3-bet 20% of the time (reduced from 30%)
                     should3Bet = random.nextFloat() < 0.20f;
+                } else if (equity > 0.50f && foldProb > 0.50f) {
+                    // Bluff 3-bet: only with excellent fold equity, 10% frequency (reduced from 20%)
+                    should3Bet = random.nextFloat() < 0.10f;
                 }
 
                 // Only 3-bet if EV favors it AND frequency cap allows
@@ -613,21 +621,35 @@ public class PokerGame {
                 }
 
                 // CRITICAL: Don't call crazy all-ins with bad EV
-                // If the bet is large relative to pot (> 3x pot) and equity is marginal, fold
+                // If the bet is large relative to pot (> 2x pot) and equity is marginal, fold
                 float betToPotRatio = (float) currentBetToCall / Math.max(1, potSize);
-                if (betToPotRatio > 3.0f && equity < 0.55f) {
+                if (betToPotRatio > 2.0f && equity < 0.60f) {
                     // Large bet, weak hand - fold unless we have amazing pot odds
-                    if (potOdds > equity * 0.8f) {
-                        return new AIResponse(Action.CALL, 0); // Call if pot odds are decent
+                    // Require pot odds to be at least 95% of equity (very tight)
+                    if (potOdds > equity * 0.95f && equity > 0.50f) {
+                        return new AIResponse(Action.CALL, 0); // Call only with excellent pot odds AND decent equity
                     }
                     return new AIResponse(Action.FOLD, 0);
                 }
 
-                // Don't call all-in shoves with less than 45% equity unless pot odds are great
-                if (currentBetToCall >= stackSize * 0.8f && equity < 0.45f) {
-                    if (potOdds > equity * 0.9f) {
+                // Don't call all-in shoves with less than 55% equity unless pot odds are exceptional
+                // This prevents players from baiting all-ins with marginal hands
+                if (currentBetToCall >= stackSize * 0.8f && equity < 0.55f) {
+                    // Only call with exceptional pot odds (better than 90% of equity) AND minimum equity threshold
+                    // Tightened from 0.48f to 0.52f to prevent calling with garbage hands like 2-9 offsuit
+                    if (potOdds > equity * 0.90f && equity > 0.52f) {
                         return new AIResponse(Action.CALL, 0);
                     }
+                    return new AIResponse(Action.FOLD, 0);
+                }
+
+                // Additional protection: against large bets (>1.5x pot), require stronger equity
+                if (betToPotRatio > 1.5f && equity < 0.52f) {
+                    return new AIResponse(Action.FOLD, 0);
+                }
+
+                // Additional protection: don't call bets larger than pot with weak hands
+                if (betToPotRatio > 1.0f && equity < 0.45f) {
                     return new AIResponse(Action.FOLD, 0);
                 }
 
@@ -639,8 +661,9 @@ public class PokerGame {
                     return new AIResponse(Action.FOLD, 0);
                 }
 
-                // Default: call with marginal hands (heads-up adjustment)
-                return new AIResponse(Action.CALL, 0);
+                // Default: fold when facing aggression with weak hands
+                // Changed from CALL to FOLD to prevent calling all-ins with marginal hands
+                return new AIResponse(Action.FOLD, 0);
             }
         }
         
@@ -648,44 +671,48 @@ public class PokerGame {
             // Push/fold strategy for short stacks
             float potOdds = (float)currentBetToCall / (potSize + currentBetToCall);
             
-            // Very short stack (< 10 BB): push with decent hands
+            // Very short stack (< 10 BB): push only with strong hands
+            // Tightened to prevent easy all-in exploitation
             if (bbStack < 10) {
-                if (equity > 0.50f || (equity > 0.40f && random.nextFloat() < 0.7f)) {
-                    // All-in
+                if (equity > 0.60f || (equity > 0.50f && random.nextFloat() < 0.4f)) {
+                    // All-in only with strong hands (reduced from 50% to 60% threshold, 40% bluff vs 70%)
                     return new AIResponse(Action.RAISE, stackSize);
-                } else if (potOdds < 0.25f && equity > 0.35f) {
-                    // Call with good pot odds
+                } else if (potOdds < 0.20f && equity > 0.45f) {
+                    // Call only with excellent pot odds and decent equity
                     return new AIResponse(Action.CALL, 0);
                 } else {
                     return new AIResponse(Action.FOLD, 0);
                 }
             }
             
-            // Short stack (10-15 BB): slightly more selective
-            if (equity > 0.55f || (equity > 0.45f && random.nextFloat() < 0.6f)) {
+            // Short stack (10-15 BB): more selective to prevent exploitation
+            if (equity > 0.60f || (equity > 0.50f && random.nextFloat() < 0.4f)) {
                 return new AIResponse(Action.RAISE, Math.min(stackSize, currentBetToCall * 3));
-            } else if (equity > 0.40f) {
+            } else if (equity > 0.45f) {
                 return new AIResponse(Action.CALL, 0);
             } else {
                 return new AIResponse(Action.FOLD, 0);
             }
         }
         
-        private AIResponse postFlopDecision(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, 
+        private AIResponse postFlopDecision(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
                                           int currentBetToCall, int potSize, int stackSize) {
             // Estimate player range based on history and aggression
             String playerRange = estimatePlayerRange();
-            
+
             // Run Monte Carlo simulation for detailed equity
-            MonteCarloResult mcResult = runMonteCarloSimulation(holeCards, communityCards, playerRange, 500);
+            MonteCarloResult mcResult = runMonteCarloSimulation(holeCards, communityCards, playerRange);
             float equity = mcResult.getTotalEquity();
-            
+
             // Calculate implied odds adjustment for draws
             float impliedOddsBonus = calculateImpliedOddsBonus(holeCards, communityCards, equity);
-            equity += impliedOddsBonus;
-            
-            // Use EV-based decision making
-            return postFlopEVDecision(mcResult, currentBetToCall, potSize, stackSize, playerRange);
+            float adjustedEquity = equity + impliedOddsBonus;
+
+            // Check board texture
+            boolean wetBoard = isWetBoard(communityCards);
+
+            // Use EV-based decision-making with adjusted equity for drawing hands
+            return postFlopEVDecision(currentBetToCall, potSize, stackSize, playerRange, adjustedEquity, wetBoard);
         }
         
         private float calculateImpliedOddsBonus(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, float currentEquity) {
@@ -749,12 +776,39 @@ public class PokerGame {
             
             return outs;
         }
-        
-        private AIResponse postFlopEVDecision(MonteCarloResult mcResult, int currentBetToCall, int potSize, int stackSize, String playerRange) {
+
+        private boolean isWetBoard(List<PokerGameLogic.Card> communityCards) {
+            // Simple check: board is "wet" if there are many draws possible
+            // Check for 3 cards of same suit (flush draw possible)
+            Map<PokerGameLogic.Suit, Integer> suitCounts = new HashMap<>();
+            for (PokerGameLogic.Card c : communityCards) {
+                suitCounts.put(c.suit, suitCounts.getOrDefault(c.suit, 0) + 1);
+            }
+            for (int count : suitCounts.values()) {
+                if (count >= 3) return true; // Flush possible
+            }
+
+            // Check for connected cards (straight possible)
+            Set<Integer> ranks = new HashSet<>();
+            for (PokerGameLogic.Card c : communityCards) ranks.add(c.rank.value);
+            List<Integer> sorted = new ArrayList<>(ranks);
+            Collections.sort(sorted);
+
+            int maxSeq = 1;
+            int currentSeq = 1;
+            for (int i = 0; i < sorted.size() - 1; i++) {
+                if (sorted.get(i+1) - sorted.get(i) == 1) {
+                    currentSeq++;
+                    maxSeq = Math.max(maxSeq, currentSeq);
+                } else {
+                    currentSeq = 1;
+                }
+            }
+            return maxSeq >= 3; // Straight possible with 3+ connected cards
+        }
+
+        private AIResponse postFlopEVDecision(int currentBetToCall, int potSize, int stackSize, String playerRange, float equity, boolean isWetBoard) {
             updatePersonality();
-            
-            float equity = mcResult.getTotalEquity();
-            float winProb = mcResult.getWinProbability();
             
             // Calculate EV for each action
             float evFold = 0f;
@@ -788,34 +842,63 @@ public class PokerGame {
                 }
             }
             
+            // Board texture adjustments
+            if (isWetBoard) {
+                // On wet boards: be more cautious with marginal hands, but bet bigger for protection with strong hands
+                if (equity > 0.70f) {
+                    bestRaiseEV += 0.05f * potSize; // Boost raising with strong hands for protection
+                } else if (equity < 0.50f) {
+                    evCall -= 0.05f * potSize; // Reduce calling with weak hands on wet boards
+                }
+            } else {
+                // On dry boards: bluff more (harder for opponent to have a hand)
+                if (equity < 0.45f) {
+                    bestRaiseEV += 0.03f * potSize; // Slight boost to bluffing on dry boards
+                }
+            }
+
             // Apply personality adjustments to EV
             evFold = adjustEVForPersonality(evFold, Action.FOLD);
             evCall = adjustEVForPersonality(evCall, Action.CALL);
             bestRaiseEV = adjustEVForPersonality(bestRaiseEV, Action.RAISE);
-            
+
             // Anti-gullibility: adjust if suspicious of player bluffs
             if (shouldBeSuspicious()) {
                 evFold -= 0.1f * potSize; // Reduce fold EV (make calling more attractive)
                 evCall += 0.05f * potSize; // Increase call EV
             }
-            
+
             // Anti-gullibility: stubborn caller - don't fold to small bets
             if (shouldMakeStubbornCall(equity, currentBetToCall, potSize)) {
                 evFold = Float.NEGATIVE_INFINITY; // Never fold
                 evCall += 0.1f * potSize; // Boost call EV
             }
-            
+
             // Select best action based on EV
+            AIResponse finalDecision;
             if (bestRaiseEV > evCall && bestRaiseEV > evFold && bestRaiseSize > 0) {
                 // Ensure minimum raise
                 bestRaiseSize = Math.max(bestRaiseSize, CasinoConfig.POKER_AI_MIN_RAISE_VALUE);
                 bestRaiseSize = Math.min(bestRaiseSize, stackSize);
-                return new AIResponse(Action.RAISE, bestRaiseSize);
+                finalDecision = new AIResponse(Action.RAISE, bestRaiseSize);
             } else if (evCall > evFold) {
-                return new AIResponse(Action.CALL, 0);
+                finalDecision = new AIResponse(Action.CALL, 0);
             } else {
-                return new AIResponse(Action.FOLD, 0);
+                finalDecision = new AIResponse(Action.FOLD, 0);
             }
+
+            // Apply random deviation for unpredictability (15% chance)
+            // This makes the AI more human-like with occasional hero calls, bluffs, and slow plays
+            if (random.nextFloat() < 0.15f) {
+                float potOdds = currentBetToCall > 0 ? (float) currentBetToCall / (potSize + currentBetToCall) : 0f;
+                AIResponse deviation = randomDeviation(equity, potOdds, stackSize, potSize);
+                // Only apply deviation if it's different from the optimal decision
+                if (deviation.action != finalDecision.action || deviation.raiseAmount != finalDecision.raiseAmount) {
+                    return deviation;
+                }
+            }
+
+            return finalDecision;
         }
         
         private float adjustEVForPersonality(float ev, Action action) {
@@ -846,18 +929,6 @@ public class PokerGame {
                 default:
                     return ev; // No adjustment for calculated
             }
-        }
-        
-        // Legacy method kept for compatibility but now uses EV-based logic
-        private AIResponse postFlopDecisionLogic(float equity, float potOdds, int stackSize, int potSize) {
-            // This method is now a wrapper that creates a mock MonteCarloResult
-            MonteCarloResult mockResult = new MonteCarloResult(
-                (int)(equity * 100), 
-                0, 
-                (int)((1 - equity) * 100), 
-                100
-            );
-            return postFlopEVDecision(mockResult, 0, potSize, stackSize, "standard_range");
         }
         
         // Static cache for preflop equities (169 unique starting hands)
@@ -908,34 +979,35 @@ public class PokerGame {
             ourHand.add(c2);
             
             int wins = 0;
+            int ties = 0;
             int samples = 50;
-            
+
             for (int i = 0; i < samples; i++) {
                 PokerGameLogic.Deck deck = new PokerGameLogic.Deck();
                 deck.cards.remove(c1);
                 deck.cards.remove(c2);
                 Collections.shuffle(deck.cards, random);
-                
+
                 // Draw opponent hand
                 List<PokerGameLogic.Card> oppHand = new ArrayList<>();
                 oppHand.add(deck.cards.remove(0));
                 oppHand.add(deck.cards.remove(0));
-                
+
                 // Draw 5 community cards
                 List<PokerGameLogic.Card> community = new ArrayList<>();
                 for (int j = 0; j < 5; j++) {
                     community.add(deck.cards.remove(0));
                 }
-                
+
                 PokerGameLogic.HandScore ourScore = PokerGameLogic.evaluate(ourHand, community);
                 PokerGameLogic.HandScore oppScore = PokerGameLogic.evaluate(oppHand, community);
-                
+
                 int cmp = ourScore.compareTo(oppScore);
                 if (cmp > 0) wins++;
-                else if (cmp == 0) wins += 0.5f;
+                else if (cmp == 0) ties++;
             }
-            
-            return (float) wins / samples;
+
+            return (wins + ties * 0.5f) / samples;
         }
         
         private float calculatePreflopEquity(List<PokerGameLogic.Card> holeCards) {
@@ -957,74 +1029,162 @@ public class PokerGame {
         }
         
         private float calculatePreflopEquitySimple(List<PokerGameLogic.Card> holeCards) {
-            // Simplified pre-flop equity calculation based on hand strength
             PokerGameLogic.Card c1 = holeCards.get(0);
             PokerGameLogic.Card c2 = holeCards.get(1);
             int v1 = Math.max(c1.rank.value, c2.rank.value);
             int v2 = Math.min(c1.rank.value, c2.rank.value);
-            
-            float equity = 0.35f; // Default value
-            
-            // Premium pairs
+            boolean suited = (c1.suit == c2.suit);
+            int gap = v1 - v2;
+
+            // Pairs
             if (v1 == v2) {
-                if (v1 >= 11) equity = 0.80f; // J, Q, K, A
-                else if (v1 >= 8) equity = 0.70f; // Strong pairs
-                else equity = 0.55f; // Small pairs
+                if (v1 >= 13) return 0.85f;      // AA, KK
+                if (v1 >= 11) return 0.78f;      // QQ, JJ
+                if (v1 >= 9) return 0.70f;       // TT, 99
+                if (v1 >= 7) return 0.62f;       // 88, 77
+                if (v1 >= 5) return 0.55f;       // 66, 55
+                return 0.48f;                     // 44-22
             }
-            // Suited connectors
-            else if (c1.suit == c2.suit && Math.abs(v1 - v2) == 1) {
-                equity = 0.65f; // Suited connectors
+
+            // Big cards: AK, AQ
+            if (v1 == 14 && v2 == 13) return suited ? 0.68f : 0.65f;  // AK
+            if (v1 == 14 && v2 == 12) return suited ? 0.63f : 0.60f;  // AQ
+
+            // Suited hands
+            if (suited) {
+                if (v1 == 14 && v2 >= 10) return 0.58f;     // AJ(s), AT(s)
+                if (v1 == 13 && v2 == 12) return 0.58f;     // KQ(s)
+                if (v1 == 13 && v2 >= 10) return 0.50f;     // KJ(s), KT(s)
+                if (v1 == 12 && v2 >= 10) return 0.50f;     // QJ(s), QT(s)
+                if (gap == 1 && v1 >= 5) return 0.52f;      // Suited connectors JTs-54s
+                if (gap == 2 && v1 >= 6) return 0.48f;      // One-gap suited
+                if (gap <= 3 && v1 >= 9) return 0.45f;      // Two-gap suited
+                if (v1 >= 10) return 0.45f;                 // Any suited T+
+                return 0.40f;                                // Weak suited
             }
-            // Other suited
-            else if (c1.suit == c2.suit) {
-                if (v1 == 14) equity = 0.60f; // Suited ace
-                else if (v1 >= 11) equity = 0.55f; // Suited face cards
-                else equity = 0.45f; // Other suited
-            }
-            // Offsuit connectors
-            else if (Math.abs(v1 - v2) == 1) {
-                equity = 0.50f; // Connectors
-            }
-            // High cards
-            else if (v1 >= 11) {
-                equity = 0.50f; // At least one face card
-            }
-            
-            return equity;
+
+            // Offsuit hands
+            if (v1 == 14 && v2 >= 10) return 0.55f;         // AJ, AT
+            if (v1 == 13 && v2 >= 11) return 0.52f;         // KQ, KJ
+            if (gap == 1 && v1 >= 12) return 0.48f;         // QJo+ connectors
+            if (v1 >= 11 && v2 >= 10) return 0.45f;         // Face cards
+            if (gap <= 2 && v1 >= 8) return 0.38f;          // Weak connectors
+            if (v1 >= 10) return 0.35f;                     // One high card
+
+            return 0.30f;                                    // Trash
         }
-        
+
+        /**
+         * Classifies a preflop hand into categories for decision making.
+         * This is more accurate than raw equity for all-in decisions.
+         */
+        private HandCategory classifyPreflopHand(List<PokerGameLogic.Card> holeCards) {
+            PokerGameLogic.Card c1 = holeCards.get(0);
+            PokerGameLogic.Card c2 = holeCards.get(1);
+            int v1 = Math.max(c1.rank.value, c2.rank.value);
+            int v2 = Math.min(c1.rank.value, c2.rank.value);
+            boolean suited = (c1.suit == c2.suit);
+
+            // Pairs: JJ+ = PREMIUM, TT-99 = STRONG, 88-22 = PLAYABLE
+            if (v1 == v2) {
+                if (v1 >= 11) return HandCategory.PREMIUM;
+                if (v1 >= 9) return HandCategory.STRONG;
+                return HandCategory.PLAYABLE;
+            }
+
+            // AK = PREMIUM
+            if (v1 == 14 && v2 == 13) return HandCategory.PREMIUM;
+
+            // Strong: AQs-AJs, KQs, AQo
+            if ((v1 == 14 && v2 >= 11 && suited) ||
+                (v1 == 13 && v2 == 12 && suited) ||
+                (v1 == 14 && v2 == 12 && !suited)) return HandCategory.STRONG;
+
+            // Playable suited: Ax(s), KJ(s)+, QJs, JTs, T9s+
+            if (suited && ((v1 == 14) || (v1 == 13 && v2 >= 10) ||
+                (v1 - v2 == 1 && v1 >= 10))) return HandCategory.PLAYABLE;
+
+            return HandCategory.WEAK;
+        }
+
+        /**
+         * Determines if AI should call a preflop all-in based on hand strength and situation.
+         * Uses tight ranges to prevent exploitation.
+         */
+        private boolean shouldCallPreflopAllIn(HandCategory handStrength, float potOdds, float bbStack) {
+            // PREMIUM: Always call with JJ+, AK
+            if (handStrength == HandCategory.PREMIUM) {
+                return true;
+            }
+
+            // STRONG: Call TT-99, AQs-AJs, KQs, AQo only with decent pot odds
+            if (handStrength == HandCategory.STRONG) {
+                // Need at least 40% pot odds (calling 10k to win 15k = 40%)
+                // or desperate short stack
+                if (potOdds >= 0.40f) return true;
+                if (bbStack < 8) return true; // Desperate
+                return false;
+            }
+
+            // PLAYABLE: Only call if player is loose all-in and we have good odds
+            if (handStrength == HandCategory.PLAYABLE) {
+                if (playerIsAllInLoose && potOdds >= 0.45f) return true;
+                if (bbStack < 5) return true; // Very desperate
+                return false;
+            }
+
+            // WEAK: Never call all-in
+            return false;
+        }
+
+        /**
+         * Updates player all-in tracking to detect loose shovers.
+         */
+        private void trackPlayerAllIn(boolean wentAllIn) {
+            playerAllInOpportunities++;
+            if (wentAllIn) {
+                playerAllInCount++;
+            }
+            // If player goes all-in more than 25% of opportunities, they're loose
+            if (playerAllInOpportunities >= 10) {
+                float allInFrequency = (float) playerAllInCount / playerAllInOpportunities;
+                playerIsAllInLoose = allInFrequency > 0.25f;
+            }
+        }
+
+        private static final int MONTE_CARLO_SAMPLES = 500;
+
         private MonteCarloResult runMonteCarloSimulation(
-                List<PokerGameLogic.Card> holeCards, 
+                List<PokerGameLogic.Card> holeCards,
                 List<PokerGameLogic.Card> communityCards,
-                String playerRange,
-                int samples) {
+                String playerRange) {
             int wins = 0;
             int ties = 0;
             int losses = 0;
-            
-            for (int i = 0; i < samples; i++) {
+
+            for (int i = 0; i < MONTE_CARLO_SAMPLES; i++) {
                 // Create temporary deck without known cards
                 PokerGameLogic.Deck tempDeck = new PokerGameLogic.Deck();
                 tempDeck.cards.removeAll(holeCards);
                 tempDeck.cards.removeAll(communityCards);
-                
+
                 // Shuffle and complete the board
                 Collections.shuffle(tempDeck.cards, random);
                 List<PokerGameLogic.Card> completeBoard = new ArrayList<>(communityCards);
-                
+
                 // Add remaining cards to complete board
                 int cardsNeeded = 5 - communityCards.size();
                 for (int j = 0; j < cardsNeeded && !tempDeck.cards.isEmpty(); j++) {
                     completeBoard.add(tempDeck.cards.remove(0));
                 }
-                
+
                 // Generate opponent hand from range
                 List<PokerGameLogic.Card> opponentHand = generateRandomOpponentHand(playerRange, tempDeck);
-                
+
                 // Evaluate hands
                 PokerGameLogic.HandScore ourScore = PokerGameLogic.evaluate(holeCards, completeBoard);
                 PokerGameLogic.HandScore oppScore = PokerGameLogic.evaluate(opponentHand, completeBoard);
-                
+
                 int cmp = ourScore.compareTo(oppScore);
                 if (cmp > 0) {
                     wins++;
@@ -1033,7 +1193,7 @@ public class PokerGame {
                 } else {
                     losses++;
                 }
-                
+
                 // Early exit for extreme equities after 50 samples
                 if (i == 49) {
                     float currentEquity = (wins + ties * 0.5f) / (i + 1);
@@ -1043,14 +1203,8 @@ public class PokerGame {
                     }
                 }
             }
-            
-            return new MonteCarloResult(wins, ties, losses, samples);
-        }
-        
-        private float calculateEquityMonteCarlo(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, String playerRange) {
-            // Use 500 samples for better accuracy
-            MonteCarloResult result = runMonteCarloSimulation(holeCards, communityCards, playerRange, 500);
-            return result.getTotalEquity();
+
+            return new MonteCarloResult(wins, ties, losses, MONTE_CARLO_SAMPLES);
         }
         
         // EV Calculation methods
@@ -1062,8 +1216,13 @@ public class PokerGame {
         }
         
         private float calculateRaiseEV(float equity, int potSize, int currentBet, int raiseAmount, float foldProbability) {
-            // EV of raising = (foldProbability * pot) + (1 - foldProbability) * [equity * (pot + 2*raise) - (1-equity) * raise]
-            float evWhenCalled = equity * (potSize + 2 * raiseAmount) - (1 - equity) * raiseAmount;
+            // EV of raising = (foldProbability * pot) + (1 - foldProbability) * [equity * finalPot - (1-equity) * totalInvestment]
+            // totalInvestment = what we put in (call current bet + raise amount + already committed this round)
+            // finalPot = pot + currentBet + raiseAmount (what we win when opponent calls and we win)
+            // CRITICAL: Include aiCommittedThisRound to account for chips already invested in this betting round
+            int totalInvestment = currentBet + raiseAmount + aiCommittedThisRound;
+            int finalPot = potSize + currentBet + raiseAmount;
+            float evWhenCalled = equity * finalPot - (1 - equity) * totalInvestment;
             return foldProbability * potSize + (1 - foldProbability) * evWhenCalled;
         }
         
@@ -1074,8 +1233,8 @@ public class PokerGame {
         
         private float estimateFoldProbability(String playerRange, int potSize, int betSize) {
             // Estimate how often player will fold based on their style and pot odds
-            float baseFoldProb = 0.3f; // Default 30% fold rate
-            
+            float baseFoldProb;
+
             // Adjust based on player style
             switch (playerRange) {
                 case "tight_range":
@@ -1089,7 +1248,7 @@ public class PokerGame {
                     baseFoldProb = 0.30f;
                     break;
             }
-            
+
             // Adjust based on pot odds (bigger bet = more folds)
             float potOdds = (float) betSize / (potSize + betSize);
             if (potOdds > 0.5f) {
@@ -1097,7 +1256,7 @@ public class PokerGame {
             } else if (potOdds < 0.25f) {
                 baseFoldProb -= 0.10f; // Small bet, fewer folds
             }
-            
+
             return Math.min(0.8f, Math.max(0.1f, baseFoldProb));
         }
         
@@ -1202,104 +1361,14 @@ public class PokerGame {
             }
             
             // Fallback: draw random cards from deck
-            if (hand.isEmpty() && deck.cards.size() >= 2) {
+            if (deck.cards.size() >= 2) {
                 hand.add(deck.cards.remove(0));
                 hand.add(deck.cards.remove(0));
             }
-            
+
             return hand;
         }
-        
-        // Removed unused method: calculateEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, int stackSize, int opponentStackSize)
-        
-        private float estimatePreFlopEquity(List<PokerGameLogic.Card> holeCards) {
-            PokerGameLogic.Card c1 = holeCards.get(0);
-            PokerGameLogic.Card c2 = holeCards.get(1);
-            int v1 = Math.max(c1.rank.value, c2.rank.value);
-            int v2 = Math.min(c1.rank.value, c2.rank.value);
-            
-            float equity = 35; // Default value instead of redundant initialization
-            
-            // Premium pairs
-            if (v1 == v2) {
-                if (v1 >= 11) equity = 80; // J, Q, K, A
-                else if (v1 >= 8) equity = 70; // Strong pairs
-                else equity = 55; // Small pairs
-            }
-            // Suited connectors
-            else if (c1.suit == c2.suit && Math.abs(v1 - v2) == 1) {
-                equity = 65; // Suited connectors
-            }
-            // Other suited
-            else if (c1.suit == c2.suit) {
-                if (v1 == 14) equity = 60; // Suited ace
-                else if (v1 >= 11) equity = 55; // Suited face cards
-                else equity = 45; // Other suited
-            }
-            // Offsuit connectors
-            else if (Math.abs(v1 - v2) == 1) {
-                equity = 50; // Connectors
-            }
-            // High cards
-            else if (v1 >= 11) {
-                equity = 50; // At least one face card
-            }
-            // Weak hands are covered by default value
-            
-            return equity;
-        }
-    
 
-
-        private float getStrengthPercentage(PokerGameLogic.HandScore hand) {
-            float base = switch(hand.rank) {
-                case HIGH_CARD -> 10;
-                case PAIR -> 35;
-                case TWO_PAIR -> 55;
-                case THREE_OF_A_KIND -> 70;
-                case STRAIGHT -> 85;
-                case FLUSH -> 90;
-                case FULL_HOUSE -> 95;
-                case FOUR_OF_A_KIND -> 99;
-                case STRAIGHT_FLUSH -> 100;
-            };
-            if (!hand.tieBreakers.isEmpty()) {
-                base += (hand.tieBreakers.get(0) / 14f) * 5f;
-            }
-            return Math.min(100f, base);
-        }
-
-        private boolean hasFlushDraw(List<PokerGameLogic.Card> hole, List<PokerGameLogic.Card> comm) {
-            Map<PokerGameLogic.Suit, Integer> counts = new HashMap<>();
-            // Enhanced for loop instead of traditional for loop
-            for (PokerGameLogic.Card c : hole) counts.put(c.suit, counts.getOrDefault(c.suit, 0) + 1);
-            for (PokerGameLogic.Card c : comm) counts.put(c.suit, counts.getOrDefault(c.suit, 0) + 1);
-            for (int val : counts.values()) if (val >= 4) return true;
-            return false;
-        }
-
-        private boolean hasStraightDraw(List<PokerGameLogic.Card> hole, List<PokerGameLogic.Card> comm) {
-            Set<Integer> ranks = new HashSet<>();
-            for (PokerGameLogic.Card c : hole) ranks.add(c.rank.value);
-            for (PokerGameLogic.Card c : comm) ranks.add(c.rank.value);
-            if (ranks.contains(14)) ranks.add(1); 
-
-            List<Integer> sorted = new ArrayList<>(ranks);
-            Collections.sort(sorted);
-            
-            int maxSeq = 0;
-            int currentSeq = 1;
-            for (int i = 0; i < sorted.size() - 1; i++) {
-                if (sorted.get(i+1) - sorted.get(i) == 1) {
-                    currentSeq++;
-                    maxSeq = Math.max(maxSeq, currentSeq);
-                } else {
-                    currentSeq = 1;
-                }
-            }
-            return maxSeq >= 4; 
-        }
-        
         public void trackPlayerAction(boolean isRaise, boolean isFold, boolean isCheck, boolean isPreFlop, boolean putMoneyInPot) {
             totalPlayerActions++;
             
@@ -1359,12 +1428,13 @@ public class PokerGame {
                 suspiciousModeHands = 2 + random.nextInt(2); // 2-3 hands of suspicion
             }
         }
-        
+
         // Anti-gullibility: track when player shows down a hand
         public void trackPlayerShowdown(boolean playerWasBluffing) {
             handsSinceLastShowdown = 0;
             consecutiveBluffsCaught = 0;
-            
+            largeBetsWithoutShowdown = 0;
+
             if (playerWasBluffing) {
                 timesBluffedByPlayer++;
                 // After being bluffed, become more suspicious
@@ -1380,7 +1450,7 @@ public class PokerGame {
             if (suspiciousModeHands > 0) {
                 return true;
             }
-            
+
             // Check if player has high bluff success rate
             if (playerBetsTotal > 5) {
                 float bluffSuccessRate = (float) playerBetsWithoutShowdown / playerBetsTotal;
@@ -1388,25 +1458,32 @@ public class PokerGame {
                     return true; // Player is folding too often, they might be bluffing
                 }
             }
-            
+
+            // Check if player frequently makes large bets without showdown (bluff tell)
+            if (largeBetsWithoutShowdown >= 2) {
+                return true; // Player making oversized bets and not showing down = likely bluffing
+            }
+
             // Check if player check-raises frequently (trap indicator)
             if (handsPlayed > 3 && playerCheckRaises > handsPlayed / 3) {
                 return true; // Player check-raises too much, be careful
             }
-            
+
             return false;
         }
         
         // Anti-gullibility: make stubborn call with weak hand
         private boolean shouldMakeStubbornCall(float equity, int betToCall, int potSize) {
-            // Never fold to small bets with any pair or A-high
-            if (betToCall < potSize / 5 && equity > 0.25f) {
+            // Only make stubborn calls against very small bets with decent hands
+            // Tightened from potSize/5 (20%) to potSize/10 (10%) and equity 0.25f to 0.45f
+            // This prevents AI from calling too wide against small raises
+            if (betToCall < potSize / 10 && equity > 0.45f) {
                 return true;
             }
             
-            // If suspicious, call wider
-            if (isSuspicious && equity > 0.20f) {
-                return random.nextFloat() < 0.6f; // 60% chance to call when suspicious
+            // If suspicious, call wider but still require reasonable equity
+            if (isSuspicious && equity > 0.35f) {
+                return random.nextFloat() < 0.5f; // 50% chance to call when suspicious (reduced from 60%)
             }
             
             return false;
@@ -1419,7 +1496,7 @@ public class PokerGame {
             // - Post-flop: Dealer (SB) acts FIRST (out of position), BB acts last (in position)
             // So AI is "in position" (acts last) when AI is NOT the dealer (i.e., AI is BB)
             isInPosition = !aiIsDealer;
-            
+
             // Decrement suspicious mode counter
             if (suspiciousModeHands > 0) {
                 suspiciousModeHands--;
@@ -1427,8 +1504,19 @@ public class PokerGame {
                     isSuspicious = false;
                 }
             }
-            
+
             handsSinceLastShowdown++;
+
+            // Reset committed chips for new hand
+            aiCommittedThisRound = 0;
+        }
+
+        /**
+         * Resets the committed chips counter when advancing to a new betting round.
+         * Called by PokerGame when the round advances (e.g., from FLOP to TURN).
+         */
+        public void resetCommittedChips() {
+            aiCommittedThisRound = 0;
         }
         
         private void updateAggressionMeter(boolean isRaise) {
@@ -1472,6 +1560,7 @@ public class PokerGame {
         return ai;
     }
 
+    @SuppressWarnings("unused")
     public String getAIPersonality() {
         return ai.getCurrentPersonality();
     }
@@ -1505,8 +1594,8 @@ public class PokerGame {
         postBlinds();
 
         state.round = Round.PREFLOP;
-        // Pre-flop: First to act is the player AFTER the Big Blind (UTG - Under the Gun)
-        // If player is BB, opponent acts first. If opponent is BB, player acts first.
+        // Heads-up poker: Small Blind (dealer) acts FIRST pre-flop
+        // If player is dealer (SB), player acts first. If opponent is dealer (SB), opponent acts first.
         state.currentPlayer = getBigBlind() == Dealer.PLAYER ? CurrentPlayer.OPPONENT : CurrentPlayer.PLAYER;
 
         // Notify AI of new hand and position
@@ -1527,6 +1616,7 @@ public class PokerGame {
     /**
      * Returns who has the Small Blind position for the current hand
      */
+    @SuppressWarnings("unused")
     public Dealer getSmallBlind() {
         // Small Blind is the dealer
         return state.dealer;
@@ -1535,6 +1625,7 @@ public class PokerGame {
     /**
      * Returns true if it's post-flop (flop, turn, or river)
      */
+    @SuppressWarnings("unused")
     public boolean isPostFlop() {
         return state.round == Round.FLOP || state.round == Round.TURN || state.round == Round.RIVER;
     }
@@ -1567,8 +1658,7 @@ public class PokerGame {
     public void processPlayerAction(Action action, int raiseAmount) {
         switch (action) {
             case FOLD:
-                state.opponentStack += state.pot;
-                state.pot = 0;
+                // Pot award is handled by PokerHandler.determineWinner() to avoid double-awarding
                 state.round = Round.SHOWDOWN;
                 state.folder = CurrentPlayer.PLAYER; // Track that player folded
                 break;
@@ -1581,17 +1671,57 @@ public class PokerGame {
                 state.pot += callAmount;
                 break;
             case RAISE:
-                int totalBet = state.opponentBet + raiseAmount;
+                // raiseAmount is the desired total bet size (e.g., 3x opponent's raise)
+                // NOT an additional amount on top of opponent's bet
+                int totalBet = raiseAmount;
                 int raiseAmountActual = totalBet - state.playerBet;
-                state.playerStack -= raiseAmountActual;
-                state.playerBet = totalBet;
-                state.pot += raiseAmountActual;
+                // Protect against betting more than available stack
+                if (raiseAmountActual > state.playerStack) {
+                    raiseAmountActual = state.playerStack;
+                    totalBet = state.playerBet + raiseAmountActual;
+                }
+                
+                // Check if player is raising more than opponent can possibly match (side pot)
+                int playerContributionAfterRaise = totalBet;
+                int currentOpponentContribution = state.opponentBet;
+                if (playerContributionAfterRaise > currentOpponentContribution + state.opponentStack) {
+                    int maxOpponentCanMatch = currentOpponentContribution + state.opponentStack;
+                    int actualRaiseAmount = maxOpponentCanMatch - state.playerBet;
+                    int excessToReturn = raiseAmountActual - actualRaiseAmount;
+                    
+                    // Player only risks what opponent can match
+                    state.playerStack -= actualRaiseAmount;
+                    state.playerStack += excessToReturn; // Return excess immediately
+                    state.playerBet = maxOpponentCanMatch;
+                    state.pot += actualRaiseAmount;
+                } else {
+                    state.playerStack -= raiseAmountActual;
+                    state.playerBet = totalBet;
+                    state.pot += raiseAmountActual;
+                }
                 break;
             case ALL_IN:
                 int allInAmount = state.playerStack;
-                state.pot += allInAmount;
-                state.playerBet += allInAmount;
-                state.playerStack = 0;
+                int opponentContributionAllIn = state.opponentBet;
+                int playerContributionAfterAllIn = state.playerBet + allInAmount;
+
+                // If player is putting in more than opponent can possibly match,
+                // return the excess to player immediately (side pot logic)
+                if (playerContributionAfterAllIn > opponentContributionAllIn + state.opponentStack) {
+                    int maxOpponentCanMatch = opponentContributionAllIn + state.opponentStack;
+                    int actualAllInAmount = maxOpponentCanMatch - state.playerBet;
+                    int excessToReturn = allInAmount - actualAllInAmount;
+                    
+                    // Player only risks what opponent can match
+                    state.pot += actualAllInAmount;
+                    state.playerBet += actualAllInAmount;
+                    state.playerStack = excessToReturn; // Return excess chips
+                } else {
+                    // Normal all-in where opponent can match or has already matched
+                    state.pot += allInAmount;
+                    state.playerBet += allInAmount;
+                    state.playerStack = 0;
+                }
                 break;
         }
 
@@ -1610,14 +1740,13 @@ public class PokerGame {
 
     public SimplePokerAI.AIResponse getOpponentAction() {
         int currentBetToCall = state.playerBet - state.opponentBet;
-        return ai.decide(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack, state.playerStack);
+        return ai.decide(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack);
     }
 
     public void processOpponentAction(SimplePokerAI.AIResponse response) {
         switch (response.action) {
             case FOLD:
-                state.playerStack += state.pot;
-                state.pot = 0;
+                // Pot award is handled by PokerHandler.determineWinner() to avoid double-awarding
                 state.round = Round.SHOWDOWN;
                 state.folder = CurrentPlayer.OPPONENT; // Track that opponent folded
                 break;
@@ -1631,11 +1760,38 @@ public class PokerGame {
                 break;
             case RAISE:
                 int raiseAmount = response.raiseAmount;
-                int totalBet = state.playerBet + raiseAmount;
+                // raiseAmount is the desired total bet size (e.g., 3x opponent's raise)
+                // NOT an additional amount on top of opponent's bet
+                int totalBet = raiseAmount;
                 int raiseAmountActual = totalBet - state.opponentBet;
-                state.opponentStack -= raiseAmountActual;
-                state.opponentBet = totalBet;
-                state.pot += raiseAmountActual;
+                // Protect against betting more than available stack
+                if (raiseAmountActual > state.opponentStack) {
+                    raiseAmountActual = state.opponentStack;
+                    totalBet = state.opponentBet + raiseAmountActual;
+                }
+
+                // Check if opponent is raising more than player can possibly match (side pot)
+                int opponentContributionAfterRaise = totalBet;
+                int currentPlayerContribution = state.playerBet;
+                if (opponentContributionAfterRaise > currentPlayerContribution + state.playerStack) {
+                    int maxPlayerCanMatch = currentPlayerContribution + state.playerStack;
+                    int actualRaiseAmount = maxPlayerCanMatch - state.opponentBet;
+                    int excessToReturn = raiseAmountActual - actualRaiseAmount;
+
+                    // Opponent only risks what player can match
+                    state.opponentStack -= actualRaiseAmount;
+                    state.opponentStack += excessToReturn; // Return excess immediately
+                    state.opponentBet = maxPlayerCanMatch;
+                    state.pot += actualRaiseAmount;
+                    // Track committed chips for EV calculation (only what opponent can match)
+                    ai.aiCommittedThisRound += actualRaiseAmount;
+                } else {
+                    state.opponentStack -= raiseAmountActual;
+                    state.opponentBet = totalBet;
+                    state.pot += raiseAmountActual;
+                    // Track committed chips for EV calculation
+                    ai.aiCommittedThisRound += raiseAmountActual;
+                }
                 break;
         }
 
@@ -1654,6 +1810,9 @@ public class PokerGame {
     private void advanceRound() {
         state.playerBet = 0;
         state.opponentBet = 0;
+
+        // Reset AI's committed chips tracking when advancing to a new betting round
+        ai.resetCommittedChips();
 
         switch (state.round) {
             case PREFLOP:
