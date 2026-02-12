@@ -17,4 +17,4 @@ $faction.id == tritachyon",,,20:visit_casino:Visit Casino,
 casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartCasinoInteraction,,
 # Debt collector hail when intercepting player
 casino_debtCollectorHail,BeginFleetEncounter,$ipc_debt_collector,"$menuState = main
-FireAll PopulateOptions","The Interstellar Paradise Casino sends its regards, a stern voice crackles over the comms. Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.",
+FireAll PopulateOptions","The Interastral Peace Casino sends its regards, a stern voice crackles over the comms. Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.",

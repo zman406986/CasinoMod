@@ -242,7 +242,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
                    option.startsWith("buy_ship") || option.startsWith("confirm_ship_trade") ||
                    option.startsWith("cancel_ship_trade") || option.startsWith("toggle_vip_notifications") ||
                    option.startsWith("captcha_answer_") || option.startsWith("captcha_wrong_") ||
-                   option.startsWith("cashout")) {
+                   option.startsWith("cash_out")) {
             financial.handle(option);
         } else if (option.startsWith("how_to_")) {
             help.handle(option);

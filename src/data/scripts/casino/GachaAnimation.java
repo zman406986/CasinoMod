@@ -2,7 +2,6 @@ package data.scripts.casino;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import org.lwjgl.opengl.GL11;
@@ -72,9 +71,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         public String name;
         public String hullId;
         public String weaponId;
-        public String hullModId;
         public int rarity;
-        public String spritePath;
         public Color color;
         public boolean revealed = false;
         public float spinTimer = 0f; // Timer for spinning phase
@@ -129,13 +126,13 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
         // Get background alpha based on rarity (higher for visibility against dark bg)
         public float getBackgroundAlpha() {
-            switch(rarity) {
-                case 5: return 0.95f;
-                case 4: return 0.9f;
-                case 3: return 0.85f;
-                case 2: return 0.8f;
-                default: return 0.75f;
-            }
+            return switch(rarity) {
+                case 5 -> 0.95f;
+                case 4 -> 0.9f;
+                case 3 -> 0.85f;
+                case 2 -> 0.8f;
+                default -> 0.75f;
+            };
         }
     }
 
@@ -170,8 +167,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         public void render(float alphaMult) {
             float progress = lifetime / maxLifetime;
             float alpha = (1f - progress) * alphaMult;
-            float size = 4f * (1f - progress);
 
+            int particleIndex = 0;
             for (Pair<Float, Float> particle : particles) {
                 float angle = particle.one;
                 float speed = particle.two;
@@ -179,7 +176,19 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
                 float px = x + (float)Math.cos(angle) * dist;
                 float py = y + (float)Math.sin(angle) * dist;
 
-                Misc.renderQuad(px - size/2, py - size/2, size, size, color, alpha);
+                float size = 3f + (particleIndex % 3) * 2f;
+                size *= (1f - progress * 0.5f);
+
+                if (particleIndex % 2 == 0) {
+                    Misc.renderQuad(px - size/2, py - size/2, size, size, color, alpha);
+                } else {
+                    float halfSize = size / 2f;
+                    float quarterSize = size / 4f;
+                    Misc.renderQuad(px - quarterSize, py - halfSize, quarterSize * 2, size, color, alpha);
+                    Misc.renderQuad(px - halfSize, py - quarterSize, size, quarterSize * 2, color, alpha);
+                }
+
+                particleIndex++;
             }
         }
     }
@@ -307,81 +316,156 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         float w = ITEM_WIDTH;
         float h = ITEM_HEIGHT;
 
+        // Calculate reveal scale animation
+        float revealScale = 1f;
+        if (item.isFixed && item.spinTimer <= SPIN_DURATION + 0.3f) {
+            float revealProgress = (item.spinTimer - SPIN_DURATION) / 0.3f;
+            if (revealProgress < 1f) {
+                revealScale = 0.5f + 0.5f * revealProgress;
+            }
+        }
+
         // Determine colors based on phase
         Color displayColor;
         Color borderColor;
         float bgAlpha;
 
         if (!item.isFixed) {
-            // Spinning phase - use brighter dark color for better visibility
             displayColor = item.getDarkColor();
             borderColor = new Color(150, 150, 150);
             bgAlpha = 0.4f;
         } else {
-            // Fixed/bright phase - use full color
             displayColor = item.color;
             borderColor = item.rarity >= 4 ? new Color(255, 215, 0) : Color.WHITE;
             bgAlpha = item.getBackgroundAlpha();
         }
 
         if (!item.isFixed) {
-            // Save matrix and apply rotation for spinning items
             GL11.glPushMatrix();
             GL11.glTranslatef(x, y, 0);
             GL11.glRotatef((float)Math.toDegrees(rotation), 0, 0, 1);
             GL11.glTranslatef(-x, -y, 0);
+        } else if (revealScale != 1f) {
+            GL11.glPushMatrix();
+            GL11.glTranslatef(x, y, 0);
+            GL11.glScalef(revealScale, revealScale, 1f);
+            GL11.glTranslatef(-x, -y, 0);
         }
 
-        // Draw item background
-        Misc.renderQuad(x - w/2, y - h/2, w, h, displayColor, alphaMult * bgAlpha);
+        // Draw glow effect for higher rarity items
+        if (item.isFixed && item.rarity >= 3) {
+            drawItemGlow(item, x, y, w, h, alphaMult);
+        }
 
-        // Draw border
-        Misc.renderQuad(x - w/2, y - h/2, w, 2, borderColor, alphaMult);
-        Misc.renderQuad(x - w/2, y + h/2 - 2, w, 2, borderColor, alphaMult);
-        Misc.renderQuad(x - w/2, y - h/2, 2, h, borderColor, alphaMult);
-        Misc.renderQuad(x + w/2 - 2, y - h/2, 2, h, borderColor, alphaMult);
+        // Draw star-shaped item background
+        drawStarShape(x, y, w, h, displayColor, alphaMult * bgAlpha);
+
+        // Draw star-shaped border
+        drawStarShapeBorder(x, y, w, h, borderColor, alphaMult);
 
         if (!item.isFixed) {
-            // Restore matrix
+            GL11.glPopMatrix();
+        } else if (revealScale != 1f) {
             GL11.glPopMatrix();
         }
 
-        // Draw decorative particles for 4* and 5* items only when fixed
-        if (item.isFixed && item.rarity >= 4) {
+        // Draw decorative particles for 3*, 4* and 5* items only when fixed
+        if (item.isFixed && item.rarity >= 3) {
             drawItemRarityEffect(item, x, y, alphaMult);
         }
 
         // Draw stars only when item is fixed (bright phase)
         if (item.isFixed) {
-            drawStars(item, x, y + h/2 + 15, alphaMult);
+            drawStars(item, x, y + h/2 + 18, alphaMult);
         }
     }
 
+    private void drawItemGlow(GachaItem item, float x, float y, float w, float h, float alphaMult) {
+        float glowSize = 1.2f + (item.rarity - 3) * 0.15f;
+        float glowW = w * glowSize;
+        float glowH = h * glowSize;
+        float glowAlpha = 0.3f + (item.rarity - 3) * 0.1f;
+
+        Color glowColor = new Color(
+            item.color.getRed(),
+            item.color.getGreen(),
+            item.color.getBlue(),
+            (int)(255 * glowAlpha * alphaMult)
+        );
+
+        drawStarShape(x, y, glowW, glowH, glowColor, alphaMult);
+    }
+
+    private void drawStarShapeBorder(float x, float y, float width, float height, Color color, float alphaMult) {
+        float halfW = width / 2f;
+        float halfH = height / 2f;
+        float borderThickness = 2f;
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
+
+        GL11.glBegin(GL11.GL_QUADS);
+
+        GL11.glVertex2f(x - borderThickness/2, y - halfH);
+        GL11.glVertex2f(x + borderThickness/2, y - halfH);
+        GL11.glVertex2f(x + borderThickness/2, y - halfH * 0.3f);
+        GL11.glVertex2f(x - borderThickness/2, y - halfH * 0.3f);
+
+        GL11.glVertex2f(x - borderThickness/2, y + halfH * 0.3f);
+        GL11.glVertex2f(x + borderThickness/2, y + halfH * 0.3f);
+        GL11.glVertex2f(x + borderThickness/2, y + halfH);
+        GL11.glVertex2f(x - borderThickness/2, y + halfH);
+
+        GL11.glVertex2f(x - halfW, y - borderThickness/2);
+        GL11.glVertex2f(x - halfW * 0.3f, y - borderThickness/2);
+        GL11.glVertex2f(x - halfW * 0.3f, y + borderThickness/2);
+        GL11.glVertex2f(x - halfW, y + borderThickness/2);
+
+        GL11.glVertex2f(x + halfW * 0.3f, y - borderThickness/2);
+        GL11.glVertex2f(x + halfW, y - borderThickness/2);
+        GL11.glVertex2f(x + halfW, y + borderThickness/2);
+        GL11.glVertex2f(x + halfW * 0.3f, y + borderThickness/2);
+
+        GL11.glEnd();
+
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
     private void drawItemRarityEffect(GachaItem item, float x, float y, float alphaMult) {
-        // Each 4* and 5* item gets its own spinning particle effect
         Color effectColor;
         int numParticles;
         float baseRadius;
         float particleSize;
+        float rotationSpeed;
 
-        // Use rotation based on animation timer for spinning effect
-        float rotation = animationTimer * 1.5f;
-
-        if (item.rarity >= 5) {
-            effectColor = new Color(255, 215, 0, (int)(180 * alphaMult)); // Gold
+        if (item.rarity == 5) {
+            effectColor = new Color(255, 215, 0, (int)(180 * alphaMult));
             numParticles = 8;
             baseRadius = 50f;
             particleSize = 6f;
-        } else {
-            effectColor = new Color(200, 50, 255, (int)(180 * alphaMult)); // Bright purple
+            rotationSpeed = 1.5f;
+        } else if (item.rarity == 4) {
+            effectColor = new Color(200, 50, 255, (int)(180 * alphaMult));
             numParticles = 6;
             baseRadius = 40f;
             particleSize = 5f;
+            rotationSpeed = 1.2f;
+        } else {
+            effectColor = new Color(100, 150, 255, (int)(160 * alphaMult));
+            numParticles = 4;
+            baseRadius = 32f;
+            particleSize = 4f;
+            rotationSpeed = 1.0f;
         }
+
+        float rotation = animationTimer * rotationSpeed;
 
         for (int i = 0; i < numParticles; i++) {
             float angle = rotation + (i * (float)Math.PI * 2f / numParticles);
-            float radius = baseRadius + (i % 2) * 10f;
+            float radius = baseRadius + (i % 2) * 8f;
             float fx = x + (float)Math.cos(angle) * radius;
             float fy = y + (float)Math.sin(angle) * radius;
 
@@ -391,15 +475,52 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
     private void drawStars(GachaItem item, float x, float y, float alphaMult) {
         Color starColor = item.rarity >= 4 ? new Color(255, 215, 0) : Color.YELLOW;
-        float starSpacing = 10f;
+        float starSpacing = 12f;
         float totalWidth = (item.rarity - 1) * starSpacing;
         float startX = x - totalWidth / 2f;
 
         for (int i = 0; i < item.rarity; i++) {
             float starX = startX + i * starSpacing;
-            Misc.renderQuad(starX - 3, y - 1, 6, 2, starColor, alphaMult);
-            Misc.renderQuad(starX - 1, y - 3, 2, 6, starColor, alphaMult);
+            drawRatingStar(starX, y, starColor, alphaMult);
         }
+    }
+
+    private void drawRatingStar(float x, float y, Color color, float alphaMult) {
+        float size = 5f;
+        float halfSize = size / 2f;
+        float quarterSize = size / 4f;
+
+        Misc.renderQuad(x - quarterSize, y - halfSize, quarterSize * 2, size, color, alphaMult);
+        Misc.renderQuad(x - halfSize, y - quarterSize, size, quarterSize * 2, color, alphaMult);
+    }
+
+    private void drawStarShape(float x, float y, float width, float height, Color color, float alphaMult) {
+        float halfW = width / 2f;
+        float halfH = height / 2f;
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
+
+        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
+
+        GL11.glVertex2f(x, y);
+
+        GL11.glVertex2f(x, y - halfH);
+        GL11.glVertex2f(x + halfW * 0.3f, y - halfH * 0.3f);
+        GL11.glVertex2f(x + halfW, y);
+        GL11.glVertex2f(x + halfW * 0.3f, y + halfH * 0.3f);
+        GL11.glVertex2f(x, y + halfH);
+        GL11.glVertex2f(x - halfW * 0.3f, y + halfH * 0.3f);
+        GL11.glVertex2f(x - halfW, y);
+        GL11.glVertex2f(x - halfW * 0.3f, y - halfH * 0.3f);
+        GL11.glVertex2f(x, y - halfH);
+
+        GL11.glEnd();
+
+        GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
 

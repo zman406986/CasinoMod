@@ -13,26 +13,21 @@ import java.util.List;
  * Processes log entries and adds them to the text panel with appropriate colors.
  *
  * Enhanced Color Coding:
- * - Ship Names: White (bold highlight)
- * - Positive Prefixes/Affixes: Green (bright green for major, muted for minor)
- * - Negative Prefixes/Affixes: Red/Pink (red for major, pink for minor)
+ * - Ship Names: Cyan (for visibility in battle logs)
  * - Damage Numbers: Orange
+ * - Crit Damage: Yellow
  * - Miss Messages: Gray
- * - Kill Messages: Red
+ * - Kill Messages: Red background with yellow ship name
  * - Random Events: Magenta
- * - Ship Status: Cyan
+ * - Ship Status HP: Color-coded by percentage (green/yellow/red)
  * - Headers: White
  */
 public class LogFormatter {
 
-    // Color definitions for different effect intensities
-    private static final Color MAJOR_POSITIVE_COLOR = new Color(50, 255, 50);    // Bright green
-    private static final Color MINOR_POSITIVE_COLOR = new Color(100, 200, 100);  // Muted green
-    private static final Color MAJOR_NEGATIVE_COLOR = new Color(255, 50, 50);    // Bright red
-    private static final Color MINOR_NEGATIVE_COLOR = new Color(255, 150, 150);  // Pink/light red
-    private static final Color DAMAGE_COLOR = Color.ORANGE;
-    private static final Color CRIT_DAMAGE_COLOR = Color.YELLOW;
-    private static final Color SHIP_NAME_COLOR = Color.WHITE;
+    // Color definitions for battle log
+    private static final Color SHIP_NAME_COLOR = Color.CYAN;                     // Cyan for ship names
+    private static final Color DAMAGE_COLOR = Color.ORANGE;                      // Orange for damage
+    private static final Color CRIT_DAMAGE_COLOR = Color.YELLOW;                 // Yellow for crit damage
 
     /**
      * Processes a log entry and adds it to the text panel with multi-color formatting.
@@ -40,26 +35,27 @@ public class LogFormatter {
      * @param logEntry The log entry string to process
      * @param textPanel The text panel to add the formatted entry to
      * @param combatants The list of combatants for context
+     * @param bets The list of bets placed by the player (for displaying bet amounts in status)
      */
-    public static void processLogEntry(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+    public static void processLogEntry(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants, List<data.scripts.casino.interaction.ArenaHandler.BetInfo> bets) {
         if (logEntry == null || logEntry.isEmpty()) {
             return;
         }
 
         // Random Events - Purple/Magenta (entire line)
-        if (logEntry.startsWith("⚠️ [EVENT]")) {
+        if (logEntry.startsWith("[EVENT]")) {
             processEventLog(logEntry, textPanel);
             return;
         }
 
         // Event damage - Purple/Magenta with ship names highlighted
-        if (logEntry.startsWith("💥")) {
+        if (logEntry.startsWith("[HIT]")) {
             processEventDamageLog(logEntry, textPanel, combatants);
             return;
         }
 
         // Kill messages - Multi-color with ship names
-        if (logEntry.startsWith("💀")) {
+        if (logEntry.startsWith("[KILL]")) {
             processKillLog(logEntry, textPanel, combatants);
             return;
         }
@@ -70,9 +66,9 @@ public class LogFormatter {
             return;
         }
 
-        // Ship status lines - Multi-color with HP values
+        // Ship status lines - Multi-color with HP values and bet amounts
         if (logEntry.contains(": ") && logEntry.contains("HP")) {
-            processStatusLog(logEntry, textPanel);
+            processStatusLog(logEntry, textPanel, combatants, bets);
             return;
         }
 
@@ -112,50 +108,179 @@ public class LogFormatter {
         // Format: "💥 ShipName takes X damage!"
         textPanel.addPara(logEntry, Color.MAGENTA);
 
+        List<String> highlights = new ArrayList<>();
+        List<Color> highlightColors = new ArrayList<>();
+
         // Highlight ship name
         String shipName = extractShipName(logEntry, combatants);
         if (shipName != null) {
-            textPanel.highlightInLastPara(SHIP_NAME_COLOR, shipName);
+            highlights.add(shipName);
+            highlightColors.add(SHIP_NAME_COLOR);
         }
 
         // Highlight damage number
         String damage = extractDamageNumber(logEntry);
         if (damage != null) {
-            textPanel.highlightInLastPara(DAMAGE_COLOR, damage);
+            highlights.add(damage);
+            highlightColors.add(DAMAGE_COLOR);
+        }
+
+        // Apply all highlights
+        if (!highlights.isEmpty()) {
+            textPanel.setHighlightColorsInLastPara(highlightColors.toArray(new Color[0]));
+            textPanel.highlightInLastPara(highlights.toArray(new String[0]));
         }
     }
 
     /**
-     * Processes kill log entries with ship name highlighting.
+     * Processes kill log entries with red background and yellow ship name highlighting.
+     * Removes the [KILL] tag from display but keeps the line red.
      */
     private static void processKillLog(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
-        // Format: "💀 ShipName was destroyed..." or "💀 ShipName was destroyed by the incident!"
-        textPanel.addPara(logEntry, Color.RED);
+        // Format: "[KILL] ShipName was destroyed..." or "[KILL] ShipName was destroyed by the incident!"
+        // Remove the [KILL] tag for display
+        String displayText = logEntry.startsWith("[KILL] ") ? logEntry.substring(7) : logEntry;
 
-        // Highlight ship name
+        // Add with default color first
+        textPanel.addPara(displayText);
+
+        // Extract ship name from the original log entry
         String shipName = extractShipName(logEntry, combatants);
+
+        // Highlight the entire line in red
+        List<String> highlights = new ArrayList<>();
+        List<Color> highlightColors = new ArrayList<>();
+
+        highlights.add(displayText);
+        highlightColors.add(Color.RED);
+
+        // Then highlight ship name in yellow (overrides red for ship name)
         if (shipName != null) {
-            textPanel.highlightInLastPara(SHIP_NAME_COLOR, shipName);
+            highlights.add(shipName);
+            highlightColors.add(Color.YELLOW);
+        }
+
+        // Apply all highlights
+        textPanel.setHighlightColorsInLastPara(highlightColors.toArray(new Color[0]));
+        textPanel.highlightInLastPara(highlights.toArray(new String[0]));
+    }
+
+    /**
+     * Processes status log entries with HP value coloring and bet amount display.
+     * Ship names are highlighted in cyan, HP values are color-coded by percentage.
+     */
+    private static void processStatusLog(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants, List<data.scripts.casino.interaction.ArenaHandler.BetInfo> bets) {
+        // Find the ship from combatants list based on the ship name in the log entry
+        int colonIndex = logEntry.indexOf(":");
+        String shipName = "";
+        if (colonIndex > 0) {
+            shipName = logEntry.substring(0, colonIndex).trim();
+        }
+
+        // Find the ship in combatants list
+        SpiralAbyssArena.SpiralGladiator ship = null;
+        for (SpiralAbyssArena.SpiralGladiator gladiator : combatants) {
+            if (gladiator.shortName.equals(shipName) || gladiator.hullName.equals(shipName)) {
+                ship = gladiator;
+                break;
+            }
+        }
+
+        // Calculate bet amount for this ship
+        int betAmount = 0;
+        if (ship != null && bets != null) {
+            for (data.scripts.casino.interaction.ArenaHandler.BetInfo bet : bets) {
+                if (bet.ship == ship) {
+                    betAmount += bet.amount;
+                }
+            }
+        }
+
+        // If there's a bet, append it to the log entry
+        String displayEntry = logEntry;
+        if (betAmount > 0) {
+            displayEntry = logEntry + " [Bet: " + betAmount + "]";
+        }
+
+        // Format: "HullName: X/Y HP (optional status) [Bet: Z]"
+        // Use white as base color so all ship names are consistent
+        textPanel.addPara(displayEntry, Color.WHITE);
+
+        List<String> highlights = new ArrayList<>();
+        List<Color> highlightColors = new ArrayList<>();
+
+        // Highlight ship name in cyan
+        if (colonIndex > 0) {
+            highlights.add(shipName);
+            highlightColors.add(SHIP_NAME_COLOR);
+        }
+
+        // Extract and highlight HP values with color coding
+        String[] hpValues = extractHpValues(logEntry);
+        if (hpValues != null) {
+            String currentHp = hpValues[0];
+            String maxHp = hpValues[1];
+
+            // Color current HP based on health percentage
+            if (ship != null) {
+                Color hpColor = getHpColor(ship.hp, ship.maxHp);
+                highlights.add(currentHp);
+                highlightColors.add(hpColor);
+            }
+
+            // Max HP in gray
+            highlights.add(maxHp);
+            highlightColors.add(Color.GRAY);
+        }
+
+        // Highlight bet amount in yellow if present
+        if (betAmount > 0) {
+            String betText = "[Bet: " + betAmount + "]";
+            highlights.add(betText);
+            highlightColors.add(Color.YELLOW);
+        }
+
+        // Apply all highlights
+        if (!highlights.isEmpty()) {
+            textPanel.setHighlightColorsInLastPara(highlightColors.toArray(new Color[0]));
+            textPanel.highlightInLastPara(highlights.toArray(new String[0]));
         }
     }
 
     /**
-     * Processes status log entries with HP value coloring.
+     * Extracts current and max HP values from a status log entry.
+     * Format: "HullName: X/Y HP"
+     * Returns array [currentHp, maxHp] or null if not found.
      */
-    private static void processStatusLog(String logEntry, TextPanelAPI textPanel) {
-        // Format: "HullName: X/Y HP (optional status)"
-        textPanel.addPara(logEntry, Color.CYAN);
+    private static String[] extractHpValues(String logEntry) {
+        // Look for pattern "X/Y HP"
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+)/(\\d+) HP");
+        java.util.regex.Matcher matcher = pattern.matcher(logEntry);
+        if (matcher.find()) {
+            return new String[]{matcher.group(1), matcher.group(2)};
+        }
+        return null;
+    }
 
-        // Highlight ship name (before the colon)
-        int colonIndex = logEntry.indexOf(":");
-        if (colonIndex > 0) {
-            String shipName = logEntry.substring(0, colonIndex).trim();
-            textPanel.highlightInLastPara(SHIP_NAME_COLOR, shipName);
+    /**
+     * Gets the color for HP value based on health percentage.
+     * > 70%: Green, 30-70%: Yellow, < 30%: Red
+     */
+    private static Color getHpColor(int currentHp, int maxHp) {
+        if (maxHp <= 0) return Color.WHITE;
+        float percentage = (float) currentHp / (float) maxHp;
+        if (percentage > 0.7f) {
+            return new Color(50, 255, 50); // Bright green
+        } else if (percentage > 0.3f) {
+            return Color.YELLOW; // Yellow
+        } else {
+            return new Color(255, 50, 50); // Bright red
         }
     }
 
     /**
      * Processes crit log entries with yellow damage highlighting.
+     * Highlights ship names in cyan and damage numbers in yellow.
      */
     private static void processCritLog(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
         // Add the full text first in yellow for crit
@@ -164,54 +289,18 @@ public class LogFormatter {
         List<String> highlights = new ArrayList<>();
         List<Color> highlightColors = new ArrayList<>();
 
-        // Extract and highlight attacker ship name with prefix/affix coloring
+        // Extract and highlight attacker ship name (first ship in text)
         SpiralAbyssArena.SpiralGladiator attacker = findAttacker(logEntry, combatants);
         if (attacker != null) {
             highlights.add(attacker.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight prefix with appropriate color
-            if (attacker.prefix != null && !attacker.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(attacker.prefix);
-                if (prefixColor != null) {
-                    highlights.add(attacker.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight affix with appropriate color
-            if (attacker.affix != null && !attacker.affix.isEmpty()) {
-                Color affixColor = getAffixColor(attacker.affix);
-                if (affixColor != null) {
-                    highlights.add(attacker.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
-        // Extract and highlight target ship name
+        // Extract and highlight target ship name (second ship in text)
         SpiralAbyssArena.SpiralGladiator target = findTarget(logEntry, combatants);
         if (target != null) {
             highlights.add(target.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight target prefix
-            if (target.prefix != null && !target.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(target.prefix);
-                if (prefixColor != null) {
-                    highlights.add(target.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight target affix
-            if (target.affix != null && !target.affix.isEmpty()) {
-                Color affixColor = getAffixColor(target.affix);
-                if (affixColor != null) {
-                    highlights.add(target.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
         // Highlight damage number with crit color
@@ -229,7 +318,8 @@ public class LogFormatter {
     }
 
     /**
-     * Processes attack/damage log entries with full multi-color support.
+     * Processes attack/damage log entries with multi-color support.
+     * Highlights ship names in cyan and damage numbers in orange.
      */
     private static void processAttackLog(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
         // Add the full text first
@@ -238,55 +328,18 @@ public class LogFormatter {
         List<String> highlights = new ArrayList<>();
         List<Color> highlightColors = new ArrayList<>();
 
-        // Extract and highlight attacker ship name with prefix/affix coloring
+        // Extract and highlight attacker ship name (first ship in text)
         SpiralAbyssArena.SpiralGladiator attacker = findAttacker(logEntry, combatants);
         if (attacker != null) {
-            // Highlight the full attacker name
             highlights.add(attacker.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight prefix with appropriate color
-            if (attacker.prefix != null && !attacker.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(attacker.prefix);
-                if (prefixColor != null) {
-                    highlights.add(attacker.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight affix with appropriate color
-            if (attacker.affix != null && !attacker.affix.isEmpty()) {
-                Color affixColor = getAffixColor(attacker.affix);
-                if (affixColor != null) {
-                    highlights.add(attacker.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
-        // Extract and highlight target ship name
+        // Extract and highlight target ship name (second ship in text)
         SpiralAbyssArena.SpiralGladiator target = findTarget(logEntry, combatants);
         if (target != null) {
             highlights.add(target.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight target prefix
-            if (target.prefix != null && !target.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(target.prefix);
-                if (prefixColor != null) {
-                    highlights.add(target.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight target affix
-            if (target.affix != null && !target.affix.isEmpty()) {
-                Color affixColor = getAffixColor(target.affix);
-                if (affixColor != null) {
-                    highlights.add(target.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
         // Highlight damage number
@@ -305,6 +358,7 @@ public class LogFormatter {
 
     /**
      * Processes miss log entries with ship name highlighting.
+     * Highlights ship names in cyan.
      */
     private static void processMissLog(String logEntry, TextPanelAPI textPanel, List<SpiralAbyssArena.SpiralGladiator> combatants) {
         // Add the full text in gray
@@ -313,54 +367,18 @@ public class LogFormatter {
         List<String> highlights = new ArrayList<>();
         List<Color> highlightColors = new ArrayList<>();
 
-        // Extract and highlight attacker ship name
+        // Extract and highlight attacker ship name (first ship in text)
         SpiralAbyssArena.SpiralGladiator attacker = findAttacker(logEntry, combatants);
         if (attacker != null) {
             highlights.add(attacker.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight prefix
-            if (attacker.prefix != null && !attacker.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(attacker.prefix);
-                if (prefixColor != null) {
-                    highlights.add(attacker.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight affix
-            if (attacker.affix != null && !attacker.affix.isEmpty()) {
-                Color affixColor = getAffixColor(attacker.affix);
-                if (affixColor != null) {
-                    highlights.add(attacker.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
-        // Extract and highlight target ship name
+        // Extract and highlight target ship name (second ship in text)
         SpiralAbyssArena.SpiralGladiator target = findTarget(logEntry, combatants);
         if (target != null) {
             highlights.add(target.shortName);
             highlightColors.add(SHIP_NAME_COLOR);
-
-            // Highlight target prefix
-            if (target.prefix != null && !target.prefix.isEmpty()) {
-                Color prefixColor = getPrefixColor(target.prefix);
-                if (prefixColor != null) {
-                    highlights.add(target.prefix);
-                    highlightColors.add(prefixColor);
-                }
-            }
-
-            // Highlight target affix
-            if (target.affix != null && !target.affix.isEmpty()) {
-                Color affixColor = getAffixColor(target.affix);
-                if (affixColor != null) {
-                    highlights.add(target.affix);
-                    highlightColors.add(affixColor);
-                }
-            }
         }
 
         // Apply all highlights
@@ -371,87 +389,90 @@ public class LogFormatter {
     }
 
     /**
-     * Gets the color for a prefix based on whether it's positive or negative.
-     */
-    private static Color getPrefixColor(String prefix) {
-        if (CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(prefix)) {
-            return MAJOR_POSITIVE_COLOR;
-        }
-        if (CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(prefix)) {
-            return MAJOR_NEGATIVE_COLOR;
-        }
-        return null;
-    }
-
-    /**
-     * Gets the color for an affix based on whether it's positive or negative.
-     */
-    private static Color getAffixColor(String affix) {
-        if (CasinoConfig.ARENA_AFFIX_POS.contains(affix)) {
-            return MINOR_POSITIVE_COLOR;
-        }
-        if (CasinoConfig.ARENA_AFFIX_NEG.contains(affix)) {
-            return MINOR_NEGATIVE_COLOR;
-        }
-        return null;
-    }
-
-    /**
      * Extracts ship name from a log entry by matching against known combatants.
+     * Returns the first ship name found in the text (by position).
      */
     private static String extractShipName(String logEntry, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        String foundShipName = null;
+        int firstIndex = Integer.MAX_VALUE;
+
         for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-            if (logEntry.contains(ship.shortName)) {
-                return ship.shortName;
+            int index = logEntry.indexOf(ship.shortName);
+            if (index >= 0 && index < firstIndex) {
+                firstIndex = index;
+                foundShipName = ship.shortName;
             }
         }
-        return null;
+
+        return foundShipName;
     }
 
     /**
-     * Finds the attacker ship from a log entry.
+     * Finds the attacker ship from a log entry by finding the first ship name occurrence.
+     * In flavor text patterns like "ShipA hits ShipB for X damage!", ShipA is the attacker.
      */
     private static SpiralAbyssArena.SpiralGladiator findAttacker(String logEntry, List<SpiralAbyssArena.SpiralGladiator> combatants) {
-        // In flavor text, $attacker is replaced with the ship's shortName
-        // We need to find which ship appears first in the text (usually the attacker)
+        // Find the ship whose name appears first in the log entry
+        SpiralAbyssArena.SpiralGladiator firstShip = null;
+        int firstIndex = Integer.MAX_VALUE;
+
         for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-            if (logEntry.contains(ship.shortName)) {
-                // Check if this ship could be the attacker based on context
-                // For now, return the first match as a heuristic
-                return ship;
+            int index = logEntry.indexOf(ship.shortName);
+            if (index >= 0 && index < firstIndex) {
+                firstIndex = index;
+                firstShip = ship;
             }
         }
-        return null;
+
+        return firstShip;
     }
 
     /**
-     * Finds the target ship from a log entry.
+     * Finds the target ship from a log entry by finding the second ship name occurrence.
+     * In flavor text patterns like "ShipA hits ShipB for X damage!", ShipB is the target.
      */
     private static SpiralAbyssArena.SpiralGladiator findTarget(String logEntry, List<SpiralAbyssArena.SpiralGladiator> combatants) {
-        // Find the second ship mentioned (usually the target)
-        SpiralAbyssArena.SpiralGladiator firstMatch = null;
+        // Find all ship name occurrences and their positions
+        SpiralAbyssArena.SpiralGladiator firstShip = null;
+        SpiralAbyssArena.SpiralGladiator secondShip = null;
+        int firstIndex = Integer.MAX_VALUE;
+        int secondIndex = Integer.MAX_VALUE;
+
         for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-            if (logEntry.contains(ship.shortName)) {
-                if (firstMatch == null) {
-                    firstMatch = ship;
-                } else {
-                    // Return the second match as the target
-                    return ship;
+            int index = logEntry.indexOf(ship.shortName);
+            if (index >= 0) {
+                if (index < firstIndex) {
+                    // Shift current first to second
+                    secondIndex = firstIndex;
+                    secondShip = firstShip;
+                    // Set new first
+                    firstIndex = index;
+                    firstShip = ship;
+                } else if (index < secondIndex && index != firstIndex) {
+                    secondIndex = index;
+                    secondShip = ship;
                 }
             }
         }
-        // If only one ship found, it might be both attacker and target (self-damage)
-        // or we couldn't identify properly
-        return firstMatch;
+
+        // Return the second ship found (the target), or first ship if only one found
+        return secondShip != null ? secondShip : firstShip;
     }
 
     /**
      * Extracts damage number from a log entry.
      */
     private static String extractDamageNumber(String logEntry) {
-        // Look for patterns like "for X damage" or "takes X damage"
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+) damage");
+        // Look for "X CRIT damage" pattern (e.g., "75 CRIT damage to Legion!")
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+) CRIT damage");
         java.util.regex.Matcher matcher = pattern.matcher(logEntry);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        // Look for patterns like "for X damage" or "takes X damage"
+        pattern = java.util.regex.Pattern.compile("(\\d+) damage");
+        matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
@@ -465,6 +486,13 @@ public class LogFormatter {
 
         // Look for "takes X CRIT" pattern (e.g., "takes 97 CRIT!")
         pattern = java.util.regex.Pattern.compile("takes (\\d+) CRIT");
+        matcher = pattern.matcher(logEntry);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        // Look for "with X damage" pattern (e.g., "sends Doom to the stars with 42 damage")
+        pattern = java.util.regex.Pattern.compile("with (\\d+) damage");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
@@ -491,20 +519,32 @@ public class LogFormatter {
      * Checks if a log entry contains damage information (attack hit)
      */
     private static boolean containsDamage(String logEntry) {
+        String lower = logEntry.toLowerCase();
+
         // Check for common damage indicators in flavor text
         if (logEntry.matches(".*for \\d+ damage.*")) {
             return true;
         }
 
+        // Check for "with X damage" pattern (e.g., "sends Doom to the stars with 42 damage")
+        if (logEntry.matches(".*with \\d+ damage.*")) {
+            return true;
+        }
+
+        // Check for "dealt X emotional damage" pattern
+        if (lower.contains("emotional damage")) {
+            return true;
+        }
+
         // Check for crit-related keywords
-        String lower = logEntry.toLowerCase();
         if (lower.contains("crit") || lower.contains("critical") || lower.contains("devastating")) {
             return true;
         }
 
         // Check for attack-related keywords that indicate a hit
         if (lower.contains("hits") || lower.contains("strikes") || lower.contains("blasts") ||
-            lower.contains("slashes") || lower.contains("fires") || lower.contains("unleashes")) {
+            lower.contains("slashes") || lower.contains("fires") || lower.contains("unleashes") ||
+            lower.contains("rams") || lower.contains("sends") || lower.contains("dealt")) {
             return true;
         }
 
@@ -516,8 +556,9 @@ public class LogFormatter {
      */
     private static boolean isMissMessage(String logEntry) {
         String lower = logEntry.toLowerCase();
-        return lower.contains("miss") || lower.contains("dodges") ||
-               lower.contains("evades") || lower.contains("misses") ||
+        return lower.contains("miss") || lower.contains("dodges") || lower.contains("dodged") ||
+               lower.contains("evades") || lower.contains("evaded") ||
+               lower.contains("misses") || lower.contains("missed") ||
                lower.contains("shot went wide") || lower.contains("too slow") ||
                lower.contains("frame perfect") || lower.contains("is that all") ||
                lower.contains("think you can get away") || lower.contains("your aim is as bad") ||
@@ -529,7 +570,7 @@ public class LogFormatter {
      */
     private static boolean isCritMessage(String logEntry) {
         String lower = logEntry.toLowerCase();
-        return lower.contains("critical") || lower.contains("crit!") ||
+        return lower.contains("critical") || lower.contains("crit!") || lower.contains("crit damage") ||
                lower.contains("nowhere to hide") || lower.contains("witness the stars shatter") ||
                lower.contains("disappear among the sea") || lower.contains("rules are made to be broken") ||
                lower.contains("feel the weight of a thousand failed gacha");

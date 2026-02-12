@@ -2,12 +2,14 @@ package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
+import com.fs.starfarer.api.ui.LabelAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.PokerGame;
 import data.scripts.casino.PokerGame.PokerGameLogic;
 
 import java.awt.Color;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,7 +58,7 @@ public class PokerHandler {
         handlers.put("poker_back_action", option -> updateUI());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> handleLeaveTable());
-        handlers.put("leave_now", option -> main.showMenu());
+        handlers.put("leave_now", option -> handleSuspendLeave());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("confirm_overdraft", option -> processOverdraftConfirmation());
         handlers.put("cancel_overdraft", option -> cancelOverdraft());
@@ -309,20 +311,25 @@ public class PokerHandler {
 
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("------------------------------------------------");
-        main.getTextPanel().addPara("Pot: " + state.pot + " Stargems (" + formatBB(state.pot, bigBlind) + " BB)", Color.GREEN);
-        main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems (" + formatBB(state.playerStack, bigBlind) + " BB)", Color.CYAN);
-        main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems (" + formatBB(state.opponentStack, bigBlind) + " BB)", Color.ORANGE);
-        main.getTextPanel().addPara("Big Blind: " + bigBlind + " Stargems", Color.GRAY);
+        main.getTextPanel().addPara("Pot: %s Stargems (%s BB) | Big Blind: %s", Color.GREEN, 
+            String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
+        main.getTextPanel().highlightInLastPara(
+            String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
+        main.getTextPanel().setHighlightColorsInLastPara(Color.GREEN, Color.GREEN, Color.GREEN);
+        
+        main.getTextPanel().addPara("Your Stack: %s Stargems (%s BB)", Color.CYAN,
+            String.valueOf(state.playerStack), formatBB(state.playerStack, bigBlind));
+        
+        main.getTextPanel().addPara("Opponent Stack: %s Stargems (%s BB)", Color.ORANGE,
+            String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind));
         
         // Display AI personality information
         String aiPersonality = pokerGame.getAIPersonalityDescription();
         main.getTextPanel().addPara(aiPersonality, Color.GRAY);
         
-        main.getTextPanel().addPara("Your Hand: ");
-        displayColoredCards(state.playerHand);
+        displayColoredCardsOnOneLine(state.playerHand, "Your Hand", Color.CYAN);
         if (!state.communityCards.isEmpty()) {
-            main.getTextPanel().addPara("Community: ");
-            displayColoredCards(state.communityCards);
+            displayColoredCardsOnOneLine(state.communityCards, "Community", Color.YELLOW);
         }
         
         int callAmount = state.opponentBet - state.playerBet;
@@ -364,20 +371,24 @@ public class PokerHandler {
 
     public void handlePokerCall() {
         if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
         pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
+        main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
         updateGameState();
     }
-    
+
     public void handlePokerCheck() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
+        main.getTextPanel().addPara("You check.", Color.CYAN);
         updateGameState();
     }
-    
+
     public void handlePokerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        // Fold handling and messaging is done in determineWinner()
+        main.getTextPanel().addPara("You fold.", Color.GRAY);
         updateGameState();
     }
     
@@ -492,7 +503,10 @@ public class PokerHandler {
 
     private void performRaise(int amt) {
         if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        int totalBet = state.playerBet + amt;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, amt);
+        main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
         updateGameState();
     }
     
@@ -501,7 +515,7 @@ public class PokerHandler {
         PokerGame.PokerState state = pokerGame.getState();
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
         mem.set("$ipc_suspended_game_type", "Poker");
-        
+
         mem.set("$ipc_poker_pot_size", state.pot);
         mem.set("$ipc_poker_player_bet", state.playerBet);
         mem.set("$ipc_poker_opponent_bet", state.opponentBet);
@@ -509,9 +523,11 @@ public class PokerHandler {
         mem.set("$ipc_poker_player_stack", state.playerStack);
         mem.set("$ipc_poker_opponent_stack", state.opponentStack);
         mem.set("$ipc_poker_player_is_dealer", state.dealer == PokerGame.Dealer.PLAYER);
-        
+
+        mem.set("$ipc_poker_hands_played", handsPlayedThisSession);
+
         mem.set("$ipc_poker_suspend_time", Global.getSector().getClock().getTimestamp());
-        
+
         main.getTextPanel().addPara("You stand up abruptly. 'Hold that thought! I'll be right back!'", Color.YELLOW);
         main.getTextPanel().addPara("The IPC Dealer raises an eyebrow but nods slowly. 'The cards will stay as they are.'", Color.CYAN);
         main.getTextPanel().addPara("'Don't be long. We have other customers waiting.'", Color.GRAY);
@@ -521,7 +537,7 @@ public class PokerHandler {
 
     public void restoreSuspendedGame() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        
+
         if (mem.contains("$ipc_poker_pot_size")) {
             int pot = mem.getInt("$ipc_poker_pot_size");
             int pBet = mem.getInt("$ipc_poker_player_bet");
@@ -529,7 +545,14 @@ public class PokerHandler {
             int pStack = mem.getInt("$ipc_poker_player_stack");
             int oStack = mem.getInt("$ipc_poker_opponent_stack");
             boolean pDealer = mem.getBoolean("$ipc_poker_player_is_dealer");
-            
+
+            // Restore hands played counter
+            if (mem.contains("$ipc_poker_hands_played")) {
+                handsPlayedThisSession = mem.getInt("$ipc_poker_hands_played");
+            } else {
+                handsPlayedThisSession = 0;
+            }
+
             // Create game instance
             // Using placeholder stack sizes, but then we override state
             pokerGame = new PokerGame(pStack, oStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
@@ -538,21 +561,34 @@ public class PokerHandler {
             state.playerBet = pBet;
             state.opponentBet = oBet;
             state.dealer = pDealer ? PokerGame.Dealer.PLAYER : PokerGame.Dealer.OPPONENT;
-            
+
             // Cards are reshuffled in new game due to restore limitation mentioned in original code
-            
+
             long suspendTime = mem.getLong("$ipc_poker_suspend_time");
             long currentTime = Global.getSector().getClock().getTimestamp();
             float daysAway = (currentTime - suspendTime) / 30f;
-            
+
             main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
             main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
             main.getTextPanel().addPara("'The cards are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
-            
+
             updateUI();
         } else {
             setupGame();
         }
+    }
+
+    private void clearSuspendedGameMemory() {
+        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        mem.unset("$ipc_suspended_game_type");
+        mem.unset("$ipc_poker_pot_size");
+        mem.unset("$ipc_poker_player_bet");
+        mem.unset("$ipc_poker_opponent_bet");
+        mem.unset("$ipc_poker_player_stack");
+        mem.unset("$ipc_poker_opponent_stack");
+        mem.unset("$ipc_poker_player_is_dealer");
+        mem.unset("$ipc_poker_hands_played");
+        mem.unset("$ipc_poker_suspend_time");
     }
 
     private void determineWinner() {
@@ -640,17 +676,59 @@ public class PokerHandler {
 
     private void displayColoredCards(List<PokerGameLogic.Card> cards) {
         main.textPanel.setFontInsignia();
-        // Build complete card string with color-coded suits
-        // Using single paragraph reduces UI overhead compared to one paragraph per card
         StringBuilder cardText = new StringBuilder();
         for (int i = 0; i < cards.size(); i++) {
             PokerGameLogic.Card c = cards.get(i);
-            if (i > 0) cardText.append(" ");
+            Color suitColor = switch (c.suit) {
+                case HEARTS -> Color.RED;
+                case DIAMONDS -> Color.BLUE;
+                case CLUBS -> Color.GREEN;
+                default -> Color.GRAY;
+            };
+            cardText.setLength(0);
             cardText.append(c);
+            if (i < cards.size() - 1) cardText.append(" ");
+            main.textPanel.addPara(cardText.toString(), suitColor);
         }
-        // Note: Starsector API doesn't support inline color changes in a single paragraph
-        // so we use neutral gray for the combined text
-        main.textPanel.addPara(cardText.toString(), Color.GRAY);
+    }
+
+    private void displayColoredCardsOnOneLine(List<PokerGameLogic.Card> cards, String prefix, Color prefixColor) {
+        if (cards == null || cards.isEmpty()) {
+            return;
+        }
+
+        main.textPanel.setFontInsignia();
+
+        // Build the full text with actual card strings (not format placeholders)
+        StringBuilder fullText = new StringBuilder(prefix + ": ");
+        List<String> cardStrings = new ArrayList<>();
+        List<Color> highlightColors = new ArrayList<>();
+
+        for (int i = 0; i < cards.size(); i++) {
+            PokerGameLogic.Card c = cards.get(i);
+            Color suitColor = switch (c.suit) {
+                case HEARTS -> Color.RED;
+                case DIAMONDS -> Color.BLUE;
+                case CLUBS -> Color.GREEN;
+                default -> Color.GRAY;
+            };
+
+            String cardStr = c.toString();
+            if (i > 0) {
+                fullText.append(" ");
+            }
+            fullText.append(cardStr);
+
+            cardStrings.add(cardStr);
+            highlightColors.add(suitColor);
+        }
+
+        // Add paragraph with the full text
+        main.textPanel.addPara(fullText.toString(), prefixColor);
+
+        // Highlight the card texts and set their colors
+        main.textPanel.highlightInLastPara(cardStrings.toArray(new String[0]));
+        main.textPanel.setHighlightColorsInLastPara(highlightColors.toArray(new Color[0]));
     }
 
     private void returnStacks() {
@@ -678,28 +756,64 @@ public class PokerHandler {
         }
 
         handsPlayedThisSession = 0;
+
+        // Clear any suspended game memory since player is intentionally leaving
+        clearSuspendedGameMemory();
+
         showPokerConfirm();
+    }
+
+    private void handleSuspendLeave() {
+        // When leaving after suspending, we need to:
+        // 1. Return stack to balance (same as normal leave)
+        // 2. Set early departure cooldown if applicable
+        // 3. Clear suspended game memory (player is intentionally leaving, not just suspending)
+        // 4. Show main menu
+
+        if (pokerGame != null && pokerGame.getState().playerStack > 0) {
+            int stackToReturn = pokerGame.getState().playerStack;
+            CasinoVIPManager.addToBalance(stackToReturn);
+            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and leave the table.", Color.GREEN);
+            pokerGame.getState().playerStack = 0;
+        }
+
+        // Set cooldown if player left early
+        if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            long currentTime = Global.getSector().getClock().getTimestamp();
+            mem.set(POKER_COOLDOWN_KEY, currentTime + COOLDOWN_TICKS_PER_DAY);
+            main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
+        }
+
+        handsPlayedThisSession = 0;
+
+        // Clear suspended game memory since player is intentionally leaving
+        clearSuspendedGameMemory();
+
+        main.showMenu();
     }
     
     private void endHand(boolean playerWon) {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
 
-        if (playerWon) {
-            // In tournament/stack style, winnings stay in stack until player leaves table
-            main.getTextPanel().addPara("You win the pot of " + state.pot + " Stargems!", Color.CYAN);
-        }
+        // Note: Pot has already been awarded in determineWinner(), so state.pot is 0 here
+        // The win message is already displayed there with the correct amount
 
         if (state.playerStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("You're out of chips! Game over.", Color.RED);
             returnStacks();
+            clearSuspendedGameMemory();
             pokerGame = null;
+            handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
             main.getOptions().addOption("Leave Table", "back_menu");
         } else if (state.opponentStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("Opponent is out of chips! You win!", Color.GREEN);
             returnStacks();
+            clearSuspendedGameMemory();
             pokerGame = null;
+            handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
             main.getOptions().addOption("Leave Table", "back_menu");
         } else {

@@ -22,13 +22,14 @@
     "pokerAIStackPercentCallLimit": 0.30,
     "pokerAIMaxRaiseRandomAddition": 200,
     "pokerAIMinRaiseValue": 200,
+    "pokerMonteCarloSamples": 2000,
     "gachaCost": 160,
     "gachaPoolSize": 32,
     "pityHard5": 90,
     "pitySoftStart5": 73,
     "pityHard4": 10,
     "gachaRotationDays": 14,
-    "shipTradeRate": 1000,
+    "shipTradeRate": 500,
     "shipSellMultiplier": 0.9,
 
     "arenaShipCount": 5,
@@ -37,7 +38,7 @@
     "arenaBaseOdds": 5.0,
     "arenaPositivePerkMultiplier": 0.75,
     "arenaNegativePerkMultiplier": 1.25,
-    "arenaMinOdds": 2.0,
+    "arenaMinOdds": 1.01,
     "arenaEntryFee": 100,
     "_comment_survivalMult": "Reduced to 0.9 to create 10% house edge (was 2.0 which gave player advantage)",
     "arenaSurvivalRewardMult": 0.9,
@@ -109,35 +110,35 @@
 
     "arenaAttackLines": [
         "$attacker attacks $target for $dmg damage!",
-        "$attacker sends $target to the stars with $dmg damage!",
-        "$attacker: 'Time for... retribution!' hitting $target for $dmg!",
-        "$attacker accidentally bumps into $target for $dmg damage!",
-        "$attacker: 'I will have order!' dealing $dmg to $target!",
+        "$attacker sends $target flying with $dmg damage!",
+        "$attacker unleashes $dmg damage upon $target!",
+        "$attacker rams into $target for $dmg damage!",
+        "$attacker called $target and dealt $dmg emotional damage!",
         "$attacker preemptively strikes $target for $dmg damage!"
     ],
     "arenaMissLines": [
-        "$target: 'Too slow!' ($attacker missed)",
-        "$target: 'Frame perfect!' (Dodged $attacker)",
-        "$target: 'Is that all?' ($attacker's shot went wide)",
-        "$target: 'Think you can get away?' (Evaded $attacker)",
-        "$target: 'Your aim is as bad as my gacha luck!' ($attacker missed)",
-        "$target: 'Busted!' ($attacker completely missed)"
+        "$target:'Too slow!' ($attacker missed)",
+        "$target:'Frame perfect!' (Evaded $attacker)",
+        "$target:'Is that all?' ($attacker missed)",
+        "$target:'Think you can get away?' (Evaded $attacker)",
+        "$target:'Too graceful for you?' ($attacker missed)",
+        "$target:'The stars favor me today.' (Evaded $attacker)"
     ],
     "arenaCritLines": [
-        "$attacker: 'Nowhere to hide!' ($target takes $dmg CRITICAL damage!)",
-        "$attacker: 'Witness the stars shatter!' ($target takes $dmg CRITICAL damage!)",
-        "$attacker: 'Disappear among the sea of butterflies!' ($target takes $dmg CRITICAL damage!)",
-        "$attacker: 'Time for... retribution!' ($target takes $dmg CRITICAL damage!)",
-        "$attacker: 'Rules are made to be broken!' ($target takes $dmg CRITICAL damage!)",
-        "$attacker: 'Feel the weight of a thousand failed gacha pulls!' ($target takes $dmg CRIT!)"
+        "$attacker:'Nowhere to hide!' ($dmg CRIT damage to $target!)",
+        "$attacker:'Witness the stars shatter!' ($dmg CRIT damage to $target!)",
+        "$attacker:'Destiny compels!' ($dmg CRIT damage to $target!)",
+        "$attacker:'Time for... retribution!' ($dmg CRIT damage to $target!)",
+        "$attacker:'Rules are made to be broken!' ($dmg CRIT damage to $target!)",
+        "$attacker:'Witness true power!' ($dmg CRIT damage to $target!)"
     ],
     "arenaKillLines": [
-        "$attacker sends $target to the afterlife!",
-        "$attacker serves $target on a silver platter!",
-        "$attacker sends $target to the stars... permanently.",
+        "$attacker makes $target disappear among a sea of butterflies!",
+        "$attacker: 'Your journey ends here, $target'!",
+        "$attacker sends $target to the stars...permanently.",
         "$attacker eliminates $target from the Spiral Abyss!",
-        "$attacker: 'The dead... will return!' (But $target won't)",
-        "$attacker: 'Good food, good life!' (for $target)"
+        "$attacker:'The dead...will return!' (But $target won't)",
+        "$attacker: 'Into the void with you, $target!'"
     ],
     "arenaPrefixStrongPos": [
         "Durable",

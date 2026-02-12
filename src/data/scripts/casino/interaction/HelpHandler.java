@@ -65,12 +65,17 @@ public class HelpHandler {
         // Exact match handlers
         handlers.put("how_to_play_main", option -> showGeneralHelp());
         handlers.put("how_to_poker", option -> showPokerHelp());
-        handlers.put("how_to_arena", option -> showArenaHelp());
+        handlers.put("how_to_arena", option -> showArenaHelp("arena_lobby"));
         handlers.put("how_to_gacha", option -> showGachaHelp());
+        handlers.put("how_to_financial", option -> showFinancialHelp());
+        handlers.put("how_to_topup", option -> showTopupHelp());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("gacha_menu", option -> main.gacha.handle(option));
         handlers.put("play", option -> main.poker.handle(option));
         handlers.put("arena_lobby", option -> main.arena.handle(option));
+        handlers.put("financial_menu", option -> main.financial.handle(option));
+        handlers.put("topup_menu", option -> main.topup.handle(option));
+        handlers.put("arena_status", option -> main.arena.handle(option));
     }
 
     /**
@@ -83,6 +88,13 @@ public class HelpHandler {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
             handler.handle(option);
+            return;
+        }
+        
+        // Handle arena help with contextual return path (e.g., "how_to_arena_arena_status")
+        if (option.startsWith("how_to_arena_")) {
+            String returnTo = option.replace("how_to_arena_", "");
+            showArenaHelp(returnTo);
             return;
         }
         
@@ -238,8 +250,10 @@ public class HelpHandler {
      *
      * AI_AGENT NOTE: Odds calculations and bonus formulas are documented here.
      * When modifying arena mechanics, update this help text to match.
+     * 
+     * @param returnTo The option ID to return to after viewing help (for contextual navigation)
      */
-    public void showArenaHelp() {
+    public void showArenaHelp(String returnTo) {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- SPIRAL ABYSS ARENA: SURVIVAL ---", Color.CYAN);
         main.textPanel.addPara("Objective:", Color.GRAY);
@@ -286,7 +300,14 @@ public class HelpHandler {
         main.textPanel.addPara("- Higher HP champions are safer but pay less; low HP = high risk, high reward.");
         main.textPanel.addPara("- Watch for chaos events that can change the tide of battle!");
 
-        main.options.addOption("Back", "arena_lobby");
+        main.options.addOption("Back", returnTo);
+    }
+
+    /**
+     * Overload for backward compatibility - returns to arena lobby.
+     */
+    public void showArenaHelp() {
+        showArenaHelp("arena_lobby");
     }
 
     /**
@@ -324,5 +345,85 @@ public class HelpHandler {
         main.textPanel.addPara("- You can keep or convert ships after each pull.");
 
         main.options.addOption("Back", "gacha_menu");
+    }
+
+    /**
+     * Displays financial services help.
+     * Covers VIP subscriptions, credit ceiling, debt mechanics, and ship trading.
+     */
+    public void showFinancialHelp() {
+        main.options.clearOptions();
+        main.textPanel.addPara("\n--- FINANCIAL SERVICES GUIDE ---", Color.CYAN);
+        
+        main.textPanel.addPara("VIP Subscription Pass:", Color.YELLOW);
+        main.textPanel.addPara("- Cost: " + CasinoConfig.VIP_PASS_COST + " Credits for " + CasinoConfig.VIP_PASS_DAYS + " days.");
+        main.textPanel.addPara("- Daily Reward: " + CasinoConfig.VIP_DAILY_REWARD + " Stargems per day.");
+        main.textPanel.addPara("- Overdraft Access: VIPs can spend beyond their balance up to their credit ceiling.");
+        main.textPanel.addPara("- Reduced Interest: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily vs " + (int)(CasinoConfig.NON_VIP_DAILY_INTEREST_RATE * 100) + "% for non-VIP.");
+        main.textPanel.addPara("- Credit Ceiling Increase: +" + CasinoConfig.CEILING_INCREASE_PER_VIP + " per VIP purchase.");
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Credit Ceiling & Overdraft:", Color.YELLOW);
+        main.textPanel.addPara("- Base Debt Ceiling: " + (int)CasinoConfig.BASE_DEBT_CEILING + " Stargems.");
+        main.textPanel.addPara("- Your credit ceiling = Base + (VIP purchases x " + CasinoConfig.CEILING_INCREASE_PER_VIP + ").");
+        main.textPanel.addPara("- Available Credit = Credit Ceiling + Current Balance (if negative).");
+        main.textPanel.addPara("- VIPs can overdraft (go negative) up to their credit ceiling.");
+        main.textPanel.addPara("- Non-VIPs cannot overdraft - must have positive balance to play.");
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Debt & Interest:", Color.YELLOW);
+        main.textPanel.addPara("- Negative balances accrue daily interest.");
+        main.textPanel.addPara("- VIP Interest: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% per day.");
+        main.textPanel.addPara("- Non-VIP Interest: " + (int)(CasinoConfig.NON_VIP_DAILY_INTEREST_RATE * 100) + "% per day.");
+        main.textPanel.addPara("- Max Debt: Cannot exceed " + (int)(CasinoConfig.MAX_DEBT_MULTIPLIER * 100) + "% of your credit ceiling.");
+        main.textPanel.addPara("- Corporate Reconciliation Team: Dispatched for severe debt. They will find you!", Color.RED);
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Ship Trading:", Color.YELLOW);
+        main.textPanel.addPara("- Sell ships for Stargems at Financial Services.");
+        main.textPanel.addPara("- Formula: Ship Base Value / " + (int)CasinoConfig.SHIP_TRADE_RATE + " x " + (int)(CasinoConfig.SHIP_SELL_MULTIPLIER * 100) + "% = Stargems received.");
+        main.textPanel.addPara("- WARNING: Ships cannot be bought back! This is permanent.", Color.RED);
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("VIP Notifications:", Color.GRAY);
+        main.textPanel.addPara("- Toggle between daily or monthly notification mode.");
+        main.textPanel.addPara("- Daily: Reminds you each day to collect rewards.");
+        main.textPanel.addPara("- Monthly: Single reminder when VIP is about to expire.");
+
+        main.options.addOption("Back", "financial_menu");
+    }
+
+    /**
+     * Displays Stargem top-up help.
+     * Covers exchange rates and package information.
+     */
+    public void showTopupHelp() {
+        main.options.clearOptions();
+        main.textPanel.addPara("\n--- STARGEM TOP-UP GUIDE ---", Color.CYAN);
+        
+        main.textPanel.addPara("What are Stargems?", Color.YELLOW);
+        main.textPanel.addPara("- Stargems are the casino's premium currency.");
+        main.textPanel.addPara("- Used for all casino games: Poker, Arena, and Gacha.");
+        main.textPanel.addPara("- Exchange Rate: 1 Stargem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits.");
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Purchasing Stargems:", Color.YELLOW);
+        main.textPanel.addPara("- Buy gem packages with credits at the Top-Up terminal.");
+        main.textPanel.addPara("- Larger packages offer better value (more gems per credit).");
+        main.textPanel.addPara("- Purchases are instant - gems added immediately.");
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Alternative Ways to Get Stargems:", Color.GRAY);
+        main.textPanel.addPara("- VIP Daily Reward: " + CasinoConfig.VIP_DAILY_REWARD + " gems per day with active VIP.");
+        main.textPanel.addPara("- Ship Trading: Sell ships at Financial Services.");
+        main.textPanel.addPara("- Casino Winnings: Win big at Poker or Arena!");
+        main.textPanel.addPara("");
+
+        main.textPanel.addPara("Tips:", Color.CYAN);
+        main.textPanel.addPara("- Consider buying VIP first for overdraft access and daily rewards.");
+        main.textPanel.addPara("- Larger packages are more cost-effective for frequent players.");
+        main.textPanel.addPara("- Keep some gems in reserve for unexpected opportunities.");
+
+        main.options.addOption("Back", "topup_menu");
     }
 }

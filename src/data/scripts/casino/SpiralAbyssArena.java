@@ -72,6 +72,11 @@ public class SpiralAbyssArena {
         public boolean isEnraged = false;  // Whether the ship is in an enraged state
         public SpiralGladiator targetOfRage = null;  // The ship the current ship is angry at
         
+        // Reference to arena and combatants for simulation-based odds calculation
+        private transient SpiralAbyssArena arenaRef;
+        private transient List<SpiralGladiator> combatantsRef;
+        private transient int combatantIndex = -1;
+        
         public SpiralGladiator(String prefix, String hullName, String affix, int hp, int power, float agility, float bravery) {
             this.prefix = prefix;
             this.hullName = hullName;
@@ -83,68 +88,53 @@ public class SpiralAbyssArena {
             this.power = power;
             this.agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
             this.bravery = bravery;
-            this.baseOdds = calculateBaseOdds(prefix, affix); // Calculate base odds based on perks
+            // Base odds will be calculated after arena reference is set
+            this.baseOdds = CasinoConfig.ARENA_BASE_ODDS;
         }
         
-        private float calculateBaseOdds(String prefix, String affix) {
-            // Base odds from config (default 5.0 = 1:5.0 return)
-            float odds = CasinoConfig.ARENA_BASE_ODDS;
 
-            // Count positive and negative prefixes
-            boolean isPrefixPositive = CasinoConfig.ARENA_PREFIX_STRONG_POS.contains(prefix);
-            boolean isPrefixNegative = CasinoConfig.ARENA_PREFIX_STRONG_NEG.contains(prefix);
-
-            // Count positive and negative affixes
-            boolean isAffixPositive = CasinoConfig.ARENA_AFFIX_POS.contains(affix);
-            boolean isAffixNegative = CasinoConfig.ARENA_AFFIX_NEG.contains(affix);
-
-            // Adjust odds based on perks using config multipliers
-            if (isPrefixPositive || isAffixPositive) {
-                // Positive perks make the ship stronger, so lower the odds (less return)
-                odds *= CasinoConfig.ARENA_POSITIVE_PERK_MULTIPLIER;
-            }
-            if (isPrefixNegative || isAffixNegative) {
-                // Negative perks make the ship weaker, so increase the odds (higher return)
-                odds *= CasinoConfig.ARENA_NEGATIVE_PERK_MULTIPLIER;
-            }
-
-            // Ensure minimum odds from config
-            return Math.max(CasinoConfig.ARENA_MIN_ODDS, odds);
-        }
         
         /**
-         * Calculates current odds based on base odds, current HP, and round number.
-         * Higher HP = lower odds (worse payout), Lower HP = higher odds (better payout)
-         * 
+         * Calculates current odds based on simulation-based win probability.
+         * Uses Monte Carlo simulation to determine actual win chances, then applies house edge.
+         * Mid-round bets receive additional penalties to prevent information exploitation.
+         *
          * @param currentRound The current round number (0 = pre-battle)
-         * @return The current odds multiplier
+         * @return The current odds multiplier (already includes house edge and mid-round penalties)
          */
         public float getCurrentOdds(int currentRound) {
             if (isDead) {
                 return 0.0f; // Dead ships have no odds
             }
-            
-            // Start with base odds from perks
+
+            // If we have arena reference and combatants, use simulation-based calculation
+            if (arenaRef != null && combatantsRef != null && combatantIndex >= 0) {
+                return arenaRef.calculateCurrentOdds(combatantsRef, combatantIndex, currentRound);
+            }
+
+            // Fallback to legacy HP-based calculation if no arena reference available
+            // This should only happen in edge cases
             float currentOdds = baseOdds;
-            
+
             // Apply HP-based adjustment (higher HP = lower odds, lower HP = higher odds)
             float hpRatio = (float) hp / (float) maxHp;
-            // Invert the ratio so low HP gives higher odds
             float hpFactor = 1.0f + (CasinoConfig.ARENA_HP_ODDS_FACTOR - 1.0f) * (1.0f - hpRatio);
-            // Clamp to min/max limits
-            hpFactor = Math.max(CasinoConfig.ARENA_MIN_HP_ODDS_MULT, 
+            hpFactor = Math.max(CasinoConfig.ARENA_MIN_HP_ODDS_MULT,
                       Math.min(CasinoConfig.ARENA_MAX_HP_ODDS_MULT, hpFactor));
-            
+
             currentOdds *= hpFactor;
-            
-            // Apply diminishing returns for mid-round bets
+
+            // Apply mid-round betting penalties
             if (currentRound > 0) {
-                float diminishingReturns = 1.0f - (currentRound * CasinoConfig.ARENA_DIMINISHING_RETURNS_PER_ROUND);
-                diminishingReturns = Math.max(CasinoConfig.ARENA_DIMINISHING_RETURNS_MIN, diminishingReturns);
-                currentOdds *= diminishingReturns;
+                float basePenalty = CasinoConfig.ARENA_MID_ROUND_BASE_PENALTY;
+                float progressivePenalty = 1.0f - (currentRound * CasinoConfig.ARENA_MID_ROUND_PROGRESSIVE_PENALTY);
+                progressivePenalty = Math.max(CasinoConfig.ARENA_DIMINISHING_RETURNS_MIN, progressivePenalty);
+                currentOdds *= basePenalty * progressivePenalty;
             }
-            
-            // Ensure minimum odds
+
+            // Apply house edge
+            currentOdds *= (1.0f - CasinoConfig.ARENA_HOUSE_EDGE);
+
             return Math.max(CasinoConfig.ARENA_MIN_ODDS, currentOdds);
         }
         
@@ -180,6 +170,35 @@ public class SpiralAbyssArena {
             }
             
             return status.toString();
+        }
+        
+        /**
+         * Creates a deep copy of this gladiator for simulation purposes.
+         */
+        public SpiralGladiator copyForSimulation() {
+            SpiralGladiator copy = new SpiralGladiator(prefix, hullName, affix, maxHp, power, agility, bravery);
+            copy.hp = this.hp;
+            copy.isDead = this.isDead;
+            copy.kills = this.kills;
+            copy.turnsSurvived = this.turnsSurvived;
+            copy.baseOdds = this.baseOdds;
+            copy.isEnraged = this.isEnraged;
+            copy.targetOfRage = null;
+            copy.retaliateTarget = null;
+            return copy;
+        }
+        
+        /**
+         * Sets the arena and combatants reference for simulation-based odds calculation.
+         * This is called by the arena when generating combatants.
+         * Also recalculates base odds using Monte Carlo simulation.
+         */
+        public void setArenaReference(SpiralAbyssArena arena, List<SpiralGladiator> combatants, int index) {
+            this.arenaRef = arena;
+            this.combatantsRef = combatants;
+            this.combatantIndex = index;
+            // Recalculate base odds using Monte Carlo simulation now that we have the reference
+            this.baseOdds = arena.calculateCurrentOdds(combatants, index, 0);
         }
     }
     
@@ -253,12 +272,19 @@ public class SpiralAbyssArena {
             else bravery = posAffix ? bravery + CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS);  // "of Courage"/"of Fear" affects Bravery
             
             agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
-            list.add(new SpiralGladiator(prefix, spec.getHullName(), affix, hp, power, agility, bravery));
+            SpiralGladiator gladiator = new SpiralGladiator(prefix, spec.getHullName(), affix, hp, power, agility, bravery);
+            list.add(gladiator);
         }
+        
+        // Set arena references for all gladiators to enable simulation-based odds
+        for (int i = 0; i < list.size(); i++) {
+            list.get(i).setArenaReference(this, list, i);
+        }
+        
         return list;
     }
     
-    public List<String> simulateStep(List<SpiralGladiator> combatants) {
+    public List<String> simulateStep(List<SpiralGladiator> combatants, int currentRound) {
         List<String> log = new ArrayList<>();
         
         // Filter for ships that aren't scrap metal yet
@@ -266,60 +292,6 @@ public class SpiralAbyssArena {
         for (SpiralGladiator g : combatants) if (!g.isDead) alive.add(g);
         
         if (alive.size() < 2) return log; // Match is over
-        
-        // 1. Check for unpredictable Chaos Events
-        if (random.nextFloat() < CasinoConfig.ARENA_CHAOS_EVENT_CHANCE) { // Chance per step from config
-            ChaosEventType type = ChaosEventType.values()[random.nextInt(ChaosEventType.values().length)];
-            
-            if (type == ChaosEventType.SINGLE_SHIP_DAMAGE) {
-                // Single ship damage event - pick one random ship
-                SpiralGladiator target = alive.get(random.nextInt(alive.size()));
-                int dmg = (int)(target.maxHp * CasinoConfig.ARENA_SINGLE_SHIP_DAMAGE_PERCENT);
-                target.hp -= dmg;
-                
-                // Get random description from config
-                String description = getRandomDescription(CasinoConfig.ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS);
-                log.add("⚠️ [EVENT] " + description.replace("$ship", target.shortName) + " (-" + dmg + " HP)");
-                
-                // Check if ship died from event
-                if (target.hp <= 0) {
-                    target.isDead = true;
-                    target.isEnraged = false;
-                    target.targetOfRage = null;
-                    log.add("💀 " + target.shortName + " was destroyed by the incident!");
-                }
-            } else if (type == ChaosEventType.MULTI_SHIP_DAMAGE) {
-                // Multi ship damage event - damage multiple ships
-                int shipsToDamage = Math.min(alive.size(), 2 + random.nextInt(Math.min(3, alive.size() - 1))); // 2-4 ships or all if less
-                List<SpiralGladiator> shuffled = new ArrayList<>(alive);
-                Collections.shuffle(shuffled, random);
-                
-                // Get random description from config
-                String description = getRandomDescription(CasinoConfig.ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS);
-                log.add("⚠️ [EVENT] " + description);
-                
-                for (int i = 0; i < shipsToDamage && i < shuffled.size(); i++) {
-                    SpiralGladiator target = shuffled.get(i);
-                    int dmg = (int)(target.maxHp * CasinoConfig.ARENA_MULTI_SHIP_DAMAGE_PERCENT);
-                    target.hp -= dmg;
-                    log.add("💥 " + target.shortName + " takes " + dmg + " damage!");
-                    
-                    // Check if ship died from event
-                    if (target.hp <= 0) {
-                        target.isDead = true;
-                        target.isEnraged = false;
-                        target.targetOfRage = null;
-                        log.add("💀 " + target.shortName + " was destroyed!");
-                    }
-                }
-            }
-        }
-
-        // Update alive list after events
-        alive.clear();
-        for (SpiralGladiator g : combatants) if (!g.isDead) alive.add(g);
-        
-        if (alive.size() < 2) return log; // Match is over after events
 
         // Process multiple attacks in this step
         // Calculate number of attacks based on action multiplier, but each ship can only attack once per round
@@ -401,7 +373,7 @@ public class SpiralAbyssArena {
                     target.targetOfRage = null;
                     attacker.kills++;
                     String kill = getFlavor(CasinoConfig.ARENA_KILL_FLAVOR_TEXTS, lastKillHistory);
-                    log.add(kill.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
+                    log.add("[KILL] " + kill.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
                 }
             } else {
                 // It's a miss!
@@ -409,7 +381,60 @@ public class SpiralAbyssArena {
                 log.add(miss.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
             }
         }
-        
+
+        // Update alive list after ship attacks
+        alive.clear();
+        for (SpiralGladiator g : combatants) if (!g.isDead) alive.add(g);
+
+        // Check for unpredictable Chaos Events (happen after ship actions)
+        // Chaos events cannot happen on first round (round 0) to give players a fair chance
+        if (currentRound > 0 && alive.size() >= 2 && random.nextFloat() < CasinoConfig.ARENA_CHAOS_EVENT_CHANCE) {
+            ChaosEventType type = ChaosEventType.values()[random.nextInt(ChaosEventType.values().length)];
+
+            if (type == ChaosEventType.SINGLE_SHIP_DAMAGE) {
+                // Single ship damage event - pick one random ship
+                SpiralGladiator target = alive.get(random.nextInt(alive.size()));
+                int dmg = (int)(target.maxHp * CasinoConfig.ARENA_SINGLE_SHIP_DAMAGE_PERCENT);
+                target.hp -= dmg;
+
+                // Get random description from config
+                String description = getRandomDescription(CasinoConfig.ARENA_SINGLE_SHIP_DAMAGE_DESCRIPTIONS);
+                log.add("[EVENT] " + description.replace("$ship", target.shortName) + " (-" + dmg + " HP)");
+
+                // Check if ship died from event
+                if (target.hp <= 0) {
+                    target.isDead = true;
+                    target.isEnraged = false;
+                    target.targetOfRage = null;
+                    log.add("[KILL] " + target.shortName + " was destroyed by the incident!");
+                }
+            } else if (type == ChaosEventType.MULTI_SHIP_DAMAGE) {
+                // Multi ship damage event - damage multiple ships
+                int shipsToDamage = Math.min(alive.size(), 2 + random.nextInt(Math.min(3, alive.size() - 1))); // 2-4 ships or all if less
+                List<SpiralGladiator> shuffled = new ArrayList<>(alive);
+                Collections.shuffle(shuffled, random);
+
+                // Get random description from config
+                String description = getRandomDescription(CasinoConfig.ARENA_MULTI_SHIP_DAMAGE_DESCRIPTIONS);
+                log.add("[EVENT] " + description);
+
+                for (int i = 0; i < shipsToDamage && i < shuffled.size(); i++) {
+                    SpiralGladiator target = shuffled.get(i);
+                    int dmg = (int)(target.maxHp * CasinoConfig.ARENA_MULTI_SHIP_DAMAGE_PERCENT);
+                    target.hp -= dmg;
+                    log.add("[HIT] " + target.shortName + " takes " + dmg + " damage!");
+
+                    // Check if ship died from event
+                    if (target.hp <= 0) {
+                        target.isDead = true;
+                        target.isEnraged = false;
+                        target.targetOfRage = null;
+                        log.add("[KILL] " + target.shortName + " was destroyed!");
+                    }
+                }
+            }
+        }
+
         // Add status of all remaining ships to the log
         List<SpiralGladiator> remainingShips = new ArrayList<>();
         for (SpiralGladiator g : combatants) {
@@ -436,5 +461,230 @@ public class SpiralAbyssArena {
             return "An incident occurs!";
         }
         return descriptions.get(random.nextInt(descriptions.size()));
+    }
+    
+    /**
+     * Calculates win probabilities for all alive combatants using Monte Carlo simulation.
+     * This provides accurate odds based on actual combat dynamics rather than simple HP ratios.
+     * 
+     * @param combatants The list of current combatants
+     * @return Map of combatant index to win probability (0.0 - 1.0)
+     */
+    public Map<Integer, Float> calculateWinProbabilities(List<SpiralGladiator> combatants) {
+        Map<Integer, Float> winProbabilities = new HashMap<>();
+        int aliveCount = 0;
+        
+        // Count alive ships and initialize probabilities
+        for (int i = 0; i < combatants.size(); i++) {
+            if (!combatants.get(i).isDead) {
+                aliveCount++;
+                winProbabilities.put(i, 0.0f);
+            }
+        }
+        
+        // Edge cases
+        if (aliveCount == 0) {
+            return winProbabilities;
+        }
+        if (aliveCount == 1) {
+            // Only one ship alive - 100% win probability
+            for (int i = 0; i < combatants.size(); i++) {
+                if (!combatants.get(i).isDead) {
+                    winProbabilities.put(i, 1.0f);
+                    return winProbabilities;
+                }
+            }
+        }
+        
+        // Run Monte Carlo simulations
+        int simulations = CasinoConfig.ARENA_SIMULATION_COUNT;
+        Map<Integer, Integer> winCounts = new HashMap<>();
+        
+        for (int sim = 0; sim < simulations; sim++) {
+            // Create a copy of combatants for this simulation
+            List<SpiralGladiator> simCombatants = new ArrayList<>();
+            Map<Integer, Integer> originalToSimIndex = new HashMap<>();
+            int simIndex = 0;
+            
+            for (int i = 0; i < combatants.size(); i++) {
+                if (!combatants.get(i).isDead) {
+                    simCombatants.add(combatants.get(i).copyForSimulation());
+                    originalToSimIndex.put(i, simIndex);
+                    simIndex++;
+                }
+            }
+            
+            // Simulate until one ship remains
+            int winnerOriginalIndex = runSimulationToCompletion(simCombatants, originalToSimIndex);
+            
+            if (winnerOriginalIndex >= 0) {
+                winCounts.put(winnerOriginalIndex, winCounts.getOrDefault(winnerOriginalIndex, 0) + 1);
+            }
+        }
+        
+        // Calculate probabilities from win counts
+        for (Map.Entry<Integer, Integer> entry : winCounts.entrySet()) {
+            float probability = (float) entry.getValue() / simulations;
+            winProbabilities.put(entry.getKey(), probability);
+        }
+        
+        // Ensure all alive ships have at least a small probability (numerical safety)
+        for (int i = 0; i < combatants.size(); i++) {
+            if (!combatants.get(i).isDead && !winProbabilities.containsKey(i)) {
+                winProbabilities.put(i, 0.001f); // Minimum 0.1% chance
+            }
+        }
+        
+        return winProbabilities;
+    }
+    
+    /**
+     * Runs a combat simulation to completion and returns the winner's original index.
+     * 
+     * @param simCombatants List of combatant copies for simulation
+     * @param originalToSimIndex Map from original index to simulation index
+     * @return Original index of the winner, or -1 if no winner
+     */
+    private int runSimulationToCompletion(List<SpiralGladiator> simCombatants, Map<Integer, Integer> originalToSimIndex) {
+        Random simRandom = new Random();
+        
+        // Create reverse mapping
+        Map<Integer, Integer> simToOriginalIndex = new HashMap<>();
+        for (Map.Entry<Integer, Integer> entry : originalToSimIndex.entrySet()) {
+            simToOriginalIndex.put(entry.getValue(), entry.getKey());
+        }
+        
+        // Simulate combat rounds
+        int maxRounds = 1000; // Safety limit to prevent infinite loops
+        for (int round = 0; round < maxRounds; round++) {
+            // Count alive ships
+            List<SpiralGladiator> alive = new ArrayList<>();
+            for (SpiralGladiator g : simCombatants) {
+                if (!g.isDead) alive.add(g);
+            }
+            
+            if (alive.size() <= 1) {
+                break; // Combat ended
+            }
+            
+            // Simulate one round of attacks
+            int attacksThisRound = Math.max(alive.size(), (int)(alive.size() * CasinoConfig.ARENA_ACTION_MULTIPLIER));
+            Set<SpiralGladiator> hasAttackedThisRound = new HashSet<>();
+            
+            for (int attack = 0; attack < attacksThisRound; attack++) {
+                // Refresh alive list
+                alive.clear();
+                for (SpiralGladiator g : simCombatants) {
+                    if (!g.isDead) alive.add(g);
+                }
+                if (alive.size() < 2) break;
+                
+                // Find available attackers
+                List<SpiralGladiator> availableAttackers = new ArrayList<>();
+                for (SpiralGladiator g : alive) {
+                    if (!hasAttackedThisRound.contains(g)) {
+                        availableAttackers.add(g);
+                    }
+                }
+                
+                if (availableAttackers.isEmpty()) {
+                    hasAttackedThisRound.clear();
+                    availableAttackers.addAll(alive);
+                }
+                
+                // Select attacker and target
+                SpiralGladiator attacker = availableAttackers.get(simRandom.nextInt(availableAttackers.size()));
+                hasAttackedThisRound.add(attacker);
+                
+                SpiralGladiator target = alive.get(simRandom.nextInt(alive.size()));
+                while (target == attacker) {
+                    target = alive.get(simRandom.nextInt(alive.size()));
+                }
+                
+                // Handle retaliation
+                if (attacker.retaliateTarget != null && !attacker.retaliateTarget.isDead) {
+                    target = attacker.retaliateTarget;
+                }
+                
+                // Attack resolution
+                float hitChance = 0.7f + attacker.agility - target.agility;
+                if (simRandom.nextFloat() < hitChance) {
+                    boolean crit = simRandom.nextFloat() < attacker.bravery;
+                    int dmg = (int)(attacker.power * (crit ? 1.5f : 1.0f));
+                    target.hp -= dmg;
+                    
+                    // Retaliation trigger
+                    if (simRandom.nextFloat() < target.bravery) {
+                        target.retaliateTarget = attacker;
+                    }
+                    
+                    // Check death
+                    if (target.hp <= 0) {
+                        target.isDead = true;
+                        attacker.kills++;
+                    }
+                }
+            }
+        }
+        
+        // Find winner
+        for (int i = 0; i < simCombatants.size(); i++) {
+            if (!simCombatants.get(i).isDead) {
+                return simToOriginalIndex.get(i);
+            }
+        }
+        
+        return -1; // No winner (shouldn't happen)
+    }
+    
+    /**
+     * Calculates current odds for a specific ship based on simulation-based win probability.
+     * This replaces the old HP-based formula with accurate Monte Carlo simulation.
+     * 
+     * @param combatants The list of all combatants
+     * @param shipIndex The index of the ship to calculate odds for
+     * @param currentRound The current round number (0 = pre-battle)
+     * @return The current odds multiplier
+     */
+    public float calculateCurrentOdds(List<SpiralGladiator> combatants, int shipIndex, int currentRound) {
+        SpiralGladiator ship = combatants.get(shipIndex);
+        
+        if (ship.isDead) {
+            return 0.0f;
+        }
+        
+        // Calculate win probabilities for all ships
+        Map<Integer, Float> winProbabilities = calculateWinProbabilities(combatants);
+        Float winProbability = winProbabilities.get(shipIndex);
+        
+        if (winProbability == null || winProbability <= 0.0f) {
+            return CasinoConfig.ARENA_MIN_ODDS;
+        }
+        
+        // Calculate fair odds: 1 / winProbability
+        // Example: 20% win chance = 1/0.2 = 5.0 odds
+        float fairOdds = 1.0f / winProbability;
+        
+        // Apply house edge to ensure 10% house edge on random bets
+        // fairOdds * (1 - houseEdge) = expected payout
+        // Example: 5.0 * 0.9 = 4.5 (player gets 4.5x on 20% win chance = 90% return = 10% house edge)
+        float houseEdgeAdjusted = fairOdds * (1.0f - CasinoConfig.ARENA_HOUSE_EDGE);
+        
+        // Apply mid-round betting penalties
+        // This penalizes players who wait to gather information before betting
+        float midRoundMultiplier = 1.0f;
+        if (currentRound > 0) {
+            // Base 50% penalty for any mid-round bet
+            float basePenalty = CasinoConfig.ARENA_MID_ROUND_BASE_PENALTY;
+            // Additional 15% per round
+            float progressivePenalty = 1.0f - (currentRound * CasinoConfig.ARENA_MID_ROUND_PROGRESSIVE_PENALTY);
+            progressivePenalty = Math.max(CasinoConfig.ARENA_DIMINISHING_RETURNS_MIN, progressivePenalty);
+            midRoundMultiplier = basePenalty * progressivePenalty;
+        }
+        
+        float finalOdds = houseEdgeAdjusted * midRoundMultiplier;
+        
+        // Ensure minimum odds
+        return Math.max(CasinoConfig.ARENA_MIN_ODDS, finalOdds);
     }
 }

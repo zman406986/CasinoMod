@@ -122,6 +122,7 @@ public class FinHandler {
         handlers.put("toggle_vip_notifications", option -> toggleVIPNotifications());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
+        handlers.put("how_to_financial", option -> main.help.showFinancialHelp());
 
         // Predicate-based handlers for pattern matching
         predicateHandlers.put(option -> option.startsWith("captcha_answer_"), option -> {
@@ -173,6 +174,7 @@ public class FinHandler {
         String notifyText = monthlyMode ? "VIP Notifications: Monthly" : "VIP Notifications: Daily";
         main.getOptions().addOption(notifyText, "toggle_vip_notifications");
 
+        main.getOptions().addOption("How Financial Services Work", "how_to_financial");
         main.getOptions().addOption("Cash Out", "cash_out");
 
         main.getOptions().addOption("Back", "back_menu");

@@ -84,6 +84,8 @@ public class CasinoConfig {
     public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION = 200;
     /** Minimum raise value (in Stargems) */
     public static int POKER_AI_MIN_RAISE_VALUE = 200;
+    /** Number of Monte Carlo simulations for poker equity calculation (higher = more accurate but slower) */
+    public static int POKER_MONTE_CARLO_SAMPLES = 2000;
 
     // Gacha Configuration
     /** Cost per gacha pull (in Stargems) */
@@ -130,8 +132,10 @@ public class CasinoConfig {
     public static float ARENA_POSITIVE_PERK_MULTIPLIER = 0.75f;
     /** Odds increase for negative perks (1.25 = 25% increase) - weaker ships pay more */
     public static float ARENA_NEGATIVE_PERK_MULTIPLIER = 1.25f;
-    /** Minimum odds regardless of perks (prevents 0 return) */
-    public static float ARENA_MIN_ODDS = 2.0f;
+    /** Minimum odds regardless of perks (prevents 0 return, 1.01 ensures player gets bet back + 1%) */
+    public static float ARENA_MIN_ODDS = 1.01f;
+    /** House edge percentage (0.10 = 10% house edge, ensures betting on all ships is not profitable) */
+    public static float ARENA_HOUSE_EDGE = 0.10f;
     /** Entry fee for arena betting (default bet amount) */
     public static int ARENA_ENTRY_FEE = 100;
     /** Survival reward multiplier for arena betting (0.9 = 90% of odds, creating 10% house edge) */
@@ -146,8 +150,16 @@ public class CasinoConfig {
     public static float ARENA_ACTION_MULTIPLIER = 1.5f;
     /** Diminishing returns per round for late bets (0.20 = 20% reduction per round, min 0.4) */
     public static float ARENA_DIMINISHING_RETURNS_PER_ROUND = 0.20f;
-    /** Minimum diminishing returns multiplier (0.4 = 40% of original value) */
-    public static float ARENA_DIMINISHING_RETURNS_MIN = 0.4f;
+    /** Minimum diminishing returns multiplier (0.25 = 25% of original value) */
+    public static float ARENA_DIMINISHING_RETURNS_MIN = 0.25f;
+    
+    // Arena Simulation Configuration
+    /** Number of Monte Carlo simulations for odds calculation (higher = more accurate but slower) */
+    public static int ARENA_SIMULATION_COUNT = 500;
+    /** Base penalty for mid-round betting (0.5 = 50% reduction) */
+    public static float ARENA_MID_ROUND_BASE_PENALTY = 0.5f;
+    /** Progressive penalty per round for mid-round betting (0.15 = 15% additional reduction per round) */
+    public static float ARENA_MID_ROUND_PROGRESSIVE_PENALTY = 0.15f;
     
     // HP-Based Dynamic Odds Configuration
     /** Factor for how much HP affects odds mid-battle (2.0 = up to 2x difference between low and high HP) */
@@ -440,6 +452,9 @@ public class CasinoConfig {
             if (settings.has("pokerAIMinRaiseValue")) {
                 POKER_AI_MIN_RAISE_VALUE = settings.getInt("pokerAIMinRaiseValue");
             }
+            if (settings.has("pokerMonteCarloSamples")) {
+                POKER_MONTE_CARLO_SAMPLES = settings.getInt("pokerMonteCarloSamples");
+            }
 
             // Load gacha settings
             if (settings.has("gachaCost")) {
@@ -486,6 +501,9 @@ public class CasinoConfig {
             if (settings.has("arenaMinOdds")) {
                 ARENA_MIN_ODDS = (float) settings.getDouble("arenaMinOdds");
             }
+            if (settings.has("arenaHouseEdge")) {
+                ARENA_HOUSE_EDGE = (float) settings.getDouble("arenaHouseEdge");
+            }
             if (settings.has("arenaEntryFee")) {
                 ARENA_ENTRY_FEE = settings.getInt("arenaEntryFee");
             }
@@ -509,6 +527,17 @@ public class CasinoConfig {
             }
             if (settings.has("arenaDiminishingReturnsMin")) {
                 ARENA_DIMINISHING_RETURNS_MIN = (float) settings.getDouble("arenaDiminishingReturnsMin");
+            }
+            
+            // Load arena simulation settings
+            if (settings.has("arenaSimulationCount")) {
+                ARENA_SIMULATION_COUNT = settings.getInt("arenaSimulationCount");
+            }
+            if (settings.has("arenaMidRoundBasePenalty")) {
+                ARENA_MID_ROUND_BASE_PENALTY = (float) settings.getDouble("arenaMidRoundBasePenalty");
+            }
+            if (settings.has("arenaMidRoundProgressivePenalty")) {
+                ARENA_MID_ROUND_PROGRESSIVE_PENALTY = (float) settings.getDouble("arenaMidRoundProgressivePenalty");
             }
             
             // Load HP-based dynamic odds settings
