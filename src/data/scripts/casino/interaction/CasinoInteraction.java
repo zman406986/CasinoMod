@@ -114,7 +114,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // Route to appropriate handler based on option prefix
         if (option.startsWith("gacha_") || option.startsWith("pull_") || option.startsWith("confirm_pull_") || option.startsWith("auto_convert") || option.startsWith("explain_")) {
             gacha.handle(option);
-        } else if (option.startsWith("play") || option.startsWith("poker_") || option.startsWith("confirm_poker") || option.startsWith("next_hand")) {
+        } else if (option.startsWith("play") || option.startsWith("poker_") || option.startsWith("confirm_poker") || option.startsWith("next_hand") || option.equals("confirm_overdraft") || option.equals("cancel_overdraft")) {
             poker.handle(option);
         } else if (option.startsWith("arena_")) {
             arena.handle(option);

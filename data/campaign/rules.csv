@@ -23,15 +23,9 @@ casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartC
 casino_debtCollectorHail,BeginFleetEncounter,"$ipc_debt_collector score:1000
 !$ignorePlayerCommRequests","AddText ""You're being hailed by the $faction $otherShipOrFleet."" $faction.baseColor
 $hailing = true 0",,
-# Open comm link with debt collector - prevent repeated comm attempts
+# Open comm link with debt collector - hostile message, fight is unavoidable
 casino_debtCollectorOpenComm,OpenCommLink,"$entity.ipc_debt_collector score:1000
 !$entity.ignorePlayerCommRequests","$entity.ignorePlayerCommRequests = true
-SetShortcut cutCommLinkNoText ""ESCAPE""",""The Interastral Peace Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.""
+SetShortcut cutCommLinkNoText ""ESCAPE""","""You had your fun, now it's time to pay.""
 
 The comm link goes dead in a crackle of static.",cutCommLinkNoText:Continue,
-# Populate options for debt collector interaction
-casino_debtCollectorPopulateOpts,PopulateOptions,$ipc_debt_collector,,,0:casino_debtCollectorEngage:Engage the fleet,100:casino_debtCollectorLeave:""I'll be going now.""
-# Engage the fleet
-casino_debtCollectorEngage,DialogOptionSelected,$option == casino_debtCollectorEngage,ShowDefaultVisual,,
-# Leave conversation
-casino_debtCollectorLeave,DialogOptionSelected,$option == casino_debtCollectorLeave,ShowDefaultVisual,,

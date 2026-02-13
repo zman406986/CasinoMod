@@ -364,7 +364,7 @@ public class CasinoConfig {
      */
     public static void loadSettings() {
         try {
-            JSONObject settings = Global.getSettings().loadJSON("data/config/casino_settings.json", "the_casino_mod");
+            JSONObject settings = Global.getSettings().loadJSON("data/config/casino_settings.json", "interastral_peace_casino");
 
             // Load VIP settings
             if (settings.has("vipDailyReward")) {
@@ -661,7 +661,7 @@ public class CasinoConfig {
         try {
             GACHA_SHIP_BLACKLIST_CSV.clear();
             JSONArray csv = Global.getSettings().getMergedSpreadsheetDataForMod("id", 
-                    GACHA_SHIPS_BLACKLIST_CSV, "the_casino_mod");
+                    GACHA_SHIPS_BLACKLIST_CSV, "interastral_peace_casino");
             for (int i = 0; i < csv.length(); i++) {
                 JSONObject row = csv.getJSONObject(i);
                 String hullId = row.getString("id");

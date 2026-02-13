@@ -84,6 +84,11 @@ public class ArenaHandler {
     
     protected List<BetInfo> arenaBets = new ArrayList<>();
     
+    private int pendingBetAmount = 0;
+    private int pendingOverdraftAmount = 0;
+    private String pendingReturnToMenu = "";
+    private int pendingChampionIndex = -1;
+    
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
 
@@ -110,6 +115,15 @@ public class ArenaHandler {
         handlers.put(OPTION_ARENA_ADD_ANOTHER_BET, option -> showAddAnotherBetMenu());
         handlers.put(OPTION_ARENA_STATUS, option -> showArenaStatus());
         handlers.put(OPTION_ARENA_LEAVE_NOW, option -> main.showMenu());
+        handlers.put("arena_abandon_confirm", option -> showAbandonConfirm());
+        handlers.put("arena_abandon_confirm_leave", option -> abandonArenaGame());
+        handlers.put("arena_abandon_cancel", option -> showArenaStatus());
+        handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
+        handlers.put("suspend_abandon_leave", option -> abandonSuspendedArena());
+        handlers.put("suspend_abandon_cancel", option -> {
+            main.textPanel.addPara("You return to your seat. The battle continues.", Color.CYAN);
+            showArenaStatus();
+        });
         handlers.put(OPTION_ARENA_START_BATTLE, option -> {
             int chosenIdx = -1;
             for (int i = 0; i < arenaCombatants.size(); i++) {
@@ -153,7 +167,9 @@ public class ArenaHandler {
             performAddBetToChampion(championIndex, amount);
         });
 
-        // Handle contextual arena help options
+        handlers.put("arena_confirm_overdraft", option -> processOverdraftConfirmation());
+        handlers.put("arena_cancel_overdraft", option -> cancelOverdraft());
+
         predicateHandlers.put(option -> option.startsWith("how_to_arena_"), option -> {
             String returnTo = option.replace("how_to_arena_", "");
             main.help.showArenaHelp(returnTo);
@@ -289,6 +305,10 @@ public class ArenaHandler {
                 showAddBetMenu();
                 return true;
             }
+            
+            main.textPanel.addPara("Overdraft confirmation required. Please select a bet amount to proceed.", Color.YELLOW);
+            showAddBetMenu();
+            return true;
         }
 
         return false;
@@ -452,6 +472,67 @@ public class ArenaHandler {
         main.getOptions().addOption("Back", returnTo);
     }
     
+    private void showOverdraftConfirmation(int betAmount, int overdraftAmount) {
+        main.options.clearOptions();
+        main.textPanel.addPara("OVERDRAFT CONFIRMATION REQUIRED", Color.RED);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("Your current balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
+        main.textPanel.addPara("Requested bet amount: " + betAmount + " Stargems", Color.WHITE);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("OVERDRAFT DETAILS:", Color.CYAN);
+        main.textPanel.addPara("Overdraft amount: " + overdraftAmount + " Stargems", Color.RED);
+        main.textPanel.addPara("Interest rate: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% per day", Color.YELLOW);
+        main.textPanel.addPara("Your balance will become: " + (CasinoVIPManager.getBalance() - betAmount) + " Stargems", Color.GRAY);
+        main.textPanel.addPara("");
+        main.textPanel.addPara("WARNING: Negative balances accrue daily interest. Ensure you can repay this debt promptly!", Color.RED);
+        main.textPanel.addPara("");
+        
+        main.options.addOption("Confirm Overdraft and Place Bet", "arena_confirm_overdraft");
+        main.options.addOption("Cancel", "arena_cancel_overdraft");
+    }
+    
+    private void processOverdraftConfirmation() {
+        if (pendingBetAmount <= 0) {
+            showAddBetMenu();
+            return;
+        }
+        
+        CasinoVIPManager.addToBalance(-pendingBetAmount);
+        
+        main.textPanel.addPara("IPC Credit Alert: Overdraft of " + pendingOverdraftAmount + " Stargems authorized.", Color.YELLOW);
+        
+        if (pendingChampionIndex >= 0) {
+            performAddBetToChampionInternal(pendingChampionIndex, pendingBetAmount);
+        } else {
+            float frozenOdds = chosenChampion.getCurrentOdds(currentRound);
+            arenaBets.add(new BetInfo(pendingBetAmount, frozenOdds, chosenChampion, currentRound));
+            cachedTotalBet += pendingBetAmount;
+            
+            main.textPanel.addPara("Added " + pendingBetAmount + " Stargems to your bet at " + String.format("%.1f", frozenOdds) + "x odds. Total bet: " + getCurrentTotalBet() + " Stargems.", Color.GREEN);
+            showAddBetMenu();
+        }
+        
+        pendingBetAmount = 0;
+        pendingOverdraftAmount = 0;
+        pendingReturnToMenu = "";
+        pendingChampionIndex = -1;
+    }
+    
+    private void cancelOverdraft() {
+        String returnTo = pendingReturnToMenu.isEmpty() ? "arena_add_bet_menu" : pendingReturnToMenu;
+        pendingBetAmount = 0;
+        pendingOverdraftAmount = 0;
+        pendingReturnToMenu = "";
+        pendingChampionIndex = -1;
+        main.textPanel.addPara("Overdraft cancelled.", Color.GRAY);
+        
+        if ("arena_status".equals(returnTo)) {
+            showArenaStatus();
+        } else {
+            showAddBetMenu();
+        }
+    }
+    
     private void showAddBetMenu() {
         main.options.clearOptions();
         main.textPanel.addPara("Add to your bet:", Color.YELLOW);
@@ -484,11 +565,36 @@ public class ArenaHandler {
     }
     
     private void confirmAddBet(int additionalAmount) {
+        int currentBalance = CasinoVIPManager.getBalance();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        boolean overdraftAvailable = CasinoVIPManager.isOverdraftAvailable();
+        
+        if (currentBalance < additionalAmount) {
+            if (!overdraftAvailable) {
+                showVIPPromotionForArena(additionalAmount, "arena_add_bet_menu");
+                return;
+            }
+            
+            if (availableCredit < additionalAmount) {
+                main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for this bet of " + additionalAmount + " Stargems.", Color.RED);
+                showAddBetMenu();
+                return;
+            }
+            
+            int overdraftAmount = additionalAmount - currentBalance;
+            pendingBetAmount = additionalAmount;
+            pendingOverdraftAmount = overdraftAmount;
+            pendingReturnToMenu = "arena_add_bet_menu";
+            pendingChampionIndex = -1;
+            showOverdraftConfirmation(additionalAmount, overdraftAmount);
+            return;
+        }
+        
         main.options.clearOptions();
         main.textPanel.addPara("Confirm additional bet amount:", Color.YELLOW);
         main.textPanel.addPara("Additional Bet: " + additionalAmount + " Stargems", Color.CYAN);
         main.textPanel.addPara("Total Bet after addition: " + (getCurrentTotalBet() + additionalAmount) + " Stargems", Color.CYAN);
-        main.textPanel.addPara("Balance after bet: " + (CasinoVIPManager.getStargems() - additionalAmount) + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Balance after bet: " + (currentBalance - additionalAmount) + " Stargems", Color.CYAN);
         
         main.options.addOption("Confirm Addition", "arena_confirm_add_bet_" + additionalAmount);
         main.options.addOption("Cancel", "arena_add_bet_menu");
@@ -576,6 +682,7 @@ public class ArenaHandler {
         main.getOptions().addOption("Add Bet to Champion", "arena_add_another_bet");
         main.getOptions().addOption("Arena Rules", "how_to_arena_arena_status");
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "arena_suspend");
+        main.getOptions().addOption("Abandon Game and Leave", "arena_abandon_confirm");
     }
 
     private void finishArenaBattle() {
@@ -916,13 +1023,51 @@ public class ArenaHandler {
             return;
         }
 
-        if (isBetInvalid(additionalAmount, "arena_status")) {
+        SpiralAbyssArena.SpiralGladiator targetChampion = arenaCombatants.get(championIndex);
+        if (targetChampion.isDead) {
+            main.textPanel.addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
+            showArenaStatus();
+            return;
+        }
+
+        int currentBalance = CasinoVIPManager.getBalance();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        boolean overdraftAvailable = CasinoVIPManager.isOverdraftAvailable();
+        
+        if (currentBalance < additionalAmount) {
+            if (!overdraftAvailable) {
+                showVIPPromotionForArena(additionalAmount, "arena_status");
+                return;
+            }
+            
+            if (availableCredit < additionalAmount) {
+                main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for this bet of " + additionalAmount + " Stargems.", Color.RED);
+                showArenaStatus();
+                return;
+            }
+            
+            int overdraftAmount = additionalAmount - currentBalance;
+            pendingBetAmount = additionalAmount;
+            pendingOverdraftAmount = overdraftAmount;
+            pendingReturnToMenu = "arena_status";
+            pendingChampionIndex = championIndex;
+            showOverdraftConfirmation(additionalAmount, overdraftAmount);
+            return;
+        }
+
+        performAddBetToChampionInternal(championIndex, additionalAmount);
+    }
+    
+    private void performAddBetToChampionInternal(int championIndex, int additionalAmount) {
+        if (championIndex < 0 || championIndex >= arenaCombatants.size()) {
+            main.textPanel.addPara("Error: Invalid champion selection.", Color.RED);
+            showArenaStatus();
             return;
         }
 
         SpiralAbyssArena.SpiralGladiator targetChampion = arenaCombatants.get(championIndex);
         if (targetChampion.isDead) {
-            main.getTextPanel().addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
+            main.textPanel.addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
             showArenaStatus();
             return;
         }
@@ -1004,6 +1149,88 @@ public class ArenaHandler {
         main.getOptions().addOption("Leave", OPTION_ARENA_LEAVE_NOW);
     }
 
+    private void showAbandonConfirm() {
+        int totalBet = getCurrentTotalBet();
+        
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("ABANDON GAME?", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You are about to abandon the current arena battle.", Color.YELLOW);
+        main.getTextPanel().addPara("Your total bet of " + totalBet + " Stargems will be LOST.", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("WARNING: Abandoning the game forfeits all bets placed on champions.", Color.ORANGE);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("Consider using 'Tell Them to Wait (Suspend)' instead to pause the game and return later.", Color.GRAY);
+        
+        main.getOptions().addOption("Yes, Abandon Game", "arena_abandon_confirm_leave");
+        main.getOptions().addOption("Go Back to Battle", "arena_abandon_cancel");
+    }
+
+    private void abandonArenaGame() {
+        int totalBet = getCurrentTotalBet();
+        main.getTextPanel().addPara("You abandon the arena battle. Your bet of " + totalBet + " Stargems is forfeit.", Color.RED);
+        resetArenaState();
+        clearSuspendedArenaMemory();
+        main.showMenu();
+    }
+
+    private void showSuspendAbandonConfirm() {
+        int totalBet = getCurrentTotalBet();
+        
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("ABANDON SUSPENDED GAME?", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You are about to abandon the suspended arena battle.", Color.YELLOW);
+        main.getTextPanel().addPara("Your total bet of " + totalBet + " Stargems will be LOST.", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("WARNING: Abandoning the game forfeits all bets placed on champions.", Color.ORANGE);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You could also return later to resume the suspended game.", Color.GRAY);
+        
+        main.getOptions().addOption("Yes, Abandon Game", "suspend_abandon_leave");
+        main.getOptions().addOption("Go Back to Arena", "suspend_abandon_cancel");
+    }
+
+    private void abandonSuspendedArena() {
+        int totalBet = getCurrentTotalBet();
+        main.getTextPanel().addPara("You abandon the suspended arena battle. Your bet of " + totalBet + " Stargems is forfeit.", Color.RED);
+        resetArenaState();
+        clearSuspendedArenaMemory();
+        main.showMenu();
+    }
+
+    private void clearSuspendedArenaMemory() {
+        com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        mem.unset("$ipc_suspended_game_type");
+        mem.unset(MEM_ARENA_CURRENT_ROUND);
+        mem.unset(MEM_ARENA_OPPONENTS_DEFEATED);
+        mem.unset(MEM_ARENA_COMBATANT_COUNT);
+        mem.unset(MEM_ARENA_BETS_COUNT);
+        mem.unset(MEM_ARENA_SUSPEND_TIME);
+        
+        for (int i = 0; i < 10; i++) {
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_prefix");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_name");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_affix");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hp");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_max_hp");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_power");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_agility");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_bravery");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_is_dead");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_kills");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_turns_survived");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_base_odds");
+        }
+        
+        for (int i = 0; i < 20; i++) {
+            mem.unset("$ipc_arena_bet_" + i + "_amount");
+            mem.unset("$ipc_arena_bet_" + i + "_multiplier");
+            mem.unset("$ipc_arena_bet_" + i + "_round_placed");
+            mem.unset("$ipc_arena_bet_" + i + "_ship_name");
+        }
+    }
+
     private void restoreSuspendedArena() {
         com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
@@ -1065,9 +1292,14 @@ public class ArenaHandler {
             activeArena = new SpiralAbyssArena();
         }
         
+        long suspendTime = mem.getLong(MEM_ARENA_SUSPEND_TIME);
+        float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
+        
         mem.unset("$ipc_suspended_game_type");
         
-        main.getTextPanel().addPara("Welcome back! The arena battle resumes where you left off.", Color.GREEN);
+        main.getTextPanel().addPara("The arena announcer looks at you with a mix of irritation and resignation.", Color.CYAN);
+        main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
+        main.getTextPanel().addPara("'The combatants are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
         main.getTextPanel().addPara("The crowd cheers as the combatants ready themselves.", Color.CYAN);
         
         showArenaStatus();

@@ -1,18 +1,11 @@
 {
-    "id": "the_casino_mod",
-    "name": "The Casino Mod",
+    "id": "interastral_peace_casino",
+    "name": "Interastral Peace Casino",
     "version": "1.0.0",
     "description": "Brings the high-stakes thrill of the IPC to the Sector. Features Texas Hold'em and a Tachy-Impact system for exclusive hulls.",
     "gameVersion": "0.98a-RC7",
     "jars": [
         "jars/Casino.jar"
     ],
-    "modPlugin": "data.scripts.CasinoModPlugin",
-    "dependencies": [
-        {
-            "id": "lunalib",
-            "name": "LunaLib",
-            "version": "2.0.5"
-        }
-    ]
+    "modPlugin": "data.scripts.CasinoModPlugin"
 }

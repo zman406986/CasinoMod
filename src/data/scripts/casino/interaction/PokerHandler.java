@@ -23,9 +23,8 @@ public class PokerHandler {
     private final CasinoInteraction main;
     private PokerGame pokerGame;
 
-    private static final int COOLDOWN_TICKS_PER_DAY = 30;
+    private static final int COOLDOWN_DAYS = 1;
     private static final int MIN_HANDS_BEFORE_LEAVE = 3;
-    private static final float DAYS_PER_TICK = 1f / 30f;
 
     public PokerGame getPokerGame() {
         return pokerGame;
@@ -60,6 +59,15 @@ public class PokerHandler {
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> handleLeaveTable());
         handlers.put("leave_now", option -> handleSuspendLeave());
+        handlers.put("poker_abandon_confirm", option -> showAbandonConfirm());
+        handlers.put("poker_abandon_confirm_leave", option -> handleLeaveTable());
+        handlers.put("poker_abandon_cancel", option -> updateUI());
+        handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
+        handlers.put("suspend_abandon_leave", option -> abandonSuspendedGame());
+        handlers.put("suspend_abandon_cancel", option -> {
+            main.textPanel.addPara("You sit back down. The game continues.", Color.CYAN);
+            updateUI();
+        });
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("confirm_overdraft", option -> processOverdraftConfirmation());
         handlers.put("cancel_overdraft", option -> cancelOverdraft());
@@ -111,10 +119,10 @@ public class PokerHandler {
         }
 
         if (mem.contains(POKER_COOLDOWN_KEY)) {
-            long cooldownUntil = mem.getLong(POKER_COOLDOWN_KEY);
-            long currentTime = Global.getSector().getClock().getTimestamp();
-            if (currentTime < cooldownUntil) {
-                float daysRemaining = (cooldownUntil - currentTime) * DAYS_PER_TICK;
+            long cooldownStart = mem.getLong(POKER_COOLDOWN_KEY);
+            float elapsedDays = Global.getSector().getClock().getElapsedDaysSince(cooldownStart);
+            if (elapsedDays < COOLDOWN_DAYS) {
+                float daysRemaining = COOLDOWN_DAYS - elapsedDays;
                 main.textPanel.addPara("The IPC Dealer eyes you coldly.", Color.RED);
                 main.textPanel.addPara("'You left the table early last time. The IPC Credit Facility does not tolerate table-hoppers.'", Color.YELLOW);
                 main.textPanel.addPara("'You may return to play poker in " + String.format("%.1f", daysRemaining) + " days.'", Color.GRAY);
@@ -356,6 +364,7 @@ public class PokerHandler {
         
         main.getOptions().addOption("How to Play Poker", "how_to_poker");
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
+        main.getOptions().addOption("Abandon Game and Leave", "poker_abandon_confirm");
     }
 
     private void startNextHand() {
@@ -532,6 +541,50 @@ public class PokerHandler {
         main.getOptions().addOption("Leave", "leave_now");
     }
 
+    private void showAbandonConfirm() {
+        if (pokerGame == null) {
+            main.showMenu();
+            return;
+        }
+        PokerGame.PokerState state = pokerGame.getState();
+        int stackValue = state.playerStack;
+        
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("ABANDON GAME?", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You are about to abandon the current poker game.", Color.YELLOW);
+        main.getTextPanel().addPara("Your stack of " + stackValue + " Stargems will be returned to your balance.", Color.CYAN);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("WARNING: If you leave early (less than " + MIN_HANDS_BEFORE_LEAVE + " hands played), you will receive a 1-day cooldown before playing again.", Color.ORANGE);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("Consider using 'Tell Them to Wait (Suspend)' instead to pause the game without penalty.", Color.GRAY);
+        
+        main.getOptions().addOption("Yes, Abandon Game", "poker_abandon_confirm_leave");
+        main.getOptions().addOption("Go Back to Game", "poker_abandon_cancel");
+    }
+
+    private void showSuspendAbandonConfirm() {
+        if (pokerGame == null) {
+            main.showMenu();
+            return;
+        }
+        PokerGame.PokerState state = pokerGame.getState();
+        int stackValue = state.playerStack;
+        
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("ABANDON SUSPENDED GAME?", Color.RED);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You are about to abandon the suspended poker game.", Color.YELLOW);
+        main.getTextPanel().addPara("Your stack of " + stackValue + " Stargems will be returned to your balance.", Color.CYAN);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("WARNING: If you leave early (less than " + MIN_HANDS_BEFORE_LEAVE + " hands played), you will receive a 1-day cooldown before playing again.", Color.ORANGE);
+        main.getTextPanel().addPara("");
+        main.getTextPanel().addPara("You could also return later to resume the suspended game.", Color.GRAY);
+        
+        main.getOptions().addOption("Yes, Abandon Game", "suspend_abandon_leave");
+        main.getOptions().addOption("Go Back to Table", "suspend_abandon_cancel");
+    }
+
     public void restoreSuspendedGame() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
@@ -562,8 +615,7 @@ public class PokerHandler {
             // Cards are reshuffled in new game due to restore limitation mentioned in original code
 
             long suspendTime = mem.getLong("$ipc_poker_suspend_time");
-            long currentTime = Global.getSector().getClock().getTimestamp();
-            float daysAway = (currentTime - suspendTime) / 30f;
+            float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
 
             main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
             main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
@@ -749,8 +801,7 @@ public class PokerHandler {
         // Set cooldown if player left early (played less than minimum required hands)
         if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            long currentTime = Global.getSector().getClock().getTimestamp();
-            mem.set(POKER_COOLDOWN_KEY, currentTime + COOLDOWN_TICKS_PER_DAY);
+            mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
@@ -759,16 +810,14 @@ public class PokerHandler {
         // Clear any suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
 
-        showPokerConfirm();
+        main.showMenu();
     }
 
     private void handleSuspendLeave() {
-        // When leaving after suspending, we need to:
-        // 1. Return stack to balance (same as normal leave)
-        // 2. Set early departure cooldown if applicable
-        // 3. Clear suspended game memory (player is intentionally leaving, not just suspending)
-        // 4. Show main menu
-
+        main.showMenu();
+    }
+    
+    private void abandonSuspendedGame() {
         if (pokerGame != null && pokerGame.getState().playerStack > 0) {
             int stackToReturn = pokerGame.getState().playerStack;
             CasinoVIPManager.addToBalance(stackToReturn);
@@ -776,19 +825,14 @@ public class PokerHandler {
             pokerGame.getState().playerStack = 0;
         }
 
-        // Set cooldown if player left early
         if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-            long currentTime = Global.getSector().getClock().getTimestamp();
-            mem.set(POKER_COOLDOWN_KEY, currentTime + COOLDOWN_TICKS_PER_DAY);
+            mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
         handsPlayedThisSession = 0;
-
-        // Clear suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
-
         main.showMenu();
     }
     

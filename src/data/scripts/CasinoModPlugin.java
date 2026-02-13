@@ -15,13 +15,13 @@ public class CasinoModPlugin extends BaseModPlugin {
 
     @Override
     public void onApplicationLoad() {
-        Global.getLogger(this.getClass()).info("The Casino Mod Loaded");
+        Global.getLogger(this.getClass()).info("Interastral Peace Casino Loaded");
         CasinoConfig.loadSettings();
     }
 
     @Override
     public void onGameLoad(boolean newGame) {
-        Global.getLogger(this.getClass()).info("The Casino Mod: Game Loaded");
+        Global.getLogger(this.getClass()).info("Interastral Peace Casino: Game Loaded");
         CasinoVIPManager.initializeSystem();
         CasinoDebtScript.initializeSystem();
         Global.getSector().addTransientScript(new CasinoVIPManager());

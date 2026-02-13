@@ -1,4 +1,4 @@
 # Changelog
 
-## Version 1.0.0
-- Initial Release ("The Casino Mod")
+## Version 0.1.0
+- Initial Release ("Interastral Peace Casino")
