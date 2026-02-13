@@ -23,14 +23,12 @@ casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartC
 casino_debtCollectorHail,BeginFleetEncounter,"$ipc_debt_collector score:1000
 !$ignorePlayerCommRequests","AddText ""You're being hailed by the $faction $otherShipOrFleet."" $faction.baseColor
 $hailing = true 0",,
-# Show greeting after hail
-casino_debtCollectorGreeting,DialogOptionSelected,$hailing,"$hailing = false
-$menuState = main
-FireAll PopulateOptions","A Corporate Reconciliation Team hails you. ""The Interastral Peace Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.""",
 # Open comm link with debt collector - prevent repeated comm attempts
 casino_debtCollectorOpenComm,OpenCommLink,"$entity.ipc_debt_collector score:1000
 !$entity.ignorePlayerCommRequests","$entity.ignorePlayerCommRequests = true
-SetShortcut cutCommLinkNoText ""ESCAPE""",ShowPersonVisual,
+SetShortcut cutCommLinkNoText ""ESCAPE""",""The Interastral Peace Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.""
+
+The comm link goes dead in a crackle of static.",cutCommLinkNoText:Continue,
 # Populate options for debt collector interaction
 casino_debtCollectorPopulateOpts,PopulateOptions,$ipc_debt_collector,,,0:casino_debtCollectorEngage:Engage the fleet,100:casino_debtCollectorLeave:""I'll be going now.""
 # Engage the fleet
