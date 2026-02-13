@@ -1,0 +1,14 @@
+{
+    "masterVersionFile":"https://raw.githubusercontent.com/USER/InterastralPeaceCasino/main/interastral_peace_casino.version",
+    "modVersion":
+    {
+        "major":0,
+        "minor":1,
+        "patch":0
+    },
+    "modName":"Interastral Peace Casino",
+    "modThreadId":00000,
+    
+    "directDownloadURL":"https://github.com/USER/InterastralPeaceCasino/releases/latest/download/InterastralPeaceCasino.zip",
+    "changelogURL":"https://raw.githubusercontent.com/USER/InterastralPeaceCasino/main/CHANGELOG.md",
+}
