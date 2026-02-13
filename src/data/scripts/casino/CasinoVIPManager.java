@@ -3,6 +3,7 @@ package data.scripts.casino;
 import com.fs.starfarer.api.EveryFrameScript;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.CampaignClockAPI;
+import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -67,6 +68,8 @@ public class CasinoVIPManager implements EveryFrameScript {
     private static final String MONTHLY_NOTIFY_MODE_KEY = "$ipc_vip_monthly_notify_mode";
     /** Memory key for storing recent VIP ad messages (to prevent duplicates within 4 messages) */
     private static final String VIP_AD_HISTORY_KEY = "$ipc_vip_ad_history";
+    /** Memory key for timestamp of last monthly debt warning (for non-VIP players) */
+    private static final String LAST_DEBT_WARNING_KEY = "$ipc_last_debt_warning";
 
     // Performance: We track time to avoid running heavy logic every single frame.
     /** Timer accumulator for throttling daily checks (runs once per second) */
@@ -96,27 +99,28 @@ public class CasinoVIPManager implements EveryFrameScript {
      * The actual daily check uses clock.getElapsedDaysSince() for accuracy.
      */
     public void advance(float amount) {
-        // Optimization: Throttle the check so it only runs once per real-world second.
         timer += amount;
         if (timer < 1.0f) return;
         timer -= 1.0f;
 
-        // Check if a new in-game day has passed using timestamp-based tracking
         CampaignClockAPI clock = Global.getSector().getClock();
-        long lastProcessedDay = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_PROCESSED_DAY_KEY);
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
         
-        // If never processed before, set to current time
-        if (lastProcessedDay == 0) {
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
+        if (!memory.contains(LAST_PROCESSED_DAY_KEY)) {
+            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
             return;
         }
         
-        // Check if at least one full day has passed since last processing
+        Long lastProcessedDay = memory.getLong(LAST_PROCESSED_DAY_KEY);
+        if (lastProcessedDay == null || lastProcessedDay == 0) {
+            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
+            return;
+        }
+        
         float daysElapsed = clock.getElapsedDaysSince(lastProcessedDay);
         if (daysElapsed >= 1.0f) {
             checkDaily();
-            // Update last processed day to current timestamp
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
+            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
         }
     }
 
@@ -137,61 +141,113 @@ public class CasinoVIPManager implements EveryFrameScript {
         boolean hasDebt = currentBalance < 0;
 
         CampaignClockAPI clock = Global.getSector().getClock();
-        long lastRewardTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_REWARD_TIME_KEY);
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        
+        Long lastRewardTime = null;
+        if (memory.contains(LAST_REWARD_TIME_KEY)) {
+            lastRewardTime = memory.getLong(LAST_REWARD_TIME_KEY);
+        }
 
-        // Only process if we haven't given one today (or within last 24 hours)
-        // Using getElapsedDaysSince() to properly measure game days
-        // Note: -1L indicates first-time VIP (immediate reward), 0 indicates uninitialized
         float daysSinceLastReward;
-        if (lastRewardTime == 0 || lastRewardTime == -1L) {
+        if (lastRewardTime == null || lastRewardTime == 0 || lastRewardTime == -1L) {
             daysSinceLastReward = 0;
         } else {
             daysSinceLastReward = clock.getElapsedDaysSince(lastRewardTime);
         }
-        if (lastRewardTime == 0 || daysSinceLastReward >= 1.0f || lastRewardTime == -1L) {
+        
+        if (lastRewardTime == null || lastRewardTime == 0 || daysSinceLastReward >= 1.0f || lastRewardTime == -1L) {
             
-            // Apply daily interest if player has negative balance (regardless of VIP status)
             int interestAmount = 0;
             if (hasDebt) {
-                // Check if debt has hit the ceiling
-                int currentDebt = -currentBalance; // Convert negative balance to positive debt
+                int currentDebt = -currentBalance;
                 int maxDebt = getMaxDebt();
                 
                 if (currentDebt >= maxDebt) {
-                    // Debt at ceiling - no more interest accrual
                     Global.getSector().getCampaignUI().addMessage(
                         "Debt has reached maximum limit. Interest accrual paused.",
                         Color.ORANGE
                     );
                 } else {
-                    // Calculate interest
                     float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NORMAL_DAILY_INTEREST_RATE;
                     interestAmount = (int) (currentDebt * interestRate);
                     
-                    // Cap interest to not exceed max debt
                     if (currentDebt + interestAmount > maxDebt) {
                         interestAmount = maxDebt - currentDebt;
                     }
                     
-                    addToBalance(-interestAmount); // Subtract interest from balance (makes it more negative)
+                    addToBalance(-interestAmount);
+                    
+                    Global.getLogger(CasinoVIPManager.class).info(
+                        "Interest applied: " + interestAmount + " gems (debt: " + currentDebt + ", rate: " + interestRate + ")"
+                    );
                 }
             }
             
             if (hasVIP) {
-                // VIP player: give daily reward and show combined notification
                 addToBalance(CasinoConfig.VIP_DAILY_REWARD);
                 
-                // Check if we should show notification (daily or monthly mode)
                 if (shouldShowNotification()) {
                     sendVIPNotification(interestAmount, currentBalance);
                 }
             } else if (hasDebt) {
-                // Non-VIP with debt: show debt warning notification
                 sendDebtWarningNotification(interestAmount, currentBalance);
+                
+                checkMonthlyDebtWarning();
             }
             
-            // Mark current time as the time we processed the daily check
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
+            memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(clock.getTimestamp()));
+        }
+    }
+    
+    /**
+     * Checks if a monthly debt warning should be sent for non-VIP players.
+     * Sends a warning once per 30 days about growing debt.
+     * Respects notification preference (daily/monthly).
+     */
+    private void checkMonthlyDebtWarning() {
+        if (!shouldShowDebtNotification()) {
+            return;
+        }
+        
+        CampaignClockAPI clock = Global.getSector().getClock();
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        
+        Long lastWarningTime = null;
+        if (memory.contains(LAST_DEBT_WARNING_KEY)) {
+            lastWarningTime = memory.getLong(LAST_DEBT_WARNING_KEY);
+        }
+        
+        boolean shouldWarn = false;
+        if (lastWarningTime == null || lastWarningTime == 0) {
+            shouldWarn = true;
+        } else {
+            float daysSinceWarning = clock.getElapsedDaysSince(lastWarningTime);
+            if (daysSinceWarning >= 30f) {
+                shouldWarn = true;
+            }
+        }
+        
+        if (shouldWarn) {
+            int currentDebt = -getBalance();
+            int creditCeiling = getCreditCeiling();
+            float debtPercent = (float) currentDebt / creditCeiling * 100f;
+            
+            Global.getSector().getCampaignUI().addMessage(
+                "MONTHLY DEBT NOTICE: Your debt of " + currentDebt + " Stargems continues to accrue " +
+                (int)(CasinoConfig.NORMAL_DAILY_INTEREST_RATE * 100) + "% daily interest. " +
+                "Consider purchasing a VIP pass for a reduced rate.",
+                Color.YELLOW
+            );
+            
+            if (debtPercent >= 80f) {
+                Global.getSector().getCampaignUI().addMessage(
+                    "WARNING: Your debt is at " + (int)debtPercent + "% of your credit ceiling! " +
+                    "Corporate Reconciliation Teams may be dispatched soon!",
+                    Color.RED
+                );
+            }
+            
+            memory.set(LAST_DEBT_WARNING_KEY, Long.valueOf(clock.getTimestamp()));
         }
     }
 
@@ -203,29 +259,47 @@ public class CasinoVIPManager implements EveryFrameScript {
      * This ensures consistent timing regardless of month length.
      */
     private boolean shouldShowNotification() {
-        boolean monthlyMode = Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
+        return shouldShowNotificationInternal();
+    }
+    
+    /**
+     * Public method for debt-related notifications to check preference.
+     * Uses the same daily/monthly preference as VIP notifications.
+     */
+    public static boolean shouldShowDebtNotification() {
+        return shouldShowNotificationInternal();
+    }
+    
+    /**
+     * Internal implementation shared by VIP and debt notifications.
+     */
+    private static boolean shouldShowNotificationInternal() {
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        boolean monthlyMode = memory.getBoolean(MONTHLY_NOTIFY_MODE_KEY);
         if (!monthlyMode) {
-            return true; // Daily mode - always show
+            return true;
         }
         
-        // Monthly mode - check if a month has passed
         CampaignClockAPI clock = Global.getSector().getClock();
-        long lastMonthlyNotify = Global.getSector().getPlayerMemoryWithoutUpdate().getLong(LAST_MONTHLY_NOTIFY_KEY);
         
-        if (lastMonthlyNotify == 0) {
-            // First time - show and record
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
+        if (!memory.contains(LAST_MONTHLY_NOTIFY_KEY)) {
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
+            return true;
+        }
+        
+        Long lastMonthlyNotify = memory.getLong(LAST_MONTHLY_NOTIFY_KEY);
+        if (lastMonthlyNotify == null || lastMonthlyNotify == 0) {
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
             return true;
         }
         
         float daysSinceLastNotify = clock.getElapsedDaysSince(lastMonthlyNotify);
         if (daysSinceLastNotify >= 30f) {
-            // A month has passed - show and update timestamp
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
             return true;
         }
         
-        return false; // Don't show yet
+        return false;
     }
 
     /**
@@ -275,8 +349,13 @@ public class CasinoVIPManager implements EveryFrameScript {
     /**
      * Sends debt warning notification for non-VIP players with negative balance.
      * Format: -X interest (red) | Balance: Y (red) | Warning
+     * Respects notification preference (daily/monthly).
      */
     private void sendDebtWarningNotification(int interestAmount, int oldBalance) {
+        if (!shouldShowDebtNotification()) {
+            return;
+        }
+        
         int newBalance = getBalance();
         
         // Interest
@@ -389,27 +468,32 @@ public class CasinoVIPManager implements EveryFrameScript {
      * Get days remaining for VIP status.
      * Calculates based on start time and duration.
      * 
-     * @return Number of days remaining (0 if expired)
+     * @return Number of days remaining (0 if expired or not initialized)
      */
     public static int getDaysRemaining() {
         CampaignClockAPI clock = Global.getSector().getClock();
-        long startTime = Global.getSector().getPlayerMemoryWithoutUpdate().getLong("$ipc_vip_start_time");
-        int duration = Global.getSector().getPlayerMemoryWithoutUpdate().getInt("$ipc_vip_duration");
-
-        if (duration <= 0) return 0;
-
-        float elapsedDays;
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
         
-        // Handle uninitialized start_time (fresh VIP activation)
-        // In Starsector, getTimestamp() returns game days (not Unix epoch)
-        // A value of 0 or negative means VIP was never activated
-        if (startTime <= 0) {
-            elapsedDays = 0;
-        } else {
-            elapsedDays = clock.getElapsedDaysSince(startTime);
+        if (!memory.contains("$ipc_vip_duration")) {
+            return 0;
         }
         
+        int duration = memory.getInt("$ipc_vip_duration");
+        if (duration <= 0) return 0;
+
+        if (!memory.contains("$ipc_vip_start_time")) {
+            return 0;
+        }
+        
+        Long startTime = memory.getLong("$ipc_vip_start_time");
+        
+        if (startTime == null || startTime == 0) {
+            return 0;
+        }
+        
+        float elapsedDays = clock.getElapsedDaysSince(startTime);
         int remaining = duration - (int) elapsedDays;
+        
         return Math.max(0, remaining);
     }
 
@@ -425,25 +509,30 @@ public class CasinoVIPManager implements EveryFrameScript {
      */
     public static void addSubscriptionDays(int days) {
         CampaignClockAPI clock = Global.getSector().getClock();
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        
+        long currentTimestamp = clock.getTimestamp();
+        
         int newDuration;
-        if (getDaysRemaining() <= 0) {
-            // No current VIP, start fresh
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
+        int currentRemaining = getDaysRemaining();
+        
+        if (currentRemaining <= 0) {
             newDuration = days;
         } else {
-            // Extend current VIP - calculate new total duration and reset start time to now
-            newDuration = getDaysRemaining() + days;
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_start_time", clock.getTimestamp());
+            newDuration = currentRemaining + days;
         }
-
-        Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_vip_duration", newDuration);
         
-        // Add to cumulative VIP purchases
-        addCumulativeVIPPurchases(1); // Count this as one VIP purchase
+        memory.set("$ipc_vip_start_time", Long.valueOf(currentTimestamp));
+        memory.set("$ipc_vip_duration", Integer.valueOf(newDuration));
         
-        // Trigger immediate reward for the purchase day
-        // This ensures player gets their first reward immediately
-        Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, -1L);
+        addCumulativeVIPPurchases(1);
+        
+        memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(-1L));
+        
+        Global.getLogger(CasinoVIPManager.class).info(
+            "VIP Pass purchased: startTime=" + currentTimestamp + ", duration=" + newDuration + " days"
+        );
+        
         processImmediateDailyReward();
     }
     
@@ -458,10 +547,8 @@ public class CasinoVIPManager implements EveryFrameScript {
         boolean hasDebt = currentBalance < 0;
 
         if (hasVIP) {
-            // Give daily reward
             addToBalance(CasinoConfig.VIP_DAILY_REWARD);
             
-            // Apply interest if in debt
             int interestAmount = 0;
             if (hasDebt) {
                 int currentDebt = -currentBalance;
@@ -479,12 +566,10 @@ public class CasinoVIPManager implements EveryFrameScript {
                 }
             }
             
-            // Send notification
             CampaignClockAPI clock = Global.getSector().getClock();
             sendVIPNotificationImmediate(interestAmount, currentBalance);
             
-            // Mark reward as processed
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, Long.valueOf(clock.getTimestamp()));
         }
     }
     
@@ -572,19 +657,46 @@ public class CasinoVIPManager implements EveryFrameScript {
      * values if the keys don't already exist (uses contains() check).
      */
     public static void initializeSystem() {
-        // Initialize balance if not set
-        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_stargems")) {
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_stargems", 0);
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        
+        if (!memory.contains("$ipc_stargems")) {
+            memory.set("$ipc_stargems", 0);
         }
         
-        // Initialize cumulative VIP purchases if not set
-        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_cumulative_vip_purchases")) {
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_vip_purchases", 0);
+        if (!memory.contains("$ipc_cumulative_vip_purchases")) {
+            memory.set("$ipc_cumulative_vip_purchases", 0);
         }
         
-        // Initialize cumulative topup amount if not set
-        if (!Global.getSector().getPlayerMemoryWithoutUpdate().contains("$ipc_cumulative_topup_amount")) {
-            Global.getSector().getPlayerMemoryWithoutUpdate().set("$ipc_cumulative_topup_amount", 0);
+        if (!memory.contains("$ipc_cumulative_topup_amount")) {
+            memory.set("$ipc_cumulative_topup_amount", 0);
+        }
+        
+        if (!memory.contains("$ipc_vip_start_time")) {
+            memory.set("$ipc_vip_start_time", Long.valueOf(0L));
+        }
+        
+        if (!memory.contains("$ipc_vip_duration")) {
+            memory.set("$ipc_vip_duration", 0);
+        }
+        
+        if (!memory.contains(LAST_REWARD_TIME_KEY)) {
+            memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(-1L));
+        }
+        
+        if (!memory.contains(LAST_PROCESSED_DAY_KEY)) {
+            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(Global.getSector().getClock().getTimestamp()));
+        }
+        
+        if (!memory.contains(LAST_MONTHLY_NOTIFY_KEY)) {
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(0L));
+        }
+        
+        if (!memory.contains(MONTHLY_NOTIFY_MODE_KEY)) {
+            memory.set(MONTHLY_NOTIFY_MODE_KEY, false);
+        }
+        
+        if (!memory.contains(LAST_DEBT_WARNING_KEY)) {
+            memory.set(LAST_DEBT_WARNING_KEY, Long.valueOf(0L));
         }
     }
     
@@ -614,13 +726,13 @@ public class CasinoVIPManager implements EveryFrameScript {
      * @return true if now in monthly mode, false if daily mode
      */
     public static boolean toggleMonthlyNotificationMode() {
-        boolean currentMode = Global.getSector().getPlayerMemoryWithoutUpdate().getBoolean(MONTHLY_NOTIFY_MODE_KEY);
+        MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
+        boolean currentMode = memory.getBoolean(MONTHLY_NOTIFY_MODE_KEY);
         boolean newMode = !currentMode;
-        Global.getSector().getPlayerMemoryWithoutUpdate().set(MONTHLY_NOTIFY_MODE_KEY, newMode);
+        memory.set(MONTHLY_NOTIFY_MODE_KEY, newMode);
         
         if (newMode) {
-            // When enabling monthly mode, set the last notify time to now
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_MONTHLY_NOTIFY_KEY, Global.getSector().getClock().getTimestamp());
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(Global.getSector().getClock().getTimestamp()));
         }
         
         return newMode;

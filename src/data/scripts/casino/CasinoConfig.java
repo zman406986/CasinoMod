@@ -57,28 +57,7 @@ public class CasinoConfig {
     public static int POKER_DEFAULT_OPPONENT_STACK = 10000;
     /** Available stack sizes for player to choose from (in Stargems) */
     public static int[] POKER_STACK_SIZES = {1000, 2500, 5000, 10000};
-    
-    // Poker AI Configuration - Thresholds for different AI personalities
-    /** Hand strength threshold for TIGHT AI to raise (0.0-1.0) */
-    public static float POKER_AI_TIGHT_THRESHOLD_RAISE = 0.75f;
-    /** Hand strength threshold for TIGHT AI to fold (0.0-1.0) */
-    public static float POKER_AI_TIGHT_THRESHOLD_FOLD = 0.35f;
-    /** Stack percentage threshold for TIGHT AI to fold when facing large bets */
-    public static float POKER_AI_STACK_PERCENT_FOLD_TIGHT = 0.15f;
-    
-    /** Hand strength threshold for AGGRESSIVE AI to raise (0.0-1.0) */
-    public static float POKER_AI_AGGRESSIVE_THRESHOLD_RAISE = 0.50f;
-    /** Hand strength threshold for AGGRESSIVE AI to fold (0.0-1.0) */
-    public static float POKER_AI_AGGRESSIVE_THRESHOLD_FOLD = 0.20f;
-    
-    /** Hand strength threshold for NORMAL AI to raise (0.0-1.0) */
-    public static float POKER_AI_NORMAL_THRESHOLD_RAISE = 0.60f;
-    /** Hand strength threshold for NORMAL AI to fold (0.0-1.0) */
-    public static float POKER_AI_NORMAL_THRESHOLD_FOLD = 0.25f;
-    
-    /** Maximum stack percentage AI will use for calling (prevents all-in on weak hands) */
-    public static float POKER_AI_STACK_PERCENT_CALL_LIMIT = 0.30f;
-    
+
     // Poker Raise Configuration
     /** Maximum random addition to AI raise (in Stargems) */
     public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION = 200;
@@ -118,34 +97,43 @@ public class CasinoConfig {
      * - For 10% house edge: player should get 90% of fair return
      * - Fair odds = 1/0.2 = 5.0
      * - Target effective payout = 5.0 * 0.9 = 4.5
-     * - With survivalMult = 0.9: 5.0 * 0.9 = 4.5 effective
      * 
-     * Perk adjustments:
-     * - Positive ships (stronger): 5.0 * 0.75 = 3.75
-     * - Average ships: 5.0
-     * - Negative ships (weaker): 5.0 * 1.25 = 6.25
-     * 
-     * This gives a range of 3.75 to 6.25, with average around 5.0
+     * Ship prefixes and affixes modify stats, which affects win probability
+     * and thus the odds calculated via Monte Carlo simulation.
      */
     public static float ARENA_BASE_ODDS = 5.0f;
-    /** Odds reduction for positive perks (0.75 = 25% reduction) - stronger ships pay less */
-    public static float ARENA_POSITIVE_PERK_MULTIPLIER = 0.75f;
-    /** Odds increase for negative perks (1.25 = 25% increase) - weaker ships pay more */
-    public static float ARENA_NEGATIVE_PERK_MULTIPLIER = 1.25f;
     /** Minimum odds regardless of perks (prevents 0 return, 1.01 ensures player gets bet back + 1%) */
     public static float ARENA_MIN_ODDS = 1.01f;
     /** House edge percentage (0.10 = 10% house edge, ensures betting on all ships is not profitable) */
     public static float ARENA_HOUSE_EDGE = 0.10f;
     /** Entry fee for arena betting (default bet amount) */
     public static int ARENA_ENTRY_FEE = 100;
-    /** Survival reward multiplier for arena betting (0.9 = 90% of odds, creating 10% house edge) */
-    public static float ARENA_SURVIVAL_REWARD_MULT = 0.9f;
     /** Survival bonus per turn survived in arena (reduced to balance house edge) */
     public static float ARENA_SURVIVAL_BONUS_PER_TURN = 0.05f;
     /** Kill bonus per kill in arena (reduced to balance house edge) */
     public static float ARENA_KILL_BONUS_PER_KILL = 0.1f;
-    /** Multiplier for consolation rewards given to defeated champions (0.3 = 30% of calculated value) */
-    public static float ARENA_DEFEATED_CONSOLATION_MULT = 0.3f;
+    /** Multiplier for consolation rewards given to defeated champions (0.5 = 50% of calculated value) */
+    public static float ARENA_DEFEATED_CONSOLATION_MULT = 0.5f;
+    /**
+     * Position factors for consolation calculation. Index 0 = 2nd place, 1 = 3rd place, etc.
+     * 
+     * MATHEMATICAL ANALYSIS:
+     * These factors determine what percentage of the odds a player gets back as consolation.
+     * Combined with ARENA_DEFEATED_CONSOLATION_MULT, they affect the odds calculation.
+     * 
+     * Formula: odds = (1 - houseEdge) / (P_win + Σ P_position × positionFactor × consolationMult)
+     * 
+     * With factors [0.50, 0.25, 0.10, 0.05] and consolationMult 0.5:
+     * - 2nd place gets: odds × 0.50 × 0.5 = 25% of odds as consolation
+     * - 3rd place gets: odds × 0.25 × 0.5 = 12.5% of odds as consolation
+     * 
+     * Example with 5 equal ships (20% win each) and 10% house edge:
+     * - Total expected return per ship = 0.20 + (0.20×0.50 + 0.20×0.25 + ...)×0.5 = 0.275
+     * - Odds = 0.90 / 0.275 = 3.27x
+     * - 2nd place return = 100 × 3.27 × 0.50 × 0.5 = 82 (82% of bet returned)
+     * - With 2 kills: 82 × 1.2 = 98 (nearly break-even!)
+     */
+    public static float[] ARENA_CONSOLATION_POSITION_FACTORS = {0.50f, 0.25f, 0.10f, 0.05f};
     /** Action multiplier for arena combat - increases actions per round (1.5 = 50% more actions) */
     public static float ARENA_ACTION_MULTIPLIER = 1.5f;
     /** Diminishing returns per round for late bets (0.20 = 20% reduction per round, min 0.4) */
@@ -164,8 +152,6 @@ public class CasinoConfig {
     // HP-Based Dynamic Odds Configuration
     /** Factor for how much HP affects odds mid-battle (2.0 = up to 2x difference between low and high HP) */
     public static float ARENA_HP_ODDS_FACTOR = 2.0f;
-    /** Base HP reference for odds calculation (used to normalize HP ratios) */
-    public static float ARENA_BASE_HP_REFERENCE = 100.0f;
     /** Maximum odds multiplier from HP factor (prevents extreme odds) */
     public static float ARENA_MAX_HP_ODDS_MULT = 3.0f;
     /** Minimum odds multiplier from HP factor */
@@ -420,32 +406,7 @@ public class CasinoConfig {
                     POKER_STACK_SIZES[i] = stackSizes.getInt(i);
                 }
             }
-            
-            // Load poker AI settings
-            if (settings.has("pokerAITightThresholdRaise")) {
-                POKER_AI_TIGHT_THRESHOLD_RAISE = (float) settings.getDouble("pokerAITightThresholdRaise");
-            }
-            if (settings.has("pokerAITightThresholdFold")) {
-                POKER_AI_TIGHT_THRESHOLD_FOLD = (float) settings.getDouble("pokerAITightThresholdFold");
-            }
-            if (settings.has("pokerAIStackPercentFoldTight")) {
-                POKER_AI_STACK_PERCENT_FOLD_TIGHT = (float) settings.getDouble("pokerAIStackPercentFoldTight");
-            }
-            if (settings.has("pokerAIAggressiveThresholdRaise")) {
-                POKER_AI_AGGRESSIVE_THRESHOLD_RAISE = (float) settings.getDouble("pokerAIAggressiveThresholdRaise");
-            }
-            if (settings.has("pokerAIAggressiveThresholdFold")) {
-                POKER_AI_AGGRESSIVE_THRESHOLD_FOLD = (float) settings.getDouble("pokerAIAggressiveThresholdFold");
-            }
-            if (settings.has("pokerAINormalThresholdRaise")) {
-                POKER_AI_NORMAL_THRESHOLD_RAISE = (float) settings.getDouble("pokerAINormalThresholdRaise");
-            }
-            if (settings.has("pokerAINormalThresholdFold")) {
-                POKER_AI_NORMAL_THRESHOLD_FOLD = (float) settings.getDouble("pokerAINormalThresholdFold");
-            }
-            if (settings.has("pokerAIStackPercentCallLimit")) {
-                POKER_AI_STACK_PERCENT_CALL_LIMIT = (float) settings.getDouble("pokerAIStackPercentCallLimit");
-            }
+
             if (settings.has("pokerAIMaxRaiseRandomAddition")) {
                 POKER_AI_MAX_RAISE_RANDOM_ADDITION = settings.getInt("pokerAIMaxRaiseRandomAddition");
             }
@@ -492,12 +453,6 @@ public class CasinoConfig {
             if (settings.has("arenaBaseOdds")) {
                 ARENA_BASE_ODDS = (float) settings.getDouble("arenaBaseOdds");
             }
-            if (settings.has("arenaPositivePerkMultiplier")) {
-                ARENA_POSITIVE_PERK_MULTIPLIER = (float) settings.getDouble("arenaPositivePerkMultiplier");
-            }
-            if (settings.has("arenaNegativePerkMultiplier")) {
-                ARENA_NEGATIVE_PERK_MULTIPLIER = (float) settings.getDouble("arenaNegativePerkMultiplier");
-            }
             if (settings.has("arenaMinOdds")) {
                 ARENA_MIN_ODDS = (float) settings.getDouble("arenaMinOdds");
             }
@@ -507,9 +462,6 @@ public class CasinoConfig {
             if (settings.has("arenaEntryFee")) {
                 ARENA_ENTRY_FEE = settings.getInt("arenaEntryFee");
             }
-            if (settings.has("arenaSurvivalRewardMult")) {
-                ARENA_SURVIVAL_REWARD_MULT = (float) settings.getDouble("arenaSurvivalRewardMult");
-            }
             if (settings.has("arenaSurvivalBonusPerTurn")) {
                 ARENA_SURVIVAL_BONUS_PER_TURN = (float) settings.getDouble("arenaSurvivalBonusPerTurn");
             }
@@ -518,6 +470,17 @@ public class CasinoConfig {
             }
             if (settings.has("arenaDefeatedConsolationMult")) {
                 ARENA_DEFEATED_CONSOLATION_MULT = (float) settings.getDouble("arenaDefeatedConsolationMult");
+            }
+            if (settings.has("arenaConsolationPositionFactors")) {
+                try {
+                    JSONArray factors = settings.getJSONArray("arenaConsolationPositionFactors");
+                    ARENA_CONSOLATION_POSITION_FACTORS = new float[factors.length()];
+                    for (int i = 0; i < factors.length(); i++) {
+                        ARENA_CONSOLATION_POSITION_FACTORS[i] = (float) factors.getDouble(i);
+                    }
+                } catch (JSONException e) {
+                    Global.getLogger(CasinoConfig.class).warn("Error loading arenaConsolationPositionFactors: " + e.getMessage());
+                }
             }
             if (settings.has("arenaActionMultiplier")) {
                 ARENA_ACTION_MULTIPLIER = (float) settings.getDouble("arenaActionMultiplier");
@@ -543,9 +506,6 @@ public class CasinoConfig {
             // Load HP-based dynamic odds settings
             if (settings.has("arenaHpOddsFactor")) {
                 ARENA_HP_ODDS_FACTOR = (float) settings.getDouble("arenaHpOddsFactor");
-            }
-            if (settings.has("arenaBaseHpReference")) {
-                ARENA_BASE_HP_REFERENCE = (float) settings.getDouble("arenaBaseHpReference");
             }
             if (settings.has("arenaMaxHpOddsMult")) {
                 ARENA_MAX_HP_ODDS_MULT = (float) settings.getDouble("arenaMaxHpOddsMult");

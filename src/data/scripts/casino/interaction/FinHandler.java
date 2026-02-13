@@ -15,6 +15,11 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Predicate;
 
+/**
+ * Handler for financial services: VIP subscriptions, ship trading, and the
+ * satirical ISP-themed cashout flow. Cashout is deliberately obstructive
+ * with hold queues, CAPTCHA verification, and dead-end transfers.
+ */
 public class FinHandler {
 
     private final CasinoInteraction main;
@@ -23,7 +28,6 @@ public class FinHandler {
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
 
-    // CAPTCHA question class
     private static class CaptchaQuestion {
         final String question;
         final String[] options;
@@ -138,7 +142,6 @@ public class FinHandler {
             return;
         }
         
-        // Check predicate-based handlers
         for (Map.Entry<Predicate<String>, OptionHandler> entry : predicateHandlers.entrySet()) {
             if (entry.getKey().test(option)) {
                 entry.getValue().handle(option);
@@ -171,7 +174,7 @@ public class FinHandler {
 
         // Add notification toggle option
         boolean monthlyMode = CasinoVIPManager.isMonthlyNotificationMode();
-        String notifyText = monthlyMode ? "VIP Notifications: Monthly" : "VIP Notifications: Daily";
+        String notifyText = monthlyMode ? "Notifications: Monthly" : "Notifications: Daily";
         main.getOptions().addOption(notifyText, "toggle_vip_notifications");
 
         main.getOptions().addOption("How Financial Services Work", "how_to_financial");
@@ -220,9 +223,9 @@ public class FinHandler {
     private void toggleVIPNotifications() {
         boolean newMode = CasinoVIPManager.toggleMonthlyNotificationMode();
         if (newMode) {
-            main.textPanel.addPara("VIP notifications set to monthly.", Color.CYAN);
+            main.textPanel.addPara("Casino notifications set to monthly (VIP rewards, debt interest). Critical alerts (90% threshold, collector dispatch) always show.", Color.CYAN);
         } else {
-            main.textPanel.addPara("VIP notifications set to daily.", Color.CYAN);
+            main.textPanel.addPara("Casino notifications set to daily (VIP rewards, debt interest). Critical alerts (90% threshold, collector dispatch) always show.", Color.CYAN);
         }
         showFinancialMenu();
     }
@@ -246,9 +249,12 @@ public class FinHandler {
             showFinancialMenu();
             return;
         }
+        
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
         CasinoVIPManager.addSubscriptionDays(CasinoConfig.VIP_PASS_DAYS);
-        main.textPanel.addPara("VIP Status Activated! Enjoy your benefits.", Color.CYAN);
+        
+        int daysAfter = CasinoVIPManager.getDaysRemaining();
+        main.textPanel.addPara("VIP Status Activated! " + daysAfter + " days remaining.", Color.CYAN);
         showFinancialMenu();
     }
 

@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Handler for Tachy-Impact gacha mechanics: pull execution, animation display,
+ * and ship conversion. Supports overdraft for VIP players.
+ */
 public class GachaHandler {
 
     private static final String OPTION_GACHA_MENU = "gacha_menu";
@@ -210,7 +214,7 @@ public class GachaHandler {
         main.options.clearOptions();
 
         if (!CasinoVIPManager.isOverdraftAvailable()) {
-            showVIPPromotionForOverdraft(times, cost);
+            showVIPPromotionForOverdraft(cost);
             return;
         }
 
@@ -228,7 +232,7 @@ public class GachaHandler {
         main.options.addOption("Cancel", OPTION_GACHA_MENU);
     }
 
-    private void showVIPPromotionForOverdraft(int times, int cost) {
+    private void showVIPPromotionForOverdraft(int cost) {
         main.textPanel.addPara("INSUFFICIENT STARGEMS", Color.RED);
         main.textPanel.addPara("");
         main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);

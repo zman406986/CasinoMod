@@ -421,34 +421,7 @@ public class PokerGame {
             }
         }
         
-        private float getPersonalityThreshold(String thresholdType) {
-            // Get threshold values based on current AI personality
-            return switch (personality)
-            {
-                case TIGHT -> switch (thresholdType)
-                {
-                    case "raise" -> CasinoConfig.POKER_AI_TIGHT_THRESHOLD_RAISE / 100.0f;
-                    case "fold" -> CasinoConfig.POKER_AI_TIGHT_THRESHOLD_FOLD / 100.0f;
-                    case "stackFold" -> CasinoConfig.POKER_AI_STACK_PERCENT_FOLD_TIGHT;
-                    default -> 0.5f;
-                };
-                case AGGRESSIVE -> switch (thresholdType)
-                {
-                    case "raise" -> CasinoConfig.POKER_AI_AGGRESSIVE_THRESHOLD_RAISE / 100.0f;
-                    case "fold" -> CasinoConfig.POKER_AI_AGGRESSIVE_THRESHOLD_FOLD / 100.0f;
-                    case "stackFold" -> 0.1f; // Aggressive AI rarely folds
-                    default -> 0.5f;
-                };
-                default -> switch (thresholdType)
-                {
-                    case "raise" -> CasinoConfig.POKER_AI_NORMAL_THRESHOLD_RAISE / 100.0f;
-                    case "fold" -> CasinoConfig.POKER_AI_NORMAL_THRESHOLD_FOLD / 100.0f;
-                    case "stackFold" -> CasinoConfig.POKER_AI_STACK_PERCENT_CALL_LIMIT;
-                    default -> 0.5f;
-                };
-            };
-        }
-        
+
         private String estimatePlayerRange() {
             // Default range for unknown players
             String baseRange = "random";
@@ -1535,16 +1508,13 @@ public class PokerGame {
         /**
          * Records a player action for betting sequence tracking.
          */
-        public void recordPlayerAction(String action, int amount) {
+        public void recordPlayerAction(String action) {
             if (action.equals("RAISE") || action.equals("ALL_IN")) {
                 raisesThisRound++;
             }
         }
 
-        /**
-         * Records an AI action for betting sequence tracking.
-         */
-        public void recordAIAction(String action, int amount) {
+        public void recordAIAction(String action) {
             if (action.equals("RAISE") || action.equals("ALL_IN")) {
                 raisesThisRound++;
                 aiHasRaisedThisRound = true;
@@ -1853,26 +1823,21 @@ public class PokerGame {
     }
 
     public void processPlayerAction(Action action, int raiseAmount) {
-        // Track player action for AI hand reading and raise spiral prevention
-        int betAmount;
         switch (action) {
             case RAISE:
-                betAmount = raiseAmount - state.playerBet;
-                ai.recordPlayerAction("RAISE", betAmount);
+                ai.recordPlayerAction("RAISE");
                 break;
             case ALL_IN:
-                betAmount = state.playerStack;
-                ai.recordPlayerAction("ALL_IN", betAmount);
+                ai.recordPlayerAction("ALL_IN");
                 break;
             case CALL:
-                betAmount = state.opponentBet - state.playerBet;
-                ai.recordPlayerAction("CALL", betAmount);
+                ai.recordPlayerAction("CALL");
                 break;
             case CHECK:
-                ai.recordPlayerAction("CHECK", 0);
+                ai.recordPlayerAction("CHECK");
                 break;
             case FOLD:
-                ai.recordPlayerAction("FOLD", 0);
+                ai.recordPlayerAction("FOLD");
                 break;
         }
 
@@ -1964,22 +1929,18 @@ public class PokerGame {
     }
 
     public void processOpponentAction(SimplePokerAI.AIResponse response) {
-        // Track AI action for raise spiral prevention
-        int betAmount;
         switch (response.action) {
             case RAISE:
-                betAmount = response.raiseAmount - state.opponentBet;
-                ai.recordAIAction("RAISE", betAmount);
+                ai.recordAIAction("RAISE");
                 break;
             case CALL:
-                betAmount = state.playerBet - state.opponentBet;
-                ai.recordAIAction("CALL", betAmount);
+                ai.recordAIAction("CALL");
                 break;
             case CHECK:
-                ai.recordAIAction("CHECK", 0);
+                ai.recordAIAction("CHECK");
                 break;
             case FOLD:
-                ai.recordAIAction("FOLD", 0);
+                ai.recordAIAction("FOLD");
                 break;
         }
 
@@ -1998,10 +1959,7 @@ public class PokerGame {
                 state.pot += callAmount;
                 break;
             case RAISE:
-                int raiseAmount = response.raiseAmount;
-                // raiseAmount is the desired total bet size (e.g., 3x opponent's raise)
-                // NOT an additional amount on top of opponent's bet
-                int totalBet = raiseAmount;
+                int totalBet = response.raiseAmount;
                 int raiseAmountActual = totalBet - state.opponentBet;
                 // Protect against betting more than available stack
                 if (raiseAmountActual > state.opponentStack) {

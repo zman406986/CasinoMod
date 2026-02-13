@@ -15,6 +15,25 @@ $tradeMode == OPEN
 $faction.id == tritachyon",,,20:visit_casino:Visit Casino,
 # Handle when the Visit Casino option is selected from market interaction
 casino_visit_selected,DialogOptionSelected,$option == visit_casino,Casino_StartCasinoInteraction,,
-# Debt collector hail when intercepting player
-casino_debtCollectorHail,BeginFleetEncounter,$ipc_debt_collector,"$menuState = main
-FireAll PopulateOptions","The Interastral Peace Casino sends its regards, a stern voice crackles over the comms. Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.",
+# ========================================
+# Debt Collector Fleet Encounter Rules
+# Following TriTachLoanIncentiveScript pattern (ttli_bountyHunter)
+# ========================================
+# Hail when fleet intercepts player - prevent repeated hails with ignorePlayerCommRequests
+casino_debtCollectorHail,BeginFleetEncounter,"$ipc_debt_collector score:1000
+!$ignorePlayerCommRequests","AddText ""You're being hailed by the $faction $otherShipOrFleet."" $faction.baseColor
+$hailing = true 0",,
+# Show greeting after hail
+casino_debtCollectorGreeting,DialogOptionSelected,$hailing,"$hailing = false
+$menuState = main
+FireAll PopulateOptions","A Corporate Reconciliation Team hails you. ""The Interastral Peace Casino sends its regards,"" a stern voice crackles over the comms. ""Your outstanding balance requires immediate settlement. This is your final warning before we escalate to alternative collection methods.""",
+# Open comm link with debt collector - prevent repeated comm attempts
+casino_debtCollectorOpenComm,OpenCommLink,"$entity.ipc_debt_collector score:1000
+!$entity.ignorePlayerCommRequests","$entity.ignorePlayerCommRequests = true
+SetShortcut cutCommLinkNoText ""ESCAPE""",ShowPersonVisual,
+# Populate options for debt collector interaction
+casino_debtCollectorPopulateOpts,PopulateOptions,$ipc_debt_collector,,,0:casino_debtCollectorEngage:Engage the fleet,100:casino_debtCollectorLeave:""I'll be going now.""
+# Engage the fleet
+casino_debtCollectorEngage,DialogOptionSelected,$option == casino_debtCollectorEngage,ShowDefaultVisual,,
+# Leave conversation
+casino_debtCollectorLeave,DialogOptionSelected,$option == casino_debtCollectorLeave,ShowDefaultVisual,,

@@ -37,9 +37,12 @@ public class CasinoDebtScript implements EveryFrameScript {
 
     // Memory keys for persistence
     private static final String MEM_COLLECTOR_STATE = "$ipc_debt_collector_state";
-    private static final String MEM_LAST_SPAWN_MONTH = "$ipc_debt_collector_last_spawn_month";
+    private static final String MEM_LAST_SPAWN_TIMESTAMP = "$ipc_debt_collector_last_spawn_timestamp";
     private static final String MEM_COLLECTOR_FLEET_ID = "$ipc_debt_collector_fleet_id";
     private static final String MEM_PENDING_START_TIME = "$ipc_debt_collector_pending_start";
+    private static final String MEM_EXITED_SYSTEM_LOC = "$ipc_debt_collector_exited_system_loc";
+    private static final String MEM_WARNED_90_PERCENT = "$ipc_debt_warned_90_percent";
+    private static final String MEM_WARNED_SPAWNED = "$ipc_debt_warned_spawned";
     
     // State values
     private static final String STATE_NONE = "none";
@@ -113,7 +116,9 @@ public class CasinoDebtScript implements EveryFrameScript {
             if (systemPlayerIsIn != null && daysInSystem >= DAYS_IN_SYSTEM_THRESHOLD) {
                 float dist = Misc.getDistance(systemPlayerIsIn.getLocation(), playerFleet.getLocationInHyperspace());
                 if (dist < SPAWN_DIST_FROM_SYSTEM || DebugFlags.BAR_DEBUG) {
-                    // Spawn conditions met! Set flag for handlePendingState to pick up
+                    // Spawn conditions met! Store the system location BEFORE clearing tracking
+                    Vector2f systemLoc = systemPlayerIsIn.getLocation();
+                    Global.getSector().getMemoryWithoutUpdate().set(MEM_EXITED_SYSTEM_LOC, systemLoc);
                     shouldSpawnCollector = true;
                 }
             }
@@ -139,12 +144,21 @@ public class CasinoDebtScript implements EveryFrameScript {
         // Calculate how much debt exceeds the ceiling as a percentage
         // Debt is negative balance, so -currentBalance is the debt amount
         boolean debtAboveThreshold = false;
+        boolean debtNearThreshold = false;
         if (currentBalance < 0 && ceiling > 0) {
             int debtAmount = -currentBalance; // Convert negative balance to positive debt
             int debtAboveCeiling = Math.max(0, debtAmount - ceiling); // How much above ceiling
             float percentAboveCeiling = (float) debtAboveCeiling / ceiling;
             debtAboveThreshold = percentAboveCeiling >= CasinoConfig.DEBT_COLLECTOR_THRESHOLD_PERCENT;
+            
+            // Check if debt is at 90% of threshold (warning zone)
+            float thresholdPercent = CasinoConfig.DEBT_COLLECTOR_THRESHOLD_PERCENT;
+            float nearThresholdPercent = thresholdPercent * 0.9f;
+            debtNearThreshold = percentAboveCeiling >= nearThresholdPercent && !debtAboveThreshold;
         }
+        
+        // Warn player if debt is approaching threshold
+        checkNearThresholdWarning(debtNearThreshold);
         
         switch (state) {
             case STATE_NONE:
@@ -152,7 +166,7 @@ public class CasinoDebtScript implements EveryFrameScript {
                 break;
                 
             case STATE_PENDING:
-                handlePendingState(days, debtAboveThreshold, playerFleet);
+                handlePendingState(debtAboveThreshold);
                 break;
                 
             case STATE_ACTIVE:
@@ -166,28 +180,58 @@ public class CasinoDebtScript implements EveryFrameScript {
     }
     
     /**
+     * Warns player when debt is at 90% of the collector spawn threshold.
+     * Only warns once per cycle (resets when collector is defeated/despawned).
+     * This is a critical warning - always shown regardless of notification preference.
+     */
+    private void checkNearThresholdWarning(boolean debtNearThreshold) {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        boolean alreadyWarned = memory.getBoolean(MEM_WARNED_90_PERCENT);
+        
+        if (debtNearThreshold && !alreadyWarned) {
+            int currentDebt = -CasinoVIPManager.getBalance();
+            int ceiling = CasinoVIPManager.getCreditCeiling();
+            
+            Global.getSector().getCampaignUI().addMessage(
+                "WARNING: Your debt of " + currentDebt + " Stargems is at 90% of the collection threshold! " +
+                "Credit ceiling: " + ceiling + ". Reduce your debt to avoid Corporate Reconciliation Teams.",
+                Misc.getHighlightColor()
+            );
+            
+            memory.set(MEM_WARNED_90_PERCENT, true);
+        } else if (!debtNearThreshold && alreadyWarned) {
+            // Reset warning flag if debt drops below 90% threshold
+            memory.set(MEM_WARNED_90_PERCENT, false);
+        }
+    }
+    
+    /**
      * STATE_NONE: No collector activity
      * Transition to PENDING if debt exceeds threshold and cooldown has passed
      */
     private void handleNoneState(boolean debtAboveThreshold) {
         if (!debtAboveThreshold) {
-            return; // No debt issue, stay in NONE state
+            return;
         }
         
-        // Check if enough time has passed since last spawn
         if (canSpawnCollector()) {
-            // Start pending state - give player a few days warning before spawn
             setCollectorState(STATE_PENDING);
             Global.getSector().getMemoryWithoutUpdate().set(MEM_PENDING_START_TIME, 
-                    Global.getSector().getClock().getTimestamp());
+                    Long.valueOf(Global.getSector().getClock().getTimestamp()));
             Global.getLogger(this.getClass()).info("Debt collector spawn pending - debt threshold exceeded");
             
-            // Notify player that a collector is coming
-            Global.getSector().getCampaignUI().addMessage(
-                "A Corporate Reconciliation Team has been dispatched to collect your debt. " +
-                "They will arrive in " + (int)PENDING_DELAY_DAYS + " days.",
-                Misc.getNegativeHighlightColor()
-            );
+            // Show spawn warning only once per cycle - critical alert, always shown
+            MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+            boolean alreadyWarnedSpawn = memory.getBoolean(MEM_WARNED_SPAWNED);
+            
+            if (!alreadyWarnedSpawn) {
+                Global.getSector().getCampaignUI().addMessage(
+                    "A Corporate Reconciliation Team has been dispatched to collect your debt. " +
+                    "They will arrive in " + (int)PENDING_DELAY_DAYS + " days.",
+                    Misc.getNegativeHighlightColor()
+                );
+                memory.set(MEM_WARNED_SPAWNED, true);
+            }
         }
     }
     
@@ -197,12 +241,17 @@ public class CasinoDebtScript implements EveryFrameScript {
      * - Cancel if debt drops below threshold
      * - Spawn when conditions are met
      */
-    private void handlePendingState(float days, boolean debtAboveThreshold, CampaignFleetAPI playerFleet) {
-        // Cancel if debt was paid off
+    private void handlePendingState(boolean debtAboveThreshold) {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        
         if (!debtAboveThreshold) {
             setCollectorState(STATE_NONE);
-            Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
-            shouldSpawnCollector = false; // Clear spawn flag
+            memory.unset(MEM_PENDING_START_TIME);
+            memory.unset(MEM_EXITED_SYSTEM_LOC);
+            shouldSpawnCollector = false;
+            // Reset warning flags when collector is recalled
+            memory.set(MEM_WARNED_90_PERCENT, false);
+            memory.set(MEM_WARNED_SPAWNED, false);
             Global.getLogger(this.getClass()).info("Debt collector spawn cancelled - debt paid below threshold");
             Global.getSector().getCampaignUI().addMessage(
                 "The Corporate Reconciliation Team has been recalled - your debt is below the collection threshold.",
@@ -211,57 +260,37 @@ public class CasinoDebtScript implements EveryFrameScript {
             return;
         }
 
-        // Check if enough time has passed since pending started
-        long pendingStart = Global.getSector().getMemoryWithoutUpdate().getLong(MEM_PENDING_START_TIME);
-        if (pendingStart == 0) {
-            pendingStart = Global.getSector().getClock().getTimestamp();
-            Global.getSector().getMemoryWithoutUpdate().set(MEM_PENDING_START_TIME, pendingStart);
+        Long pendingStart = null;
+        if (memory.contains(MEM_PENDING_START_TIME)) {
+            pendingStart = memory.getLong(MEM_PENDING_START_TIME);
+        }
+        
+        if (pendingStart == null || pendingStart == 0) {
+            pendingStart = Long.valueOf(Global.getSector().getClock().getTimestamp());
+            memory.set(MEM_PENDING_START_TIME, pendingStart);
         }
 
         float daysSincePending = Global.getSector().getClock().getElapsedDaysSince(pendingStart);
         if (daysSincePending < PENDING_DELAY_DAYS && !DebugFlags.BAR_DEBUG) {
-            return; // Still in delay period
+            return;
         }
 
-        // Check if spawn flag was set by updateSystemTracking
-        // This happens when player exits a system after 7+ days and is within 3k units
         if (shouldSpawnCollector) {
-            shouldSpawnCollector = false; // Clear the flag
+            shouldSpawnCollector = false;
 
-            // Get the system to use as spawn reference (from tracking before it was cleared)
-            // We need to find a nearby system since systemPlayerIsIn is now null
-            StarSystemAPI nearestSystem = findNearestSystemToPlayer(playerFleet);
+            Vector2f storedSystemLoc = (Vector2f) memory.get(MEM_EXITED_SYSTEM_LOC);
+            memory.unset(MEM_EXITED_SYSTEM_LOC);
 
-            if (nearestSystem != null && spawnDebtCollector(nearestSystem)) {
+            if (spawnDebtCollector(storedSystemLoc)) {
                 setCollectorState(STATE_ACTIVE);
                 recordSpawnTime();
-                Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
+                memory.unset(MEM_PENDING_START_TIME);
             } else {
-                // Spawn failed, stay in PENDING and try again
                 Global.getLogger(this.getClass()).warn("Debt collector fleet spawn failed, will retry");
             }
         }
     }
 
-    /**
-     * Find the nearest star system to the player's current location in hyperspace
-     */
-    private StarSystemAPI findNearestSystemToPlayer(CampaignFleetAPI playerFleet) {
-        StarSystemAPI nearest = null;
-        float minDist = Float.MAX_VALUE;
-        Vector2f playerLoc = playerFleet.getLocationInHyperspace();
-
-        for (StarSystemAPI system : Global.getSector().getStarSystems()) {
-            float dist = Misc.getDistance(system.getLocation(), playerLoc);
-            if (dist < minDist) {
-                minDist = dist;
-                nearest = system;
-            }
-        }
-
-        return nearest;
-    }
-    
     /**
      * STATE_ACTIVE: Collector fleet is spawned and active
      * - Check if fleet is still alive by looking it up by ID
@@ -283,6 +312,9 @@ public class CasinoDebtScript implements EveryFrameScript {
         // Note: We do NOT clear debt here - debt continues until paid
         setCollectorState(STATE_DEFEATED);
         Global.getSector().getMemoryWithoutUpdate().unset(MEM_COLLECTOR_FLEET_ID);
+        // Reset warning flags for next cycle
+        Global.getSector().getMemoryWithoutUpdate().set(MEM_WARNED_90_PERCENT, false);
+        Global.getSector().getMemoryWithoutUpdate().set(MEM_WARNED_SPAWNED, false);
         Global.getLogger(this.getClass()).info("Debt collector fleet defeated or despawned - debt continues");
         
         // Notify player
@@ -293,14 +325,26 @@ public class CasinoDebtScript implements EveryFrameScript {
     }
     
     /**
-     * Find a fleet by its ID
+     * Find a fleet by its ID - searches all locations (hyperspace and star systems)
+     * Following the pattern from base game fleet tracking
      */
     private CampaignFleetAPI findFleetById(String fleetId) {
+        // Check hyperspace first
         for (CampaignFleetAPI fleet : Global.getSector().getHyperspace().getFleets()) {
             if (fleetId.equals(fleet.getId())) {
                 return fleet;
             }
         }
+        
+        // Check all star systems
+        for (StarSystemAPI system : Global.getSector().getStarSystems()) {
+            for (CampaignFleetAPI fleet : system.getFleets()) {
+                if (fleetId.equals(fleet.getId())) {
+                    return fleet;
+                }
+            }
+        }
+        
         return null;
     }
     
@@ -311,9 +355,13 @@ public class CasinoDebtScript implements EveryFrameScript {
      * - This allows monthly spawn checks for players with persistent high debt
      */
     private void handleDefeatedState(boolean debtAboveThreshold) {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        
         if (!debtAboveThreshold) {
             // Debt has been paid off, reset system
             setCollectorState(STATE_NONE);
+            memory.set(MEM_WARNED_90_PERCENT, false);
+            memory.set(MEM_WARNED_SPAWNED, false);
             Global.getLogger(this.getClass()).info("Debt resolved - collector system reset");
             return;
         }
@@ -329,32 +377,29 @@ public class CasinoDebtScript implements EveryFrameScript {
     
     /**
      * Check if enough time has passed to spawn a new collector
+     * Uses proper timestamp-based calculation following CasinoVIPManager pattern
      */
     private boolean canSpawnCollector() {
-        float lastSpawnMonth = Global.getSector().getMemoryWithoutUpdate().getFloat(MEM_LAST_SPAWN_MONTH);
-        float currentMonth = getCurrentMonth();
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
         
-        // If never spawned (0), allow spawn
-        if (lastSpawnMonth <= 0) {
+        if (!memory.contains(MEM_LAST_SPAWN_TIMESTAMP)) {
             return true;
         }
         
-        // Check if 1 month has passed
-        return (currentMonth - lastSpawnMonth) >= SPAWN_COOLDOWN_MONTHS;
+        Long lastSpawnTimestamp = memory.getLong(MEM_LAST_SPAWN_TIMESTAMP);
+        if (lastSpawnTimestamp == null || lastSpawnTimestamp == 0) {
+            return true;
+        }
+        
+        float daysSinceLastSpawn = Global.getSector().getClock().getElapsedDaysSince(lastSpawnTimestamp);
+        float cooldownDays = SPAWN_COOLDOWN_MONTHS * 30f;
+        
+        return daysSinceLastSpawn >= cooldownDays;
     }
     
-    /**
-     * Get current time in months
-     */
-    private float getCurrentMonth() {
-        return Global.getSector().getClock().getTimestamp() / 30f;
-    }
-    
-    /**
-     * Record when we last spawned a collector
-     */
     private void recordSpawnTime() {
-        Global.getSector().getMemoryWithoutUpdate().set(MEM_LAST_SPAWN_MONTH, getCurrentMonth());
+        Global.getSector().getMemoryWithoutUpdate().set(MEM_LAST_SPAWN_TIMESTAMP, 
+                Long.valueOf(Global.getSector().getClock().getTimestamp()));
     }
     
     /**
@@ -377,10 +422,10 @@ public class CasinoDebtScript implements EveryFrameScript {
     
     /**
      * Spawn the debt collector fleet
-     * @param sourceSystem The system the player just exited (for spawn location)
+     * @param spawnLocation The location to spawn near (from the system player exited)
      * @return true if spawn was successful
      */
-    private boolean spawnDebtCollector(StarSystemAPI sourceSystem) {
+    private boolean spawnDebtCollector(Vector2f spawnLocation) {
         CampaignFleetAPI playerFleet = Global.getSector().getPlayerFleet();
         if (playerFleet == null) {
             return false;
@@ -395,11 +440,11 @@ public class CasinoDebtScript implements EveryFrameScript {
         // Add the fleet to hyperspace
         Global.getSector().getHyperspace().addEntity(debtCollectorFleet);
         
-        // Position the fleet near the source system or player (following TriTachLoanIncentiveScript pattern)
+        // Position the fleet near the spawn location (following TriTachLoanIncentiveScript pattern)
         Vector2f spawnLoc;
-        if (sourceSystem != null) {
-            // Spawn near the system the player just exited
-            spawnLoc = Misc.getPointAtRadius(sourceSystem.getLocation(), 500f);
+        if (spawnLocation != null) {
+            // Spawn near the stored system location
+            spawnLoc = Misc.getPointAtRadius(spawnLocation, 500f);
         } else {
             // Fallback: spawn near player
             spawnLoc = Misc.getPointAtRadius(playerFleet.getLocationInHyperspace(), 500f);
@@ -511,11 +556,47 @@ public class CasinoDebtScript implements EveryFrameScript {
     
     /**
      * Force reset the debt collector system (for admin/debug purposes)
+     * This is a public API method intended for:
+     * - Console commands (if mod has console integration)
+     * - Debug/testing scenarios
+     * - External mod integration
+     * Similar public reset methods exist in base game for various systems.
      */
+    @SuppressWarnings("unused")
     public static void resetCollectorSystem() {
         Global.getSector().getMemoryWithoutUpdate().set(MEM_COLLECTOR_STATE, STATE_NONE);
         Global.getSector().getMemoryWithoutUpdate().unset(MEM_COLLECTOR_FLEET_ID);
         Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
         Global.getLogger(CasinoDebtScript.class).info("Debt collector system manually reset");
+    }
+    
+    /**
+     * Initialize the debt collector system for a new player or save.
+     * Sets default values for all memory keys if not already present.
+     * Called from CasinoModPlugin.onGameLoad().
+     * 
+     * This ensures proper handling when loading the mod onto an existing game
+     * where the player may already have debt exceeding the threshold.
+     */
+    public static void initializeSystem() {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        
+        if (!memory.contains(MEM_COLLECTOR_STATE)) {
+            memory.set(MEM_COLLECTOR_STATE, STATE_NONE);
+        }
+        
+        if (!memory.contains(MEM_LAST_SPAWN_TIMESTAMP)) {
+            memory.set(MEM_LAST_SPAWN_TIMESTAMP, Long.valueOf(0L));
+        }
+        
+        if (!memory.contains(MEM_WARNED_90_PERCENT)) {
+            memory.set(MEM_WARNED_90_PERCENT, false);
+        }
+        
+        if (!memory.contains(MEM_WARNED_SPAWNED)) {
+            memory.set(MEM_WARNED_SPAWNED, false);
+        }
+        
+        Global.getLogger(CasinoDebtScript.class).info("Debt collector system initialized");
     }
 }

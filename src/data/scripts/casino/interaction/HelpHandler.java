@@ -7,60 +7,18 @@ import java.util.Map;
 
 /**
  * Handler for displaying help documentation and game rules.
- * 
- * RESPONSIBILITIES:
- * - Display general casino help (currency, financial laws, continuity)
- * - Display poker rules (hand rankings, game flow, betting actions)
- * - Display arena help (betting system, chaos events, strategy)
- * - Display gacha help (rarities, pity mechanics, rotation)
- * 
- * NAVIGATION:
- * HelpHandler supports returning to active games. When the player views help
- * during an active poker game, the "Back" option returns to the game instead
- * of the main menu.
- * 
- * AI_AGENT NOTES:
- * - All help text uses Color constants for visual hierarchy
- * - Cyan: Headers and section titles
- * - Yellow: Subheaders and important concepts
- * - Gray: Body text and explanations
- * - Green: Positive information (winnings, benefits)
- * - Red: Warnings and negative information
- * 
- * - Help text is static and loaded from CasinoConfig where applicable
- * - Always provide a clear "Back" option that contextually returns to the
- *   appropriate screen (active game or main menu)
- * 
- * @see CasinoInteraction
- * @see CasinoConfig
+ * Supports contextual navigation - can return to active games instead of main menu.
  */
 public class HelpHandler {
 
-    /** Reference to main interaction for UI access and navigation */
     private final CasinoInteraction main;
-
-    /** Map of exact-match option handlers */
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     
-    /**
-     * Constructor initializes handler map.
-     * 
-     * @param main Reference to CasinoInteraction for UI access
-     */
     public HelpHandler(CasinoInteraction main) {
         this.main = main;
         initializeHandlers();
     }
     
-    /**
-     * Initializes all option handlers.
-     * Maps option IDs to their handling logic using lambda expressions.
-     * 
-     * AI_AGENT NOTE: When adding new help topics:
-     * 1. Add handler mapping here
-     * 2. Create display method
-     * 3. Add navigation link in appropriate menu
-     */
     private void initializeHandlers() {
         // Exact match handlers
         handlers.put("how_to_play_main", option -> showGeneralHelp());
@@ -78,12 +36,6 @@ public class HelpHandler {
         handlers.put("arena_status", option -> main.arena.handle(option));
     }
 
-    /**
-     * Main entry point for handling help-related options.
-     * Routes to appropriate handler based on option ID.
-     * 
-     * @param option The option ID to handle
-     */
     public void handle(String option) {
         OptionHandler handler = handlers.get(option);
         if (handler != null) {
@@ -102,13 +54,6 @@ public class HelpHandler {
         main.showMenu();
     }
 
-    /**
-     * Shows the introductory help page.
-     * Displayed on first casino visit or via "How to Play" menu.
-     *
-     * AI_AGENT NOTE: This is a condensed overview. Detailed rules are in
-     * the specific help methods (showPokerHelp, showArenaHelp, etc.)
-     */
     public void showIntroPage() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -127,21 +72,10 @@ public class HelpHandler {
         main.options.addOption("Continue to Casino", "back_menu");
     }
 
-    /**
-     * Shows the main help menu.
-     * Entry point for accessing all help topics.
-     */
     public void showMainMenu() {
         showGeneralHelp();
     }
 
-    /**
-     * Displays general casino help information.
-     * Covers currency, financial laws, and save/resume functionality.
-     *
-     * AI_AGENT NOTE: Financial law values are pulled from CasinoConfig
-     * to ensure consistency with actual game mechanics.
-     */
     public void showGeneralHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("--- Interastral Peace Casino Handbook ---", Color.CYAN);
@@ -171,13 +105,6 @@ public class HelpHandler {
         main.setState(CasinoInteraction.State.HELP);
     }
 
-    /**
-     * Displays comprehensive poker help.
-     * Covers hand rankings, game flow, betting actions, and position strategy.
-     *
-     * AI_AGENT NOTE: This is the authoritative reference for poker rules.
-     * When modifying poker mechanics, update this help text to match.
-     */
     public void showPokerHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TEXAS HOLD'EM GUIDE ---", Color.CYAN);
@@ -228,7 +155,6 @@ public class HelpHandler {
         main.textPanel.addPara("Tips:", Color.YELLOW);
         main.textPanel.addPara("- Pot Odds: Consider the ratio of current bet to potential winnings.");
         main.textPanel.addPara("- Bankroll: Manage your stack carefully to stay competitive.");
-        main.textPanel.addPara("- The IPC Dealer adapts to your play style. Mix up your strategy!");
         main.textPanel.addPara("- The dealer will always call to see the flop when you just complete the Big Blind.");
         main.textPanel.addPara("- The IPC Dealer calculates pot odds. Don't let them bully you!", Color.ORANGE);
 
@@ -244,15 +170,6 @@ public class HelpHandler {
         }
     }
 
-    /**
-     * Displays comprehensive arena help.
-     * Covers betting system, dynamic odds, performance bonuses, and chaos events.
-     *
-     * AI_AGENT NOTE: Odds calculations and bonus formulas are documented here.
-     * When modifying arena mechanics, update this help text to match.
-     * 
-     * @param returnTo The option ID to return to after viewing help (for contextual navigation)
-     */
     public void showArenaHelp(String returnTo) {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- SPIRAL ABYSS ARENA: SURVIVAL ---", Color.CYAN);
@@ -267,8 +184,7 @@ public class HelpHandler {
 
         main.textPanel.addPara("Betting System & Dynamic Odds:", Color.YELLOW);
         main.textPanel.addPara("- Base Odds: 1:" + CasinoConfig.ARENA_BASE_ODDS + " (e.g., " + CasinoConfig.ARENA_BASE_ODDS + "x return on win).");
-        main.textPanel.addPara("- Positive Perks: Odds reduced by " + (int)((1 - CasinoConfig.ARENA_POSITIVE_PERK_MULTIPLIER) * 100) + "% (stronger ship = lower payout).");
-        main.textPanel.addPara("- Negative Perks: Odds increased by " + (int)((CasinoConfig.ARENA_NEGATIVE_PERK_MULTIPLIER - 1) * 100) + "% (weaker ship = higher payout).");
+        main.textPanel.addPara("- Ships have random prefixes and affixes that modify their stats.");
         main.textPanel.addPara("- Minimum Odds: 1:" + CasinoConfig.ARENA_MIN_ODDS);
         main.textPanel.addPara("- You can bet on multiple ships at once.");
         main.textPanel.addPara("");
@@ -283,7 +199,7 @@ public class HelpHandler {
         main.textPanel.addPara("Performance Bonuses:", Color.GRAY);
         main.textPanel.addPara("- Survival Bonus: +" + (int)(CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN * 100) + "% per turn survived.");
         main.textPanel.addPara("- Kill Bonus: +" + (int)(CasinoConfig.ARENA_KILL_BONUS_PER_KILL * 100) + "% per kill.");
-        main.textPanel.addPara("- House Edge: ~10% (survival multiplier: " + CasinoConfig.ARENA_SURVIVAL_REWARD_MULT + "x).");
+        main.textPanel.addPara("- House Edge: ~" + (int)(CasinoConfig.ARENA_HOUSE_EDGE * 100) + "% (built into odds calculation).");
 
         main.textPanel.addPara("Consolation Prizes:", Color.GRAY);
         main.textPanel.addPara("- Defeated ships may still earn consolation based on performance.");
@@ -303,20 +219,10 @@ public class HelpHandler {
         main.options.addOption("Back", returnTo);
     }
 
-    /**
-     * Overload for backward compatibility - returns to arena lobby.
-     */
     public void showArenaHelp() {
         showArenaHelp("arena_lobby");
     }
 
-    /**
-     * Displays comprehensive gacha help.
-     * Covers rarities, pity mechanics, and featured rotation.
-     *
-     * AI_AGENT NOTE: Pity thresholds and rotation timing are pulled from CasinoConfig.
-     * When modifying gacha mechanics, update this help text to match.
-     */
     public void showGachaHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- TACHY-IMPACT: WARP PROTOCOL ---", Color.CYAN);
@@ -347,10 +253,6 @@ public class HelpHandler {
         main.options.addOption("Back", "gacha_menu");
     }
 
-    /**
-     * Displays financial services help.
-     * Covers VIP subscriptions, credit ceiling, debt mechanics, and ship trading.
-     */
     public void showFinancialHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- FINANCIAL SERVICES GUIDE ---", Color.CYAN);
@@ -393,10 +295,6 @@ public class HelpHandler {
         main.options.addOption("Back", "financial_menu");
     }
 
-    /**
-     * Displays Stargem top-up help.
-     * Covers exchange rates and package information.
-     */
     public void showTopupHelp() {
         main.options.clearOptions();
         main.textPanel.addPara("\n--- STARGEM TOP-UP GUIDE ---", Color.CYAN);

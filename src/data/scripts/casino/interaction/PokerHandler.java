@@ -2,7 +2,6 @@ package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
-import com.fs.starfarer.api.ui.LabelAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.PokerGame;
@@ -15,16 +14,18 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-
+/**
+ * Handler for Texas Hold'em poker: game setup, betting rounds, AI opponent,
+ * and suspend/resume functionality. Early departure triggers cooldown penalty.
+ */
 public class PokerHandler {
 
     private final CasinoInteraction main;
     private PokerGame pokerGame;
 
-    // Game constants - extracted from magic numbers to improve maintainability
-    private static final int COOLDOWN_TICKS_PER_DAY = 30;  // Sector clock ticks per game day
-    private static final int MIN_HANDS_BEFORE_LEAVE = 3;   // Minimum hands to avoid early departure penalty
-    private static final float DAYS_PER_TICK = 1f / 30f;   // Conversion factor for cooldown calculation
+    private static final int COOLDOWN_TICKS_PER_DAY = 30;
+    private static final int MIN_HANDS_BEFORE_LEAVE = 3;
+    private static final float DAYS_PER_TICK = 1f / 30f;
 
     public PokerGame getPokerGame() {
         return pokerGame;
@@ -94,14 +95,21 @@ public class PokerHandler {
         handlePokerAction(option);
     }
 
-    /**
-     * Displays the poker confirmation screen where player selects stack size.
-     * Checks for early departure cooldown and displays available options based on balance/credit.
-     */
     public void showPokerConfirm() {
         main.options.clearOptions();
 
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        
+        if (mem.contains("$ipc_suspended_game_type")) {
+            String gameType = mem.getString("$ipc_suspended_game_type");
+            if ("Poker".equals(gameType)) {
+                main.setState(CasinoInteraction.State.POKER);
+                main.textPanel.addPara("Resuming your suspended poker game...", Color.YELLOW);
+                restoreSuspendedGame();
+                return;
+            }
+        }
+
         if (mem.contains(POKER_COOLDOWN_KEY)) {
             long cooldownUntil = mem.getLong(POKER_COOLDOWN_KEY);
             long currentTime = Global.getSector().getClock().getTimestamp();
@@ -151,7 +159,7 @@ public class PokerHandler {
         main.options.addOption("Wait... (Cancel)", "back_menu");
         main.setState(CasinoInteraction.State.POKER);
     }
-    
+
     private void displayFinancialInfo() {
         int currentBalance = CasinoVIPManager.getBalance();
         int creditCeiling = CasinoVIPManager.getCreditCeiling();
@@ -289,10 +297,6 @@ public class PokerHandler {
         main.getOptions().addOption("Back", "back_menu");
     }
 
-    /**
-     * Formats a chip amount as big blinds.
-     * Returns "0" if big blind is 0 to prevent division by zero.
-     */
     private String formatBB(int amount, int bigBlind) {
         return bigBlind > 0 ? String.format("%.1f", (float) amount / bigBlind) : "0";
     }
@@ -304,7 +308,7 @@ public class PokerHandler {
         // Only trigger if there's no active hand (pot=0) or hand is already over (SHOWDOWN)
         // This prevents premature end when player goes all-in (stack=0 but hand still active)
         if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
-            endHand(false);
+            endHand();
             return;
         }
         int bigBlind = state.bigBlind;
@@ -392,18 +396,11 @@ public class PokerHandler {
         updateGameState();
     }
     
-    /**
-     * Handles poker actions not covered by the handler map.
-     * Most actions are routed through initializeHandlers() - this method
-     * handles dynamic actions that require parsing (e.g., raise amounts).
-     */
     public void handlePokerAction(String option) {
-        // Dynamic raise amounts parsed from option string
         if (option.startsWith("poker_raise_")) {
             int amt = Integer.parseInt(option.replace("poker_raise_", ""));
             performRaise(amt);
         }
-        // Note: Static actions (call, check, fold, etc.) are handled via handlers map
     }
     
     private void updateGameState() {
@@ -572,6 +569,8 @@ public class PokerHandler {
             main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
             main.getTextPanel().addPara("'The cards are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
 
+            mem.unset("$ipc_suspended_game_type");
+
             updateUI();
         } else {
             setupGame();
@@ -607,7 +606,7 @@ public class PokerHandler {
                 state.playerStack += state.pot;
             }
             state.pot = 0;
-            endHand(state.folder == PokerGame.CurrentPlayer.OPPONENT);
+            endHand();
             return;
         }
 
@@ -650,7 +649,7 @@ public class PokerHandler {
             state.pot = 0;
             main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
             main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
-            endHand(true);
+            endHand();
         } else if (cmp < 0) {
             main.getTextPanel().addPara("DEFEAT. The IPC Dealer wins.", Color.RED);
             state.opponentStack += state.pot; // Award pot to opponent
@@ -658,7 +657,7 @@ public class PokerHandler {
             state.pot = 0;
             main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
             main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
-            endHand(false);
+            endHand();
         } else {
             main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
             int halfPot = state.pot / 2;
@@ -670,7 +669,7 @@ public class PokerHandler {
             state.pot = 0;
             main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
             main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
-            endHand(false);
+            endHand();
         }
     }
 
@@ -793,7 +792,7 @@ public class PokerHandler {
         main.showMenu();
     }
     
-    private void endHand(boolean playerWon) {
+    private void endHand() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
 
