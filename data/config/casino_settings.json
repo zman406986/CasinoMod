@@ -75,17 +75,17 @@
     "stargemExchangeRate": 500,
 
     "vipAds": [
-        "May your journey lead you starward. (Tachy-Impact)",
-        "Tech Spacers Save The Sector. (Tachy-Impact)",
-        "The warp currents align for you today. (Tachy-Impact)",
-        "How about we explore the area ahead of us later? (Tachy-Impact)",
-        "Thank you for supporting Tachy-Impact. (Tachy-Impact)",
-        "Don't use AI Cores as emergency food! (Tachy-Impact)",
-        "To the Stars and the Abyss. (Tachy-Impact)",
-        "Follow the path of the Trailblazer (Tachy-Impact)",
-        "Hegemony rules are made to be broken! (Tachy-Impact)",
-        "Astral blessings upon you. (Tachy-Impact)",
-        "This daily notice can be toggled to be monthly in Casino finances. (Tachy-Impact)"
+        "May your journey lead you starward.",
+        "Tech Spacers Save The Sector.",
+        "The warp currents align for you today.",
+        "How about we explore the area ahead of us later?",
+        "Thank you for supporting Tachy-Impact.",
+        "Don't use AI Cores as emergency food!",
+        "To the Stars and the Abyss.",
+        "Follow the path of the Trailblazer.",
+        "Hegemony rules are made to be broken!",
+        "Astral blessings upon you.",
+        "This notice can be toggled to monthly in Casino finances."
     ],
 
     "gemPackages": [

@@ -118,7 +118,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             poker.handle(option);
         } else if (option.startsWith("arena_")) {
             arena.handle(option);
-        } else if (option.startsWith("topup_") || option.startsWith("topup_pack_") || option.startsWith("confirm_topup_pack_")) {
+        } else if (option.startsWith("topup_") || option.startsWith("topup_pack_") || option.startsWith("confirm_topup_pack_") || option.startsWith("buy_vip_from_topup") || option.startsWith("confirm_buy_vip_topup")) {
             topup.handle(option);
         } else if (option.startsWith("financial_") || option.startsWith("buy_vip") ||
                    option.startsWith("confirm_buy_vip") ||

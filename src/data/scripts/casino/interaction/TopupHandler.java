@@ -27,6 +27,8 @@ public class TopupHandler {
         handlers.put("topup_menu", option -> showTopUpMenu());
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("how_to_topup", option -> main.help.showTopupHelp());
+        handlers.put("buy_vip_from_topup", option -> showVIPConfirmFromTopup());
+        handlers.put("confirm_buy_vip_topup", option -> purchaseVIPPassFromTopup());
 
         predicateHandlers.put(option -> option.startsWith("topup_pack_"), option -> {
             int index = Integer.parseInt(option.replace("topup_pack_", ""));
@@ -60,8 +62,9 @@ public class TopupHandler {
         main.getTextPanel().addPara("");
 
         int currentBalance = CasinoVIPManager.getBalance();
+        int daysRemaining = CasinoVIPManager.getDaysRemaining();
         Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
-        main.getTextPanel().addPara("Current Balance: " + currentBalance + " Stargems", balanceColor);
+        main.getTextPanel().addPara("Current Balance: " + currentBalance + " Stargems (VIP: " + daysRemaining + " days)", balanceColor);
         main.getTextPanel().addPara("");
 
         if (CasinoConfig.GEM_PACKAGES != null && !CasinoConfig.GEM_PACKAGES.isEmpty()) {
@@ -73,6 +76,7 @@ public class TopupHandler {
             main.getTextPanel().addPara("No gem packages currently available.", Color.ORANGE);
         }
 
+        main.getOptions().addOption("Purchase VIP Pass (can stack)", "buy_vip_from_topup");
         main.getOptions().addOption("About Stargems", "how_to_topup");
         main.getOptions().addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.TOPUP);
@@ -95,6 +99,34 @@ public class TopupHandler {
         Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
         CasinoVIPManager.addToBalance(gems);
         main.getTextPanel().addPara("Purchased " + gems + " Stargems.", Color.GREEN);
+        showTopUpMenu();
+    }
+
+    private void showVIPConfirmFromTopup() {
+        main.getOptions().clearOptions();
+        int currentDays = CasinoVIPManager.getDaysRemaining();
+        String message = "Purchase VIP Subscription (" + CasinoConfig.VIP_PASS_DAYS + " Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
+        if (currentDays > 0) {
+            message += " (Current VIP: " + currentDays + " days remaining)";
+        }
+        main.getTextPanel().addPara(message, Color.YELLOW);
+        main.getOptions().addOption("Confirm Purchase", "confirm_buy_vip_topup");
+        main.getOptions().addOption("Cancel", "topup_menu");
+    }
+
+    private void purchaseVIPPassFromTopup() {
+        int cost = CasinoConfig.VIP_PASS_COST;
+        if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
+            main.getTextPanel().addPara("Insufficient Credits!", Color.RED);
+            showTopUpMenu();
+            return;
+        }
+        
+        Global.getSector().getPlayerFleet().getCargo().getCredits().subtract(cost);
+        CasinoVIPManager.addSubscriptionDays(CasinoConfig.VIP_PASS_DAYS);
+        
+        int daysAfter = CasinoVIPManager.getDaysRemaining();
+        main.getTextPanel().addPara("VIP Status Activated! " + daysAfter + " days remaining.", Color.CYAN);
         showTopUpMenu();
     }
 }

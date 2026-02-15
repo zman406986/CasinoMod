@@ -170,7 +170,7 @@ public class FinHandler {
         displayFinancialInfo();
 
         main.getOptions().addOption("Sell Ships for Stargems", "buy_ship");
-        main.getOptions().addOption("VIP Subscription Pass", "buy_vip");
+        main.getOptions().addOption("Purchase VIP Pass (can stack)", "buy_vip");
 
         // Add notification toggle option
         boolean monthlyMode = CasinoVIPManager.isMonthlyNotificationMode();

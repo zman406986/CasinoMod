@@ -304,43 +304,32 @@ public class CasinoVIPManager implements EveryFrameScript {
 
     /**
      * Sends VIP daily reward notification combined with debt interest info.
-     * Format: +100 daily gem (green) -X interest (red) | Balance: Y | [ad]
+     * Format: +100 daily gem, -X interest | Balance: Y (VIP: Z days) | [Tachy-Impact VIP] ad
      * 
-     * AI_AGENT NOTE: Each message is sent separately to allow different colors.
-     * This creates a visual hierarchy: reward (green), cost (red), balance (context), ad (cyan).
+     * AI_AGENT NOTE: Daily gem and interest are combined on one line.
+     * Balance includes VIP days remaining on the same line.
      */
     private void sendVIPNotification(int interestAmount, int oldBalance) {
         int newBalance = getBalance();
+        int daysRemaining = getDaysRemaining();
         
-        // Build the message with color-coded parts
-        StringBuilder message = new StringBuilder();
+        StringBuilder rewardLine = new StringBuilder();
+        rewardLine.append("+").append(CasinoConfig.VIP_DAILY_REWARD).append(" daily gem");
         
-        // Daily reward (always shown for VIP)
-        Global.getSector().getCampaignUI().addMessage(
-            "+" + CasinoConfig.VIP_DAILY_REWARD + " daily gem",
-            Color.GREEN
-        );
-        
-        // Interest (only if debt exists)
         if (interestAmount > 0) {
-            Global.getSector().getCampaignUI().addMessage(
-                "-" + interestAmount + " interest",
-                Color.RED
-            );
+            rewardLine.append(", -").append(interestAmount).append(" interest");
         }
         
-        // Current balance
-        Color balanceColor = newBalance >= 0 ? Color.GREEN : Color.RED;
-        Global.getSector().getCampaignUI().addMessage(
-            "Balance: " + newBalance + " Stargems",
-            balanceColor
-        );
+        Global.getSector().getCampaignUI().addMessage(rewardLine.toString(), Color.GREEN);
         
-        // VIP ad (random, no duplicates within 4 messages)
+        Color balanceColor = newBalance >= 0 ? Color.GREEN : Color.RED;
+        String balanceLine = "Balance: " + newBalance + " Stargems (VIP: " + daysRemaining + " days)";
+        Global.getSector().getCampaignUI().addMessage(balanceLine, balanceColor);
+        
         if (!CasinoConfig.VIP_ADS.isEmpty()) {
             String ad = selectNonDuplicateAd();
             Global.getSector().getCampaignUI().addMessage(
-                "[VIP] " + ad,
+                "[Tachy-Impact VIP] " + ad,
                 Color.CYAN
             );
         }
@@ -578,27 +567,20 @@ public class CasinoVIPManager implements EveryFrameScript {
      */
     private static void sendVIPNotificationImmediate(int interestAmount, int oldBalance) {
         int newBalance = getBalance();
+        int daysRemaining = getDaysRemaining();
         
-        // Daily reward
-        Global.getSector().getCampaignUI().addMessage(
-            "+" + CasinoConfig.VIP_DAILY_REWARD + " daily gem (VIP Purchase Bonus)",
-            Color.GREEN
-        );
+        StringBuilder rewardLine = new StringBuilder();
+        rewardLine.append("+").append(CasinoConfig.VIP_DAILY_REWARD).append(" daily gem (VIP Purchase Bonus)");
         
-        // Interest (only if debt exists)
         if (interestAmount > 0) {
-            Global.getSector().getCampaignUI().addMessage(
-                "-" + interestAmount + " interest",
-                Color.RED
-            );
+            rewardLine.append(", -").append(interestAmount).append(" interest");
         }
         
-        // Current balance
+        Global.getSector().getCampaignUI().addMessage(rewardLine.toString(), Color.GREEN);
+        
         Color balanceColor = newBalance >= 0 ? Color.GREEN : Color.RED;
-        Global.getSector().getCampaignUI().addMessage(
-            "Balance: " + newBalance + " Stargems",
-            balanceColor
-        );
+        String balanceLine = "Balance: " + newBalance + " Stargems (VIP: " + daysRemaining + " days)";
+        Global.getSector().getCampaignUI().addMessage(balanceLine, balanceColor);
     }
 
     /**
