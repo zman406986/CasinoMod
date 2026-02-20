@@ -5,7 +5,6 @@ import com.fs.starfarer.api.Global;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoDebtScript;
 import data.scripts.casino.CasinoVIPManager;
-import data.scripts.casino.CasinoMarketInteractionListener;
 
 /**
  * Mod plugin for the Interastral Peace Casino.
@@ -26,6 +25,6 @@ public class CasinoModPlugin extends BaseModPlugin {
         CasinoDebtScript.initializeSystem();
         Global.getSector().addTransientScript(new CasinoVIPManager());
         Global.getSector().addTransientScript(new CasinoDebtScript());
-        Global.getSector().getListenerManager().addListener(new CasinoMarketInteractionListener(), true);
+        // Note: CasinoMarketInteractionListener removed - option is now added via rules.csv only
     }
 }

@@ -17,9 +17,8 @@ import java.util.Comparator;
 import java.util.function.Predicate;
 
 /**
- * Handler for Spiral Abyss Arena: champion selection, betting, battle simulation,
- * and reward calculation. Supports mid-battle betting with dynamic odds and
- * suspend/resume functionality.
+ * Handles all arena-related interactions for the casino mod.
+ * Manages champion selection, betting, battle simulation, and reward calculation.
  */
 public class ArenaHandler {
 
@@ -28,6 +27,7 @@ public class ArenaHandler {
     private static final int PERCENT_10 = 10;
     private static final int PERCENT_50 = 50;
 
+    // Option prefixes for menu handlers
     private static final String OPTION_ARENA_LOBBY = "arena_lobby";
     private static final String OPTION_ARENA_SELECT_SHIP = "arena_select_ship_";
     private static final String OPTION_ARENA_ADD_BET = "arena_add_bet_";
@@ -46,6 +46,7 @@ public class ArenaHandler {
     private static final String OPTION_HOW_TO_ARENA = "how_to_arena";
     private static final String OPTION_TOPUP_MENU = "topup_menu";
 
+    // Memory keys for suspended arena state
     private static final String MEM_SUSPENDED_GAME_TYPE = "$ipc_suspended_game_type";
     private static final String MEM_ARENA_CURRENT_ROUND = "$ipc_arena_current_round";
     private static final String MEM_ARENA_OPPONENTS_DEFEATED = "$ipc_arena_opponents_defeated";
@@ -84,11 +85,6 @@ public class ArenaHandler {
     
     protected List<BetInfo> arenaBets = new ArrayList<>();
     
-    private int pendingBetAmount = 0;
-    private int pendingOverdraftAmount = 0;
-    private String pendingReturnToMenu = "";
-    private int pendingChampionIndex = -1;
-    
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
 
@@ -115,15 +111,6 @@ public class ArenaHandler {
         handlers.put(OPTION_ARENA_ADD_ANOTHER_BET, option -> showAddAnotherBetMenu());
         handlers.put(OPTION_ARENA_STATUS, option -> showArenaStatus());
         handlers.put(OPTION_ARENA_LEAVE_NOW, option -> main.showMenu());
-        handlers.put("arena_abandon_confirm", option -> showAbandonConfirm());
-        handlers.put("arena_abandon_confirm_leave", option -> abandonArenaGame());
-        handlers.put("arena_abandon_cancel", option -> showArenaStatus());
-        handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
-        handlers.put("suspend_abandon_leave", option -> abandonSuspendedArena());
-        handlers.put("suspend_abandon_cancel", option -> {
-            main.textPanel.addPara("You return to your seat. The battle continues.", Color.CYAN);
-            showArenaStatus();
-        });
         handlers.put(OPTION_ARENA_START_BATTLE, option -> {
             int chosenIdx = -1;
             for (int i = 0; i < arenaCombatants.size(); i++) {
@@ -167,21 +154,26 @@ public class ArenaHandler {
             performAddBetToChampion(championIndex, amount);
         });
 
-        handlers.put("arena_confirm_overdraft", option -> processOverdraftConfirmation());
-        handlers.put("arena_cancel_overdraft", option -> cancelOverdraft());
-
+        // Handle contextual arena help options
         predicateHandlers.put(option -> option.startsWith("how_to_arena_"), option -> {
             String returnTo = option.replace("how_to_arena_", "");
             main.help.showArenaHelp(returnTo);
         });
     }
 
-    private static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);
-    private static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
-    private static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
-    private static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
+    // Color definitions for perks - prefixes (strong) are brighter, affixes (weak) are lighter
+    private static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);    // Bright green for strong positive
+    private static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);    // Bright red for strong negative
+    private static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);   // Muted green for weak positive
+    private static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);   // Pink/light red for weak negative
 
+    /**
+     * Applies color highlighting to ship name components in the text panel.
+     * Uses a "foolproof" approach: scans the text for known perks from config lists
+     * and highlights them in the order they appear in the text.
+     */
     private void applyShipHighlighting(SpiralAbyssArena.SpiralGladiator ship, String fullText, Object... highlightPairs) {
+        // Inner class to hold highlight info with position for sorting
         class HighlightInfo {
             final String text;
             final Color color;
@@ -195,6 +187,7 @@ public class ArenaHandler {
 
         List<HighlightInfo> highlightInfos = new ArrayList<>();
 
+        // Scan for prefixes (strong perks - bright colors)
         for (String prefix : CasinoConfig.ARENA_PREFIX_STRONG_POS) {
             int pos = fullText.indexOf(prefix);
             if (pos >= 0) {
@@ -208,6 +201,7 @@ public class ArenaHandler {
             }
         }
 
+        // Scan for affixes (weak perks - dimmer colors)
         for (String affix : CasinoConfig.ARENA_AFFIX_POS) {
             int pos = fullText.indexOf(affix);
             if (pos >= 0) {
@@ -221,11 +215,13 @@ public class ArenaHandler {
             }
         }
 
+        // Hull name in yellow
         int hullPos = fullText.indexOf(ship.hullName);
         if (hullPos >= 0) {
             highlightInfos.add(new HighlightInfo(ship.hullName, Color.YELLOW, hullPos));
         }
 
+        // Add additional highlights from parameters
         for (int i = 0; i < highlightPairs.length; i += 2) {
             if (i + 1 < highlightPairs.length) {
                 String text = (String) highlightPairs[i];
@@ -237,8 +233,10 @@ public class ArenaHandler {
             }
         }
 
+        // Sort by position in text to ensure correct highlight order
         highlightInfos.sort(Comparator.comparingInt(a -> a.position));
 
+        // Extract sorted highlights and colors
         List<String> highlights = new ArrayList<>();
         List<Color> highlightColors = new ArrayList<>();
         for (HighlightInfo info : highlightInfos) {
@@ -246,17 +244,23 @@ public class ArenaHandler {
             highlightColors.add(info.color);
         }
 
+        // Apply highlights
         if (!highlights.isEmpty()) {
             main.textPanel.setHighlightColorsInLastPara(highlightColors.toArray(new Color[0]));
             main.textPanel.highlightInLastPara(highlights.toArray(new String[0]));
         }
     }
 
+    /**
+     * Adds bet amount options to the menu based on player's available balance and credit.
+     * Includes fixed amounts (100, 500, 2000) and percentage-based options (10%, 50%).
+     */
     private boolean addBetOptions(int playerBalance, int availableCredit, String optionPrefix, int championIndex) {
         boolean hasBetOptions = false;
         int referenceAmount = availableCredit > 0 ? availableCredit : playerBalance;
         String percentageLabel = availableCredit > 0 ? "remaining credit" : "account";
 
+        // Add fixed bet amount options
         for (int betAmount : BET_AMOUNTS) {
             if (playerBalance >= betAmount && availableCredit >= betAmount) {
                 String optionId = championIndex >= 0
@@ -267,6 +271,7 @@ public class ArenaHandler {
             }
         }
 
+        // Add percentage-based options
         int[] percentages = {PERCENT_10, PERCENT_50};
         for (int percent : percentages) {
             int percentAmount = (referenceAmount * percent) / 100;
@@ -305,10 +310,6 @@ public class ArenaHandler {
                 showAddBetMenu();
                 return true;
             }
-            
-            main.textPanel.addPara("Overdraft confirmation required. Please select a bet amount to proceed.", Color.YELLOW);
-            showAddBetMenu();
-            return true;
         }
 
         return false;
@@ -472,67 +473,6 @@ public class ArenaHandler {
         main.getOptions().addOption("Back", returnTo);
     }
     
-    private void showOverdraftConfirmation(int betAmount, int overdraftAmount) {
-        main.options.clearOptions();
-        main.textPanel.addPara("OVERDRAFT CONFIRMATION REQUIRED", Color.RED);
-        main.textPanel.addPara("");
-        main.textPanel.addPara("Your current balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
-        main.textPanel.addPara("Requested bet amount: " + betAmount + " Stargems", Color.WHITE);
-        main.textPanel.addPara("");
-        main.textPanel.addPara("OVERDRAFT DETAILS:", Color.CYAN);
-        main.textPanel.addPara("Overdraft amount: " + overdraftAmount + " Stargems", Color.RED);
-        main.textPanel.addPara("Interest rate: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% per day", Color.YELLOW);
-        main.textPanel.addPara("Your balance will become: " + (CasinoVIPManager.getBalance() - betAmount) + " Stargems", Color.GRAY);
-        main.textPanel.addPara("");
-        main.textPanel.addPara("WARNING: Negative balances accrue daily interest. Ensure you can repay this debt promptly!", Color.RED);
-        main.textPanel.addPara("");
-        
-        main.options.addOption("Confirm Overdraft and Place Bet", "arena_confirm_overdraft");
-        main.options.addOption("Cancel", "arena_cancel_overdraft");
-    }
-    
-    private void processOverdraftConfirmation() {
-        if (pendingBetAmount <= 0) {
-            showAddBetMenu();
-            return;
-        }
-        
-        CasinoVIPManager.addToBalance(-pendingBetAmount);
-        
-        main.textPanel.addPara("IPC Credit Alert: Overdraft of " + pendingOverdraftAmount + " Stargems authorized.", Color.YELLOW);
-        
-        if (pendingChampionIndex >= 0) {
-            performAddBetToChampionInternal(pendingChampionIndex, pendingBetAmount);
-        } else {
-            float frozenOdds = chosenChampion.getCurrentOdds(currentRound);
-            arenaBets.add(new BetInfo(pendingBetAmount, frozenOdds, chosenChampion, currentRound));
-            cachedTotalBet += pendingBetAmount;
-            
-            main.textPanel.addPara("Added " + pendingBetAmount + " Stargems to your bet at " + String.format("%.1f", frozenOdds) + "x odds. Total bet: " + getCurrentTotalBet() + " Stargems.", Color.GREEN);
-            showAddBetMenu();
-        }
-        
-        pendingBetAmount = 0;
-        pendingOverdraftAmount = 0;
-        pendingReturnToMenu = "";
-        pendingChampionIndex = -1;
-    }
-    
-    private void cancelOverdraft() {
-        String returnTo = pendingReturnToMenu.isEmpty() ? "arena_add_bet_menu" : pendingReturnToMenu;
-        pendingBetAmount = 0;
-        pendingOverdraftAmount = 0;
-        pendingReturnToMenu = "";
-        pendingChampionIndex = -1;
-        main.textPanel.addPara("Overdraft cancelled.", Color.GRAY);
-        
-        if ("arena_status".equals(returnTo)) {
-            showArenaStatus();
-        } else {
-            showAddBetMenu();
-        }
-    }
-    
     private void showAddBetMenu() {
         main.options.clearOptions();
         main.textPanel.addPara("Add to your bet:", Color.YELLOW);
@@ -565,36 +505,11 @@ public class ArenaHandler {
     }
     
     private void confirmAddBet(int additionalAmount) {
-        int currentBalance = CasinoVIPManager.getBalance();
-        int availableCredit = CasinoVIPManager.getAvailableCredit();
-        boolean overdraftAvailable = CasinoVIPManager.isOverdraftAvailable();
-        
-        if (currentBalance < additionalAmount) {
-            if (!overdraftAvailable) {
-                showVIPPromotionForArena(additionalAmount, "arena_add_bet_menu");
-                return;
-            }
-            
-            if (availableCredit < additionalAmount) {
-                main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for this bet of " + additionalAmount + " Stargems.", Color.RED);
-                showAddBetMenu();
-                return;
-            }
-            
-            int overdraftAmount = additionalAmount - currentBalance;
-            pendingBetAmount = additionalAmount;
-            pendingOverdraftAmount = overdraftAmount;
-            pendingReturnToMenu = "arena_add_bet_menu";
-            pendingChampionIndex = -1;
-            showOverdraftConfirmation(additionalAmount, overdraftAmount);
-            return;
-        }
-        
         main.options.clearOptions();
         main.textPanel.addPara("Confirm additional bet amount:", Color.YELLOW);
         main.textPanel.addPara("Additional Bet: " + additionalAmount + " Stargems", Color.CYAN);
         main.textPanel.addPara("Total Bet after addition: " + (getCurrentTotalBet() + additionalAmount) + " Stargems", Color.CYAN);
-        main.textPanel.addPara("Balance after bet: " + (currentBalance - additionalAmount) + " Stargems", Color.CYAN);
+        main.textPanel.addPara("Balance after bet: " + (CasinoVIPManager.getStargems() - additionalAmount) + " Stargems", Color.CYAN);
         
         main.options.addOption("Confirm Addition", "arena_confirm_add_bet_" + additionalAmount);
         main.options.addOption("Cancel", "arena_add_bet_menu");
@@ -682,7 +597,6 @@ public class ArenaHandler {
         main.getOptions().addOption("Add Bet to Champion", "arena_add_another_bet");
         main.getOptions().addOption("Arena Rules", "how_to_arena_arena_status");
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "arena_suspend");
-        main.getOptions().addOption("Abandon Game and Leave", "arena_abandon_confirm");
     }
 
     private void finishArenaBattle() {
@@ -704,6 +618,11 @@ public class ArenaHandler {
         main.getOptions().addOption("Back to Main Menu", OPTION_BACK_MENU);
     }
 
+    /**
+     * Calculates final positions for all combatants based on survival time.
+     * Winner gets position 0, last eliminated gets position 1, etc.
+     * Ships eliminated in the same round share the same position.
+     */
     private void calculateFinalPositions(SpiralAbyssArena.SpiralGladiator winner) {
         if (winner != null) {
             winner.finalPosition = 0;
@@ -805,6 +724,10 @@ public class ArenaHandler {
         return reward;
     }
 
+    /**
+     * Gets the position factor for consolation calculation.
+     * Position 1 (2nd place) = highest factor, decreases for lower positions.
+     */
     private float getPositionFactor(int finalPosition) {
         if (finalPosition <= 0) return 0.0f;
         
@@ -1023,51 +946,13 @@ public class ArenaHandler {
             return;
         }
 
-        SpiralAbyssArena.SpiralGladiator targetChampion = arenaCombatants.get(championIndex);
-        if (targetChampion.isDead) {
-            main.textPanel.addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
-            showArenaStatus();
-            return;
-        }
-
-        int currentBalance = CasinoVIPManager.getBalance();
-        int availableCredit = CasinoVIPManager.getAvailableCredit();
-        boolean overdraftAvailable = CasinoVIPManager.isOverdraftAvailable();
-        
-        if (currentBalance < additionalAmount) {
-            if (!overdraftAvailable) {
-                showVIPPromotionForArena(additionalAmount, "arena_status");
-                return;
-            }
-            
-            if (availableCredit < additionalAmount) {
-                main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for this bet of " + additionalAmount + " Stargems.", Color.RED);
-                showArenaStatus();
-                return;
-            }
-            
-            int overdraftAmount = additionalAmount - currentBalance;
-            pendingBetAmount = additionalAmount;
-            pendingOverdraftAmount = overdraftAmount;
-            pendingReturnToMenu = "arena_status";
-            pendingChampionIndex = championIndex;
-            showOverdraftConfirmation(additionalAmount, overdraftAmount);
-            return;
-        }
-
-        performAddBetToChampionInternal(championIndex, additionalAmount);
-    }
-    
-    private void performAddBetToChampionInternal(int championIndex, int additionalAmount) {
-        if (championIndex < 0 || championIndex >= arenaCombatants.size()) {
-            main.textPanel.addPara("Error: Invalid champion selection.", Color.RED);
-            showArenaStatus();
+        if (isBetInvalid(additionalAmount, "arena_status")) {
             return;
         }
 
         SpiralAbyssArena.SpiralGladiator targetChampion = arenaCombatants.get(championIndex);
         if (targetChampion.isDead) {
-            main.textPanel.addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
+            main.getTextPanel().addPara("Cannot place bet on " + targetChampion.fullName + ", the champion has been defeated!", Color.RED);
             showArenaStatus();
             return;
         }
@@ -1091,12 +976,24 @@ public class ArenaHandler {
         return total;
     }
 
+    /**
+     * Calculates the performance multiplier based on ship survival and kills
+     */
     private float calculatePerformanceMultiplier(SpiralAbyssArena.SpiralGladiator ship) {
         float survivalBonusMult = 1.0f + (ship.turnsSurvived * CasinoConfig.ARENA_SURVIVAL_BONUS_PER_TURN);
         float killBonusMult = 1.0f + (ship.kills * CasinoConfig.ARENA_KILL_BONUS_PER_KILL);
         return survivalBonusMult * killBonusMult;
     }
 
+    /**
+     * Calculates the effective multiplier for a bet considering frozen odds, performance and diminishing returns
+     * Minimum odds is 1.01 to ensure player always gets at least their bet back (minus house edge)
+     * 
+     * @param frozenOdds The odds at the time the bet was placed (frozen, includes HP and round-based adjustments)
+     * @param performanceMultiplier Multiplier from turns survived and kills
+     * @param roundPlaced The round when the bet was placed
+     * @return The effective payout multiplier
+     */
     private float calculateEffectiveMultiplier(float frozenOdds, float performanceMultiplier, int roundPlaced) {
         float effectiveMultiplier = frozenOdds * performanceMultiplier;
         return Math.max(1.01f, effectiveMultiplier);
@@ -1128,6 +1025,7 @@ public class ArenaHandler {
             mem.set(MEM_ARENA_COMBATANT_COUNT, arenaCombatants.size());
         }
         
+        // Save bets
         mem.set(MEM_ARENA_BETS_COUNT, arenaBets.size());
         for (int i = 0; i < arenaBets.size(); i++) {
             BetInfo bet = arenaBets.get(i);
@@ -1139,6 +1037,7 @@ public class ArenaHandler {
             }
         }
 
+        // Store the time when arena was suspended for the joke
         mem.set(MEM_ARENA_SUSPEND_TIME, Global.getSector().getClock().getTimestamp());
 
         main.getTextPanel().addPara("You stand up abruptly. 'Hold that thought! I'll be right back!'", Color.YELLOW);
@@ -1149,91 +1048,10 @@ public class ArenaHandler {
         main.getOptions().addOption("Leave", OPTION_ARENA_LEAVE_NOW);
     }
 
-    private void showAbandonConfirm() {
-        int totalBet = getCurrentTotalBet();
-        
-        main.getOptions().clearOptions();
-        main.getTextPanel().addPara("ABANDON GAME?", Color.RED);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You are about to abandon the current arena battle.", Color.YELLOW);
-        main.getTextPanel().addPara("Your total bet of " + totalBet + " Stargems will be LOST.", Color.RED);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("WARNING: Abandoning the game forfeits all bets placed on champions.", Color.ORANGE);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("Consider using 'Tell Them to Wait (Suspend)' instead to pause the game and return later.", Color.GRAY);
-        
-        main.getOptions().addOption("Yes, Abandon Game", "arena_abandon_confirm_leave");
-        main.getOptions().addOption("Go Back to Battle", "arena_abandon_cancel");
-    }
-
-    private void abandonArenaGame() {
-        int totalBet = getCurrentTotalBet();
-        main.getTextPanel().addPara("You abandon the arena battle. Your bet of " + totalBet + " Stargems is forfeit.", Color.RED);
-        resetArenaState();
-        clearSuspendedArenaMemory();
-        main.showMenu();
-    }
-
-    private void showSuspendAbandonConfirm() {
-        int totalBet = getCurrentTotalBet();
-        
-        main.getOptions().clearOptions();
-        main.getTextPanel().addPara("ABANDON SUSPENDED GAME?", Color.RED);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You are about to abandon the suspended arena battle.", Color.YELLOW);
-        main.getTextPanel().addPara("Your total bet of " + totalBet + " Stargems will be LOST.", Color.RED);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("WARNING: Abandoning the game forfeits all bets placed on champions.", Color.ORANGE);
-        main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You could also return later to resume the suspended game.", Color.GRAY);
-        
-        main.getOptions().addOption("Yes, Abandon Game", "suspend_abandon_leave");
-        main.getOptions().addOption("Go Back to Arena", "suspend_abandon_cancel");
-    }
-
-    private void abandonSuspendedArena() {
-        int totalBet = getCurrentTotalBet();
-        main.getTextPanel().addPara("You abandon the suspended arena battle. Your bet of " + totalBet + " Stargems is forfeit.", Color.RED);
-        resetArenaState();
-        clearSuspendedArenaMemory();
-        main.showMenu();
-    }
-
-    private void clearSuspendedArenaMemory() {
-        com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        mem.unset("$ipc_suspended_game_type");
-        mem.unset(MEM_ARENA_CURRENT_ROUND);
-        mem.unset(MEM_ARENA_OPPONENTS_DEFEATED);
-        mem.unset(MEM_ARENA_COMBATANT_COUNT);
-        mem.unset(MEM_ARENA_BETS_COUNT);
-        mem.unset(MEM_ARENA_SUSPEND_TIME);
-        
-        for (int i = 0; i < 10; i++) {
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_prefix");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_name");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_affix");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hp");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_max_hp");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_power");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_agility");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_bravery");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_is_dead");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_kills");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_turns_survived");
-            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_base_odds");
-        }
-        
-        for (int i = 0; i < 20; i++) {
-            mem.unset("$ipc_arena_bet_" + i + "_amount");
-            mem.unset("$ipc_arena_bet_" + i + "_multiplier");
-            mem.unset("$ipc_arena_bet_" + i + "_round_placed");
-            mem.unset("$ipc_arena_bet_" + i + "_ship_name");
-        }
-    }
-
     private void restoreSuspendedArena() {
         com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
+        // Check if there's a suspended arena
         String suspendedGameType = mem.getString(MEM_SUSPENDED_GAME_TYPE);
         if (!"Arena".equals(suspendedGameType)) {
             main.getTextPanel().addPara("No suspended arena game found.", Color.RED);
@@ -1241,9 +1059,11 @@ public class ArenaHandler {
             return;
         }
 
+        // Restore basic arena state
         currentRound = mem.getInt(MEM_ARENA_CURRENT_ROUND);
         opponentsDefeated = mem.getInt(MEM_ARENA_OPPONENTS_DEFEATED);
 
+        // Restore combatants
         int combatantCount = mem.getInt(MEM_ARENA_COMBATANT_COUNT);
         if (combatantCount > 0) {
             arenaCombatants = new ArrayList<>();
@@ -1284,27 +1104,42 @@ public class ArenaHandler {
             }
         }
         
+        // Restore chosen champion
         if (!arenaBets.isEmpty()) {
             chosenChampion = arenaBets.get(0).ship;
         }
         
+        // Initialize activeArena if null (needed for proper state tracking)
         if (activeArena == null) {
             activeArena = new SpiralAbyssArena();
         }
         
+        // Calculate how long player was away for the shaming message
         long suspendTime = mem.getLong(MEM_ARENA_SUSPEND_TIME);
         float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
         
+        // Clear the suspended game data
         mem.unset("$ipc_suspended_game_type");
         
-        main.getTextPanel().addPara("The arena announcer looks at you with a mix of irritation and resignation.", Color.CYAN);
-        main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
-        main.getTextPanel().addPara("'The combatants are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
-        main.getTextPanel().addPara("The crowd cheers as the combatants ready themselves.", Color.CYAN);
+        // Shaming message based on how long player was away
+        if (daysAway >= 30) {
+            main.getTextPanel().addPara("The arena announcer's voice crackles over ancient speakers: 'AFTER " + String.format("%.1f", daysAway) + " DAYS... THEY... RETURN.' Dust falls from the ceiling. 'THE COMBATANTS HAVE BEEN STANDING PERFECTLY STILL, AGING GRACEFULLY, WAITING FOR YOU.'", Color.YELLOW);
+        } else if (daysAway >= 7) {
+            main.getTextPanel().addPara("The arena manager rushes over, eyes bloodshot. '" + String.format("%.1f", daysAway) + " DAYS! Do you know how long it takes to keep a crowd entertained when nothing is happening? We've been doing puppet shows with fighter debris!'", Color.YELLOW);
+        } else if (daysAway >= 1) {
+            main.getTextPanel().addPara("A maintenance drone bumps into you. 'Welcome back after " + String.format("%.1f", daysAway) + " days,' it drones. 'The combatants have not moved. The crowd has not moved. Time has... mostly not moved. Can we start now?'", Color.YELLOW);
+        } else {
+            main.getTextPanel().addPara("The arena attendant looks surprised. 'Back already? Only " + String.format("%.1f", daysAway * 24) + " hours have passed.' They whisper to a colleague: 'I lost the bet. I said they'd be gone at least a day.'", Color.YELLOW);
+        }
+        main.getTextPanel().addPara("The crowd stirs from their torpor as the combatants finally unlock their joints.", Color.CYAN);
         
+        // Show the battle status
         showArenaStatus();
     }
 
+    /**
+     * Finds a gladiator by their full name in the current combatants list.
+     */
     private SpiralAbyssArena.SpiralGladiator findGladiatorByName(String fullName) {
         for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
             if (gladiator.fullName.equals(fullName)) {
@@ -1314,6 +1149,9 @@ public class ArenaHandler {
         return null;
     }
 
+    /**
+     * Checks if there's a suspended arena game available to resume
+     */
     public boolean hasSuspendedArena() {
         com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
         String suspendedGameType = mem.getString(MEM_SUSPENDED_GAME_TYPE);

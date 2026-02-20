@@ -164,7 +164,7 @@ public class PokerHandler {
         }
 
         main.options.addOption("How to Play Poker", "how_to_poker");
-        main.options.addOption("Wait... (Cancel)", "back_menu");
+        main.options.addOption("Back", "back_menu");
         main.setState(CasinoInteraction.State.POKER);
     }
 
@@ -364,7 +364,7 @@ public class PokerHandler {
         
         main.getOptions().addOption("How to Play Poker", "how_to_poker");
         main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
-        main.getOptions().addOption("Abandon Game and Leave", "poker_abandon_confirm");
+        main.getOptions().addOption("Flip Table and Leave", "poker_abandon_confirm");
     }
 
     private void startNextHand() {
@@ -550,16 +550,16 @@ public class PokerHandler {
         int stackValue = state.playerStack;
         
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("ABANDON GAME?", Color.RED);
+        main.getTextPanel().addPara("FLIP TABLE AND LEAVE?", Color.RED);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You are about to abandon the current poker game.", Color.YELLOW);
+        main.getTextPanel().addPara("You are about to flip the table and storm out.", Color.YELLOW);
         main.getTextPanel().addPara("Your stack of " + stackValue + " Stargems will be returned to your balance.", Color.CYAN);
         main.getTextPanel().addPara("");
         main.getTextPanel().addPara("WARNING: If you leave early (less than " + MIN_HANDS_BEFORE_LEAVE + " hands played), you will receive a 1-day cooldown before playing again.", Color.ORANGE);
         main.getTextPanel().addPara("");
         main.getTextPanel().addPara("Consider using 'Tell Them to Wait (Suspend)' instead to pause the game without penalty.", Color.GRAY);
         
-        main.getOptions().addOption("Yes, Abandon Game", "poker_abandon_confirm_leave");
+        main.getOptions().addOption("Yes, Flip Table", "poker_abandon_confirm_leave");
         main.getOptions().addOption("Go Back to Game", "poker_abandon_cancel");
     }
 
@@ -617,9 +617,18 @@ public class PokerHandler {
             long suspendTime = mem.getLong("$ipc_poker_suspend_time");
             float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
 
-            main.getTextPanel().addPara("The IPC Dealer looks at you with a mix of irritation and resignation.", Color.CYAN);
-            main.getTextPanel().addPara("'Ah, you've returned. We've been standing here waiting for you for " + String.format("%.1f", daysAway) + " days.'", Color.YELLOW);
-            main.getTextPanel().addPara("'The cards are still where you left them. Let's continue... grudgingly.'", Color.GRAY);
+            // Shaming message based on how long player was away
+            main.getTextPanel().addPara("The IPC Dealer stares at you with dead eyes.", Color.CYAN);
+            if (daysAway >= 30) {
+                main.getTextPanel().addPara("'You've been gone for " + String.format("%.1f", daysAway) + " days.' The dealer gestures to a cobweb-covered chair. 'We've been standing perfectly still, not breathing, not blinking. The other players have started to fossilize.'", Color.YELLOW);
+            } else if (daysAway >= 7) {
+                main.getTextPanel().addPara("'Welcome back after " + String.format("%.1f", daysAway) + " days.' The dealer cracks their neck audibly. 'We've been practicing our statue impressions. I think I've forgotten how to sit down.'", Color.YELLOW);
+            } else if (daysAway >= 1) {
+                main.getTextPanel().addPara("'Ah, you've returned.' The dealer cracks their knuckles. 'Only " + String.format("%.1f", daysAway) + " days. We've been holding our breath this whole time. Lightheaded? Very.'", Color.YELLOW);
+            } else {
+                main.getTextPanel().addPara("'Back already? It's only been " + String.format("%.1f", daysAway * 24) + " hours.' The dealer looks almost disappointed. 'We were just getting comfortable with the silence.'", Color.YELLOW);
+            }
+            main.getTextPanel().addPara("'The cards haven't moved. Let's finish this...'", Color.GRAY);
 
             mem.unset("$ipc_suspended_game_type");
 
@@ -793,7 +802,9 @@ public class PokerHandler {
         if (pokerGame != null && pokerGame.getState().playerStack > 0) {
             int stackToReturn = pokerGame.getState().playerStack;
             CasinoVIPManager.addToBalance(stackToReturn);
-            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and leave the table.", Color.GREEN);
+            main.getTextPanel().addPara("You flip the table with a loud crash!", Color.RED);
+            main.getTextPanel().addPara("A nearby bystander mutters under their breath: \"Tsk, Typical Gachy Impact player.\"", Color.GRAY);
+            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and storm out.", Color.GREEN);
             main.getTextPanel().addPara("Your new balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
             pokerGame.getState().playerStack = 0;
         }

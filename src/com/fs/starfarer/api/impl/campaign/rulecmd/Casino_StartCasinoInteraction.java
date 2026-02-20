@@ -80,7 +80,6 @@ public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
                 if (marketSize < minSize) {
                     // Market is too small for casino
                     dialog.getTextPanel().addPara("This market is too small to support a casino establishment.", Color.RED);
-                    dialog.getOptionPanel().addOption("Leave", "leave");
                     return false;
                 }
             }
