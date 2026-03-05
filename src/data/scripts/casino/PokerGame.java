@@ -1752,6 +1752,7 @@ public class PokerGame {
         state.playerBet = 0;
         state.opponentBet = 0;
         state.pot = 0;
+        state.lastPotWon = 0;
         state.folder = null; // Reset folder for new hand
 
         state.dealer = state.dealer == Dealer.PLAYER ? Dealer.OPPONENT : Dealer.PLAYER;

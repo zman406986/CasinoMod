@@ -39,6 +39,8 @@ private final CasinoInteraction main;
     private int pendingOverdraftAmount = 0;
 
     private int handsPlayedThisSession = 0;
+    private String pendingOpponentAction = "";
+    private String pendingPlayerAction = "";
     private static final String POKER_COOLDOWN_KEY = "$ipc_poker_cooldown_until";
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -316,7 +318,9 @@ private String formatBB(int amount, int bigBlind) {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         
-        if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
+        // Only auto-end if pot is 0 AND not in showdown (player can still be all-in with 0 stack but hand ongoing)
+        // Don't auto-end here - let endHand() handle showing the result panel
+        if (state.playerStack < CasinoConfig.POKER_BIG_BLIND && state.pot == 0 && state.round != PokerGame.Round.SHOWDOWN) {
             endHand();
             return;
         }
@@ -324,6 +328,16 @@ private String formatBB(int amount, int bigBlind) {
         currentDelegate = new PokerDialogDelegate(pokerGame, main.getDialog(), null, () -> {
             handlePokerPanelDismissed();
         });
+        
+        if (!pendingOpponentAction.isEmpty()) {
+            currentDelegate.setLastOpponentAction(pendingOpponentAction);
+            pendingOpponentAction = "";
+        }
+        
+        if (!pendingPlayerAction.isEmpty()) {
+            currentDelegate.setLastPlayerAction(pendingPlayerAction);
+            pendingPlayerAction = "";
+        }
         
         main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
     }
@@ -383,6 +397,7 @@ private String formatBB(int amount, int bigBlind) {
     private void processPlayerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
+        pendingPlayerAction = "You fold";
         main.getTextPanel().addPara("You fold.", Color.GRAY);
         processOpponentTurnAndContinue();
     }
@@ -390,6 +405,7 @@ private String formatBB(int amount, int bigBlind) {
     private void processPlayerCheck() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
+        pendingPlayerAction = "You check";
         main.getTextPanel().addPara("You check.", Color.CYAN);
         processOpponentTurnAndContinue();
     }
@@ -399,6 +415,7 @@ private String formatBB(int amount, int bigBlind) {
         PokerGame.PokerState state = pokerGame.getState();
         int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
         pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
+        pendingPlayerAction = "You call " + callAmount;
         main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
         processOpponentTurnAndContinue();
     }
@@ -408,6 +425,7 @@ private String formatBB(int amount, int bigBlind) {
         PokerGame.PokerState state = pokerGame.getState();
         int totalBet = state.playerBet + raiseAmount;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
+        pendingPlayerAction = "You raise to " + totalBet;
         main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
         processOpponentTurnAndContinue();
     }
@@ -458,9 +476,7 @@ private String formatBB(int amount, int bigBlind) {
                 return;
             }
             
-            if (currentDelegate != null) {
-                currentDelegate.setLastOpponentAction(opponentActionText);
-            }
+            pendingOpponentAction = opponentActionText;
         }
         
         showPokerVisualPanel();
@@ -534,9 +550,9 @@ private String formatBB(int amount, int bigBlind) {
                  return;
             }
 pokerGame.startNewHand();
-            handsPlayedThisSession++;
-            showPokerVisualPanel();
-        }
+        handsPlayedThisSession++;
+        processOpponentTurnAndContinue();
+    }
     }
 
     public void handlePokerCall() {
@@ -817,10 +833,12 @@ mem.unset("$ipc_suspended_game_type");
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
                 // Player folded - opponent wins
                 main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot of " + state.pot + " Stargems.", Color.GRAY);
+                state.lastPotWon = state.pot;
                 state.opponentStack += state.pot;
             } else {
                 // Opponent folded - player wins
                 main.getTextPanel().addPara("The IPC Dealer folds. You scoop the pot of " + state.pot + " Stargems!", Color.CYAN);
+                state.lastPotWon = state.pot;
                 state.playerStack += state.pot;
             }
             state.pot = 0;
@@ -862,6 +880,7 @@ mem.unset("$ipc_suspended_game_type");
 
         if (cmp > 0) {
             main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);
+            state.lastPotWon = state.pot;
             state.playerStack += state.pot; // Award pot to player stack
             main.getTextPanel().addPara("You won " + state.pot + " Stargems!", Color.GREEN);
             state.pot = 0;
@@ -870,6 +889,7 @@ mem.unset("$ipc_suspended_game_type");
             endHand();
         } else if (cmp < 0) {
             main.getTextPanel().addPara("DEFEAT. The IPC Dealer wins.", Color.RED);
+            state.lastPotWon = state.pot;
             state.opponentStack += state.pot; // Award pot to opponent
             main.getTextPanel().addPara("Dealer won " + state.pot + " Stargems.", Color.RED);
             state.pot = 0;
@@ -880,6 +900,7 @@ mem.unset("$ipc_suspended_game_type");
             main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
             int halfPot = state.pot / 2;
             int remainder = state.pot % 2;
+            state.lastPotWon = halfPot + remainder;
             state.playerStack += halfPot + remainder; // Player gets remainder if odd
             state.opponentStack += halfPot;
             main.getTextPanel().addPara("You receive " + (halfPot + remainder) + " Stargems.", Color.CYAN);
@@ -956,14 +977,16 @@ mem.unset("$ipc_suspended_game_type");
     }
     
     private void handleLeaveTable() {
-        if (pokerGame != null && pokerGame.getState().playerStack > 0) {
+        // Clean up any remaining chips when leaving (normal exit or bust)
+        if (pokerGame != null) {
             int stackToReturn = pokerGame.getState().playerStack;
-            CasinoVIPManager.addToBalance(stackToReturn);
-            main.getTextPanel().addPara("You flip the table with a loud crash!", Color.RED);
-            main.getTextPanel().addPara("A nearby bystander mutters under their breath: \"Tsk, Typical Gachy Impact player.\"", Color.GRAY);
-            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and storm out.", Color.GREEN);
-            main.getTextPanel().addPara("Your new balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
-            pokerGame.getState().playerStack = 0;
+            if (stackToReturn > 0) {
+                CasinoVIPManager.addToBalance(stackToReturn);
+                main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems.", Color.GREEN);
+            }
+            returnStacks();
+            clearSuspendedGameMemory();
+            pokerGame = null;
         }
 
         // Set cooldown if player left early (played less than minimum required hands)
@@ -973,8 +996,8 @@ mem.unset("$ipc_suspended_game_type");
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
-handsPlayedThisSession = 0;
-
+        handsPlayedThisSession = 0;
+        
         // Clear any suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
         currentDelegate = null;
@@ -1015,12 +1038,10 @@ handsPlayedThisSession = 0;
 
         if (state.playerStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("You're out of chips! Game over.", Color.RED);
-            returnStacks();
-            clearSuspendedGameMemory();
-            pokerGame = null;
-            handsPlayedThisSession = 0;
+            // Show poker UI with result first - player clicks Leave to exit
             main.getOptions().clearOptions();
             main.getOptions().addOption("Leave Table", "back_menu");
+            showPokerVisualPanel();
         } else if (state.opponentStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("Opponent is out of chips! You win!", Color.GREEN);
             returnStacks();
@@ -1033,6 +1054,9 @@ handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
             main.getOptions().addOption("Next Hand", "next_hand");
             main.getOptions().addOption("Leave Table", "back_menu");
+            
+            // Reopen poker UI so player can see result and click Leave/Next Hand
+            showPokerVisualPanel();
         }
     }
 }

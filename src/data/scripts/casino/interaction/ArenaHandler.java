@@ -98,6 +98,7 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
     }
     
     private void initializeHandlers() {
+        handlers.put("arena_visual_panel", option -> initAndShowVisualPanel());
         handlers.put(OPTION_ARENA_LOBBY, option -> showArenaLobby());
         handlers.put("arena_add_bet_menu", option -> showAddBetMenu());
         handlers.put(OPTION_HOW_TO_ARENA, option -> main.help.showArenaHelp());
@@ -357,6 +358,24 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         main.textPanel.addPara("------------------------", Color.CYAN);
     }
 
+    public void initAndShowVisualPanel() {
+        main.options.clearOptions();
+
+        if (hasSuspendedArena()) {
+            restoreSuspendedArena();
+            return;
+        }
+
+        if (activeArena == null || arenaCombatants == null || arenaCombatants.isEmpty()) {
+            activeArena = new SpiralAbyssArena();
+            arenaCombatants = activeArena.generateCombatants(new CasinoGachaManager());
+            currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
+        }
+
+        main.setState(CasinoInteraction.State.ARENA);
+        showArenaVisualPanel();
+    }
+
     public void showArenaLobby() {
         main.options.clearOptions();
 
@@ -569,17 +588,12 @@ main.textPanel.addPara("Total Bet: " + totalBet + " Stargems", Color.YELLOW);
     }
     
     private void showArenaVisualPanel() {
-        if (currentDelegate == null) {
-            currentDelegate = new ArenaDialogDelegate(
-                arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets,
-                main.getDialog(), null, () -> {
-                    handleArenaPanelDismissed();
-                }
-            );
-        }
-        
-        List<String> currentLog = new ArrayList<>();
-        currentDelegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, currentLog);
+        currentDelegate = new ArenaDialogDelegate(
+            arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets,
+            main.getDialog(), null, () -> {
+                handleArenaPanelDismissed();
+            }
+        );
         
         main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
     }
@@ -619,6 +633,23 @@ main.textPanel.addPara("Total Bet: " + totalBet + " Stargems", Color.YELLOW);
             performAddBetToChampion(currentDelegate.getPendingChampionIndex(), currentDelegate.getPendingBetAmount());
             return;
         }
+        
+        if (currentDelegate.getPendingStartBattle()) {
+            int chosenIdx = -1;
+            for (int i = 0; i < arenaCombatants.size(); i++) {
+                if (chosenChampion != null &&
+                    arenaCombatants.get(i).fullName.equals(chosenChampion.fullName)) {
+                    chosenIdx = i;
+                    break;
+                }
+            }
+            if (chosenIdx != -1) {
+                startArenaBattle(chosenIdx);
+            }
+            return;
+        }
+        
+        currentDelegate = null;
     }
 
 private boolean simulateArenaStep() {
@@ -671,14 +702,12 @@ private boolean simulateArenaStep() {
         finalWinnerIndex = winnerIndex;
         finalReward = rewards.totalWinReward + rewards.totalConsolationReward;
 
-        if (currentDelegate == null) {
-            currentDelegate = new ArenaDialogDelegate(
-                arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets,
-                main.getDialog(), null, () -> {
-                    handleArenaPanelDismissed();
-                }
-            );
-        }
+        currentDelegate = new ArenaDialogDelegate(
+            arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets,
+            main.getDialog(), null, () -> {
+                handleArenaPanelDismissed();
+            }
+        );
         
         currentDelegate.setBattleEnded(winnerIndex, rewards.totalWinReward + rewards.totalConsolationReward);
         main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
