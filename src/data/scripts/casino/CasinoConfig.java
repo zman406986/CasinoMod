@@ -49,6 +49,8 @@ public class CasinoConfig {
     public static int VIP_PASS_COST = 100000;
 
     // Poker Configuration
+    /** Enable debug logging for poker */
+    public static boolean POKER_DEBUG_LOGGING = false;
     /** Small blind amount for poker games (in Stargems) */
     public static int POKER_SMALL_BLIND = 50;
     /** Big blind amount for poker games (in Stargems) */

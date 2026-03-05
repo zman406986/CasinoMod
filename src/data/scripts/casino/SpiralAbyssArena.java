@@ -48,6 +48,7 @@ public class SpiralAbyssArena {
     }
     
     public static class SpiralGladiator {
+        public String hullId;     // Starsector hull ID, e.g., "hammerhead"
         public String prefix;    // e.g., "Mighty"
         public String hullName;  // e.g., "Hammerhead"
         public String affix;     // e.g., "of the Void"
@@ -72,7 +73,8 @@ public class SpiralAbyssArena {
         private transient List<SpiralGladiator> combatantsRef;
         private transient int combatantIndex = -1;
         
-        public SpiralGladiator(String prefix, String hullName, String affix, int hp, int power, float agility, float bravery) {
+        public SpiralGladiator(String hullId, String prefix, String hullName, String affix, int hp, int power, float agility, float bravery) {
+            this.hullId = hullId;
             this.prefix = prefix;
             this.hullName = hullName;
             this.affix = affix;
@@ -171,7 +173,7 @@ public class SpiralAbyssArena {
          * Creates a deep copy of this gladiator for simulation purposes.
          */
         public SpiralGladiator copyForSimulation() {
-            SpiralGladiator copy = new SpiralGladiator(prefix, hullName, affix, maxHp, power, agility, bravery);
+            SpiralGladiator copy = new SpiralGladiator(hullId, prefix, hullName, affix, maxHp, power, agility, bravery);
             copy.hp = this.hp;
             copy.isDead = this.isDead;
             copy.kills = this.kills;
@@ -268,7 +270,7 @@ public class SpiralAbyssArena {
             else bravery = posAffix ? bravery + CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS : Math.max(0, bravery - CasinoConfig.ARENA_AFFIX_BRAVERY_BONUS);  // "of Courage"/"of Fear" affects Bravery
             
             agility = Math.min(agility, CasinoConfig.ARENA_AGILITY_CAP);
-            SpiralGladiator gladiator = new SpiralGladiator(prefix, spec.getHullName(), affix, hp, power, agility, bravery);
+            SpiralGladiator gladiator = new SpiralGladiator(hullId, prefix, spec.getHullName(), affix, hp, power, agility, bravery);
             list.add(gladiator);
         }
         

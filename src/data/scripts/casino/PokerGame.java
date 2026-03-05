@@ -27,7 +27,8 @@ public class PokerGame {
         public PokerGameLogic.HandRank opponentHandRank;
         public CurrentPlayer currentPlayer;
         public int bigBlind;
-        public CurrentPlayer folder = null; // Tracks who folded (if anyone)
+        public CurrentPlayer folder = null;
+        public int lastPotWon = 0;
     }
 
     private final PokerState state;

@@ -4,8 +4,10 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.PokerDialogDelegate;
 import data.scripts.casino.PokerGame;
 import data.scripts.casino.PokerGame.PokerGameLogic;
+import data.scripts.casino.PokerPanelUI;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -20,8 +22,9 @@ import java.util.function.Predicate;
  */
 public class PokerHandler {
 
-    private final CasinoInteraction main;
+private final CasinoInteraction main;
     private PokerGame pokerGame;
+    private PokerDialogDelegate currentDelegate;
 
     private static final int COOLDOWN_DAYS = 1;
     private static final int MIN_HANDS_BEFORE_LEAVE = 3;
@@ -55,18 +58,18 @@ public class PokerHandler {
         handlers.put("poker_check", option -> handlePokerCheck());
         handlers.put("poker_fold", option -> handlePokerFold());
         handlers.put("poker_raise_menu", option -> showRaiseOptions());
-        handlers.put("poker_back_action", option -> updateUI());
+        handlers.put("poker_back_action", option -> showPokerVisualPanel());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> handleLeaveTable());
         handlers.put("leave_now", option -> handleSuspendLeave());
         handlers.put("poker_abandon_confirm", option -> showAbandonConfirm());
         handlers.put("poker_abandon_confirm_leave", option -> handleLeaveTable());
-        handlers.put("poker_abandon_cancel", option -> updateUI());
+        handlers.put("poker_abandon_cancel", option -> showPokerVisualPanel());
         handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
         handlers.put("suspend_abandon_leave", option -> abandonSuspendedGame());
-        handlers.put("suspend_abandon_cancel", option -> {
+handlers.put("suspend_abandon_cancel", option -> {
             main.textPanel.addPara("You sit back down. The game continues.", Color.CYAN);
-            updateUI();
+            showPokerVisualPanel();
         });
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("confirm_overdraft", option -> processOverdraftConfirmation());
@@ -277,9 +280,9 @@ public class PokerHandler {
         
         pokerGame = new PokerGame(stackSize, opponentStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
         
-        handsPlayedThisSession = 0;
+handsPlayedThisSession = 0;
         
-        updateUI();
+        showPokerVisualPanel();
     }
     
     private void showVIPPromotionForPoker(int stackSize) {
@@ -305,8 +308,162 @@ public class PokerHandler {
         main.getOptions().addOption("Back", "back_menu");
     }
 
-    private String formatBB(int amount, int bigBlind) {
+private String formatBB(int amount, int bigBlind) {
         return bigBlind > 0 ? String.format("%.1f", (float) amount / bigBlind) : "0";
+    }
+
+    private void showPokerVisualPanel() {
+        if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        
+        if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
+            endHand();
+            return;
+        }
+        
+        currentDelegate = new PokerDialogDelegate(pokerGame, main.getDialog(), null, () -> {
+            handlePokerPanelDismissed();
+        });
+        
+        main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
+    }
+    
+    private void handlePokerPanelDismissed() {
+        if (currentDelegate == null) return;
+        
+        if (currentDelegate.getPendingAction() != null) {
+            PokerGame.Action action = currentDelegate.getPendingAction();
+            int raiseAmount = currentDelegate.getPendingRaiseAmount();
+            
+            switch (action) {
+                case FOLD:
+                    processPlayerFold();
+                    break;
+                case CHECK:
+                    processPlayerCheck();
+                    break;
+                case CALL:
+                    processPlayerCall();
+                    break;
+                case RAISE:
+                    processPlayerRaise(raiseAmount);
+                    break;
+            }
+            return;
+        }
+        
+        if (currentDelegate.getPendingNextHand()) {
+            startNextHand();
+            return;
+        }
+        
+        if (currentDelegate.getPendingSuspend()) {
+            suspendGame();
+            return;
+        }
+        
+        if (currentDelegate.getPendingHowToPlay()) {
+            main.help.showPokerHelp();
+            return;
+        }
+        
+        if (currentDelegate.getPendingCleanLeave()) {
+            handleLeaveTable();
+            return;
+        }
+        
+        if (currentDelegate.getPendingFlipTable()) {
+            handleLeaveTable();
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
+            return;
+        }
+    }
+    
+    private void processPlayerFold() {
+        if (pokerGame == null) return;
+        pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
+        main.getTextPanel().addPara("You fold.", Color.GRAY);
+        processOpponentTurnAndContinue();
+    }
+    
+    private void processPlayerCheck() {
+        if (pokerGame == null) return;
+        pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
+        main.getTextPanel().addPara("You check.", Color.CYAN);
+        processOpponentTurnAndContinue();
+    }
+    
+    private void processPlayerCall() {
+        if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
+        pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
+        main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
+        processOpponentTurnAndContinue();
+    }
+    
+    private void processPlayerRaise(int raiseAmount) {
+        if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        int totalBet = state.playerBet + raiseAmount;
+        pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
+        main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
+        processOpponentTurnAndContinue();
+    }
+    
+    private void processOpponentTurnAndContinue() {
+        if (pokerGame == null) return;
+        PokerGame.PokerState state = pokerGame.getState();
+        
+        if (state.round == PokerGame.Round.SHOWDOWN) {
+            determineWinner();
+            return;
+        }
+        
+        if (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
+            PokerGame.SimplePokerAI.AIResponse response = pokerGame.getOpponentAction();
+            
+            String opponentActionText = "";
+            switch(response.action) {
+                case CALL: 
+                    opponentActionText = "Opponent calls."; 
+                    main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
+                    break;
+                case RAISE: 
+                    opponentActionText = "Opponent raises by " + response.raiseAmount + "."; 
+                    main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
+                    break;
+                case CHECK: 
+                    opponentActionText = "Opponent checks."; 
+                    main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
+                    break;
+                case FOLD: 
+                    opponentActionText = "Opponent folds."; 
+                    main.getTextPanel().addPara(opponentActionText, Color.CYAN); 
+                    break;
+            }
+            
+            if (response.action == PokerGame.SimplePokerAI.Action.FOLD) {
+                if (state.playerBet > state.opponentBet) {
+                    pokerGame.getAI().trackAIFoldedToPlayerBet(state.pot);
+                }
+            }
+            
+            pokerGame.processOpponentAction(response);
+            
+            state = pokerGame.getState();
+            if (state.round == PokerGame.Round.SHOWDOWN) {
+                determineWinner();
+                return;
+            }
+            
+            if (currentDelegate != null) {
+                currentDelegate.setLastOpponentAction(opponentActionText);
+            }
+        }
+        
+        showPokerVisualPanel();
     }
 
     public void updateUI() {
@@ -376,9 +533,9 @@ public class PokerHandler {
                  setupGame(state.playerStack > 0 ? state.playerStack : 1000); // Simplistic restart
                  return;
             }
-            pokerGame.startNewHand();
+pokerGame.startNewHand();
             handsPlayedThisSession++;
-            updateUI();
+            showPokerVisualPanel();
         }
     }
 
@@ -453,10 +610,10 @@ public class PokerHandler {
              if (state.round == PokerGame.Round.SHOWDOWN) {
                  determineWinner();
                  return;
-             }
+}
         }
         
-        updateUI();
+        showPokerVisualPanel();
     }
 
     private void showRaiseOptions() {
@@ -630,9 +787,9 @@ public class PokerHandler {
             }
             main.getTextPanel().addPara("'The cards haven't moved. Let's finish this...'", Color.GRAY);
 
-            mem.unset("$ipc_suspended_game_type");
+mem.unset("$ipc_suspended_game_type");
 
-            updateUI();
+            showPokerVisualPanel();
         } else {
             setupGame();
         }
@@ -816,10 +973,11 @@ public class PokerHandler {
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
-        handsPlayedThisSession = 0;
+handsPlayedThisSession = 0;
 
         // Clear any suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
+        currentDelegate = null;
 
         main.showMenu();
     }
@@ -842,8 +1000,9 @@ public class PokerHandler {
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
-        handsPlayedThisSession = 0;
+handsPlayedThisSession = 0;
         clearSuspendedGameMemory();
+        currentDelegate = null;
         main.showMenu();
     }
     
