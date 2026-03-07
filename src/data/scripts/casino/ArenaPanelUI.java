@@ -81,15 +81,34 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         void parseAttackLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
             if (combatants == null) return;
             
+            // Find positions of each ship name in the line to determine attacker (first) vs target (second)
+            int firstPos = Integer.MAX_VALUE;
+            int secondPos = Integer.MAX_VALUE;
+            SpiralAbyssArena.SpiralGladiator firstShip = null;
+            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            
             for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-                if (line.contains(ship.shortName + " ") || line.contains(" " + ship.shortName) || 
-                    line.contains(ship.shortName + "!") || line.contains(ship.shortName + ",")) {
-                    if (attackerHullId == null) {
-                        attackerHullId = ship.hullId;
-                    } else if (targetHullId == null && !ship.hullId.equals(attackerHullId)) {
-                        targetHullId = ship.hullId;
+                int pos = line.indexOf(ship.shortName);
+                if (pos >= 0) {
+                    if (pos < firstPos) {
+                        // Shift current first to second
+                        secondPos = firstPos;
+                        secondShip = firstShip;
+                        // Set new first
+                        firstPos = pos;
+                        firstShip = ship;
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                        secondPos = pos;
+                        secondShip = ship;
                     }
                 }
+            }
+            
+            if (firstShip != null) {
+                attackerHullId = firstShip.hullId;
+            }
+            if (secondShip != null) {
+                targetHullId = secondShip.hullId;
             }
             
             java.util.regex.Pattern dmgPattern = java.util.regex.Pattern.compile("(\\d+)");
@@ -106,28 +125,70 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         void parseKillLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
             if (combatants == null) return;
             
+            // Find positions of each ship name in the line to determine attacker (first) vs target (second)
+            int firstPos = Integer.MAX_VALUE;
+            int secondPos = Integer.MAX_VALUE;
+            SpiralAbyssArena.SpiralGladiator firstShip = null;
+            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            
             for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-                if (line.contains(ship.shortName)) {
-                    if (attackerHullId == null) {
-                        attackerHullId = ship.hullId;
-                    } else if (targetHullId == null && !ship.hullId.equals(attackerHullId)) {
-                        targetHullId = ship.hullId;
+                int pos = line.indexOf(ship.shortName);
+                if (pos >= 0) {
+                    if (pos < firstPos) {
+                        // Shift current first to second
+                        secondPos = firstPos;
+                        secondShip = firstShip;
+                        // Set new first
+                        firstPos = pos;
+                        firstShip = ship;
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                        secondPos = pos;
+                        secondShip = ship;
                     }
                 }
+            }
+            
+            if (firstShip != null) {
+                attackerHullId = firstShip.hullId;
+            }
+            if (secondShip != null) {
+                targetHullId = secondShip.hullId;
             }
         }
         
         void parseMissLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
             if (combatants == null) return;
             
+            // For miss lines: target appears first in text, attacker appears second
+            // Example: "$target:'Too slow!' ($attacker missed)"
+            int firstPos = Integer.MAX_VALUE;
+            int secondPos = Integer.MAX_VALUE;
+            SpiralAbyssArena.SpiralGladiator firstShip = null;
+            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            
             for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
-                if (line.contains(ship.shortName)) {
-                    if (attackerHullId == null) {
-                        attackerHullId = ship.hullId;
-                    } else if (targetHullId == null && !ship.hullId.equals(attackerHullId)) {
-                        targetHullId = ship.hullId;
+                int pos = line.indexOf(ship.shortName);
+                if (pos >= 0) {
+                    if (pos < firstPos) {
+                        // Shift current first to second
+                        secondPos = firstPos;
+                        secondShip = firstShip;
+                        // Set new first
+                        firstPos = pos;
+                        firstShip = ship;
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                        secondPos = pos;
+                        secondShip = ship;
                     }
                 }
+            }
+            
+            // For miss lines: first ship = TARGET, second ship = ATTACKER
+            if (firstShip != null) {
+                targetHullId = firstShip.hullId;
+            }
+            if (secondShip != null) {
+                attackerHullId = secondShip.hullId;
             }
         }
         
@@ -217,7 +278,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     
     protected static final float SHIP_COLUMN_WIDTH = 250f;
     protected static final float CENTER_COLUMN_WIDTH = 500f;
-    protected static final float BATTLE_LOG_WIDTH = 210f;
+    protected static final float BATTLE_LOG_WIDTH = 280f;
     
     protected static final float BOX_WIDTH = 150f;
     protected static final float BOX_HEIGHT = 65f;
@@ -510,9 +571,10 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void createBattleLogPanel() {
         if (panel == null) return;
         
-        float logPanelX = SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH + MARGIN;
-        float logPanelY = MARGIN + 50f;
-        float logPanelW = BATTLE_LOG_WIDTH;
+        // Move battle log to center column, below round/total bet
+        float logPanelX = SHIP_COLUMN_WIDTH + MARGIN;
+        float logPanelY = MARGIN + 40f;
+        float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
         float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
         
         logX = LOG_LEFT_MARGIN;
@@ -523,13 +585,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         battleLogPanel = panel.createCustomPanel(logPanelW, logPanelH, null);
         panel.addComponent(battleLogPanel).inTL(logPanelX, logPanelY);
         
-        float textWidth = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 2f;
+        float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2;
+        float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP;
         
         for (int i = 0; i < 12; i++) {
-            battleLogTextPanels[i] = panel.createCustomPanel(textWidth, LOG_LINE_HEIGHT, null);
-            TooltipMakerAPI tooltip = battleLogTextPanels[i].createUIElement(textWidth, LOG_LINE_HEIGHT, false);
+            battleLogTextPanels[i] = panel.createCustomPanel(Math.max(textWidthTwoSprites, textWidthOneSprite), LOG_LINE_HEIGHT, null);
+            TooltipMakerAPI tooltip = battleLogTextPanels[i].createUIElement(Math.max(textWidthTwoSprites, textWidthOneSprite), LOG_LINE_HEIGHT, false);
             battleLogTextLabels[i] = tooltip.addPara("", Color.WHITE, 0f);
-            battleLogTextLabels[i].setAlignment(Alignment.LMID);
+            battleLogTextLabels[i].setAlignment(Alignment.MID);
             battleLogTextLabels[i].getPosition().inTL(0, 0);
             battleLogTextPanels[i].addUIElement(tooltip).inTL(0, 0);
             panel.addComponent(battleLogTextPanels[i]).inTL(-1000f, -1000f);
@@ -561,9 +624,9 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         {
             float cancelY = startY + 5 * totalItemHeight;
-            CustomPanelAPI champCancelPanel = panel.createCustomPanel(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, null);
-            TooltipMakerAPI champCancelTooltip = champCancelPanel.createUIElement(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, false);
-            ButtonAPI champCancelBtn = champCancelTooltip.addButton("Cancel", "arena_champ_cancel", CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f);
+            CustomPanelAPI champCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            TooltipMakerAPI champCancelTooltip = champCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            ButtonAPI champCancelBtn = champCancelTooltip.addButton("Cancel", "arena_champ_cancel", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
             champCancelBtn.setCustomData(-1);
             champCancelBtn.getPosition().inTL(0, 0);
             champCancelPanel.addUIElement(champCancelTooltip).inTL(0, 0);
@@ -671,16 +734,21 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         for (int i = 0; i < championSelectPanels.size(); i++) {
             CustomPanelAPI p = championSelectPanels.get(i);
             if (p != null) {
-                if (showChampionSelect || showChampionAsBet) {
-                    float btnY;
-                    if (i < 5) {
-                        btnY = startY + i * totalItemHeight + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
+                if (i < 5) {
+                    // 5 champion select buttons
+                    if (showChampionSelect || showChampionAsBet) {
+                        float btnY = startY + i * totalItemHeight + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
+                        p.getPosition().inTL(champButtonX, btnY);
                     } else {
-                        btnY = startY + 5 * totalItemHeight;
+                        p.getPosition().inTL(-1000f, -1000f);
                     }
-                    p.getPosition().inTL(champButtonX, btnY);
                 } else {
-                    p.getPosition().inTL(-1000f, -1000f);
+                    // Cancel button - move to bottom row when champion select is shown
+                    if (showChampionSelect) {
+                        p.getPosition().inTL(leftX, bottomY);
+                    } else {
+                        p.getPosition().inTL(-1000f, -1000f);
+                    }
                 }
             }
         }
@@ -694,10 +762,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                     float btnX;
                     float btnY;
                     if (i == 0) {
+                        // Cancel button - same position as Leave
                         btnX = leftX;
                         btnY = bottomY;
                     } else {
-                        btnX = leftX + i * (BUTTON_WIDTH + BUTTON_SPACING);
+                        // Bet amount buttons - on row above
+                        btnX = leftX + (i - 1) * (BUTTON_WIDTH + BUTTON_SPACING);
                         btnY = betRowY;
                     }
                     p.getPosition().inTL(btnX, btnY);
@@ -716,8 +786,15 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (leaveButtonPanel != null) {
-            if (!battleEnded) {
+            if (!battleEnded && !showBetAmounts && !showChampionSelect) {
+                // Leave at normal position when not showing champion select or bet amounts
                 leaveButtonPanel.getPosition().inTL(leftX, bottomY);
+            } else if (!battleEnded && showChampionSelect) {
+                // Leave to the right of Cancel when showing champion select
+                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            } else if (!battleEnded && showBetAmounts) {
+                // Leave to the right of Cancel when showing bet amounts
+                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
             } else {
                 leaveButtonPanel.getPosition().inTL(-1000f, -1000f);
             }
@@ -839,9 +916,10 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void createRewardBreakdownLabels() {
         if (panel == null) return;
         
-        float breakdownX = SHIP_COLUMN_WIDTH + MARGIN;
+        // Move reward breakdown to right column (where battle log was)
+        float breakdownX = SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH + MARGIN;
         float breakdownY = MARGIN + 40f;
-        float breakdownW = CENTER_COLUMN_WIDTH - MARGIN;
+        float breakdownW = BATTLE_LOG_WIDTH - MARGIN;
         float lineHeight = 14f;
         float spacing = 1f;
         
@@ -1063,7 +1141,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             boolean hideInstruction = false;
             
             if (battleEnded) {
-                newInstructionText = rewardBreakdown != null ? "Click Return to Lobby" : "Battle Complete!";
+                newInstructionText = "Click Return to Lobby";
             } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex < 0) {
                 newInstructionText = "Select a champion to add bet on:";
             } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex >= 0) {
@@ -1147,16 +1225,16 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             if (!battleEnded) {
                 resultLabel.setText("");
             } else if (rewardBreakdown != null) {
-                resultLabel.setText("Battle Complete!");
-                resultLabel.setColor(Color.YELLOW);
+                // Don't show "Battle Complete!" - keep empty
+                resultLabel.setText("");
             } else {
                 if (winnerIndex >= 0 && winnerIndex < combatants.size()) {
                     SpiralAbyssArena.SpiralGladiator winner = combatants.get(winnerIndex);
                     resultLabel.setText("WINNER: " + winner.hullName + "!\nReward: " + totalReward + " Stargems");
                     resultLabel.setColor(Color.GREEN);
                 } else {
-                    resultLabel.setText("Battle Complete!\nReward: " + totalReward + " Stargems");
-                    resultLabel.setColor(Color.YELLOW);
+                    // Don't show "Battle Complete!" - keep empty
+                    resultLabel.setText("");
                 }
             }
         }
@@ -1292,9 +1370,15 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         List<ParsedLogEntry> filtered = new ArrayList<>();
         for (ParsedLogEntry entry : cachedParsedEntries) {
-            if (!entry.shouldSkipDeadAttacker(hullIdDeadStatus)) {
-                filtered.add(entry);
+            // Skip entries with dead attackers (they can't attack if they're dead)
+            if (entry.shouldSkipDeadAttacker(hullIdDeadStatus)) {
+                continue;
             }
+            // Skip ROUND, STATUS, and empty entries - these are obsolete with sprite-based log
+            if (entry.type.equals("ROUND") || entry.type.equals("STATUS") || entry.type.isEmpty()) {
+                continue;
+            }
+            filtered.add(entry);
         }
         return filtered;
     }
@@ -1322,8 +1406,10 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         int maxLines = 12;
         int start = Math.max(0, validEntries.size() - maxLines);
 
-        float logPanelX = SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH + MARGIN;
-        float logPanelY = MARGIN + 50f;
+        // Updated to match new battle log position in center column
+        float logPanelX = SHIP_COLUMN_WIDTH + MARGIN;
+        float logPanelY = MARGIN + 40f;
+        float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
         float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
 
         float currentY = logY;
@@ -1331,21 +1417,19 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
 
         int lineIndex = 0;
         
-        float singleSpriteTextX = LOG_LEFT_MARGIN + LOG_SPRITE_SIZE + LOG_SPRITE_GAP;
-        float doubleSpriteTextX = LOG_LEFT_MARGIN + LOG_SPRITE_SIZE * 2 + LOG_SPRITE_GAP * 2 + 2f;
+        float leftSpriteX = panelX + logPanelX + LOG_LEFT_MARGIN + LOG_SPRITE_SIZE / 2f;
+        float rightSpriteX = panelX + logPanelX + logPanelW - LOG_LEFT_MARGIN - LOG_SPRITE_SIZE / 2f;
+        
+        float textWidthTwoSprites = logPanelW - LOG_LEFT_MARGIN * 2 - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2;
+        float textWidthOneSprite = logPanelW - LOG_LEFT_MARGIN * 2 - LOG_SPRITE_SIZE - LOG_SPRITE_GAP;
+        
+        float textStartX_twoSprites = logPanelX + LOG_LEFT_MARGIN + LOG_SPRITE_SIZE + LOG_SPRITE_GAP;
+        float textStartX_oneSprite = logPanelX + LOG_LEFT_MARGIN;
 
         for (int i = start; i < validEntries.size(); i++) {
             ParsedLogEntry entry = validEntries.get(i);
 
-            if (entry.type.equals("ROUND") || entry.type.equals("STATUS") || entry.type.isEmpty()) {
-                currentY += LOG_LINE_HEIGHT + rowSpacing;
-                lineIndex++;
-                continue;
-            }
-
             float screenY = panelY + logPanelY + logPanelH - currentY - LOG_LINE_HEIGHT;
-            float sprite1X = panelX + logPanelX + LOG_LEFT_MARGIN + LOG_SPRITE_SIZE / 2f;
-            float sprite2X = sprite1X + LOG_SPRITE_SIZE + 2f;
             float spriteCenterY = screenY + LOG_LINE_HEIGHT / 2f;
 
             Boolean targetDeadObj = hullIdDeadStatus.get(entry.targetHullId);
@@ -1356,32 +1440,24 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
 
             String labelText = "";
             Color labelColor = Color.WHITE;
-            boolean hasTwoSprites = false;
+            boolean hasTwoSprites = true;
+            float textX = textStartX_twoSprites;
 
             if (entry.type.equals("HIT")) {
-                hasTwoSprites = true;
+                labelText = entry.rawEntry;
+                labelColor = entry.isCrit ? new Color(255, 100, 100) : new Color(255, 255, 100);
                 
-                if (entry.isCrit) {
-                    labelText = entry.rawEntry;
-                    labelColor = new Color(255, 100, 100);
-                } else {
-                    labelText = entry.rawEntry;
-                    labelColor = new Color(255, 255, 100);
-                }
-                
-                drawBattleLogSpriteWithDead(entry.attackerHullId, sprite1X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, attackerDead);
-                drawBattleLogSpriteWithDead(entry.targetHullId, sprite2X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, targetDead);
+                drawBattleLogSpriteWithDead(entry.attackerHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
+                drawBattleLogSpriteWithDead(entry.targetHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, targetDead);
                 
             } else if (entry.type.equals("MISS")) {
-                hasTwoSprites = true;
                 labelText = entry.rawEntry;
                 labelColor = new Color(150, 150, 150);
                 
-                drawBattleLogSpriteWithDead(entry.attackerHullId, sprite1X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, attackerDead);
-                drawBattleLogSpriteWithDead(entry.targetHullId, sprite2X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
+                drawBattleLogSpriteWithDead(entry.targetHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
+                drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 
             } else if (entry.type.equals("KILL")) {
-                hasTwoSprites = true;
                 String killText = entry.rawEntry;
                 if (killText.startsWith("[KILL] ")) {
                     killText = killText.substring(7);
@@ -1389,35 +1465,37 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 labelText = killText;
                 labelColor = new Color(255, 50, 50);
                 
-                drawBattleLogSpriteWithDead(entry.attackerHullId, sprite1X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, attackerDead);
-                drawBattleLogSpriteWithDead(entry.targetHullId, sprite2X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, true);
+                drawBattleLogSpriteWithDead(entry.attackerHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
+                drawBattleLogSpriteWithDead(entry.targetHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, true);
                 
             } else if (entry.type.equals("EVENT")) {
+                hasTwoSprites = false;
                 String eventText = entry.rawEntry;
                 if (eventText.startsWith("[EVENT] ")) {
-                    eventText = eventText.substring(8);
                 }
                 labelText = eventText;
                 labelColor = new Color(100, 200, 255);
+                textX = textStartX_oneSprite;
                 
-                drawBattleLogSpriteWithDead(entry.attackerHullId, sprite1X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, attackerDead);
+                drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 
             } else if (entry.type.equals("EVENT_HIT")) {
+                hasTwoSprites = false;
                 String hitText = entry.rawEntry;
                 if (hitText.startsWith("[HIT] ")) {
                     hitText = hitText.substring(6);
                 }
                 labelText = hitText;
                 labelColor = new Color(255, 200, 50);
+                textX = textStartX_oneSprite;
                 
-                drawBattleLogSpriteWithDead(entry.attackerHullId, sprite1X, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, attackerDead);
+                drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
             }
 
             if (battleLogTextLabels[lineIndex] != null && !labelText.isEmpty()) {
                 battleLogTextLabels[lineIndex].setText(labelText);
                 battleLogTextLabels[lineIndex].setColor(labelColor);
                 
-                float textX = logPanelX + (hasTwoSprites ? doubleSpriteTextX : singleSpriteTextX);
                 float textY = logPanelY + currentY + (LOG_LINE_HEIGHT - 14f) / 2f;
                 battleLogTextPanels[lineIndex].getPosition().inTL(textX, textY);
             }
@@ -1428,6 +1506,9 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
 
         for (int j = lineIndex; j < 12; j++) {
             battleLogTextPanels[j].getPosition().inTL(-1000f, -1000f);
+            if (battleLogTextLabels[j] != null) {
+                battleLogTextLabels[j].setText("");
+            }
         }
     }
     

@@ -4,10 +4,8 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
-import data.scripts.casino.PokerDialogDelegate;
 import data.scripts.casino.PokerGame;
 import data.scripts.casino.PokerGame.PokerGameLogic;
-// import data.scripts.casino.PokerPanelUI;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -22,9 +20,8 @@ import java.util.function.Predicate;
  */
 public class PokerHandler {
 
-private final CasinoInteraction main;
+    private final CasinoInteraction main;
     private PokerGame pokerGame;
-    private PokerDialogDelegate currentDelegate;
 
     private static final int COOLDOWN_DAYS = 1;
     private static final int MIN_HANDS_BEFORE_LEAVE = 3;
@@ -39,8 +36,6 @@ private final CasinoInteraction main;
     private int pendingOverdraftAmount = 0;
 
     private int handsPlayedThisSession = 0;
-    private String pendingOpponentAction = "";
-    private String pendingPlayerAction = "";
     private static final String POKER_COOLDOWN_KEY = "$ipc_poker_cooldown_until";
 
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -60,18 +55,18 @@ private final CasinoInteraction main;
         handlers.put("poker_check", option -> handlePokerCheck());
         handlers.put("poker_fold", option -> handlePokerFold());
         handlers.put("poker_raise_menu", option -> showRaiseOptions());
-        handlers.put("poker_back_action", option -> showPokerVisualPanel());
+        handlers.put("poker_back_action", option -> updateUI());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> handleLeaveTable());
         handlers.put("leave_now", option -> handleSuspendLeave());
         handlers.put("poker_abandon_confirm", option -> showAbandonConfirm());
         handlers.put("poker_abandon_confirm_leave", option -> handleLeaveTable());
-        handlers.put("poker_abandon_cancel", option -> showPokerVisualPanel());
+        handlers.put("poker_abandon_cancel", option -> updateUI());
         handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
         handlers.put("suspend_abandon_leave", option -> abandonSuspendedGame());
-handlers.put("suspend_abandon_cancel", option -> {
+        handlers.put("suspend_abandon_cancel", option -> {
             main.textPanel.addPara("You sit back down. The game continues.", Color.CYAN);
-            showPokerVisualPanel();
+            updateUI();
         });
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("confirm_overdraft", option -> processOverdraftConfirmation());
@@ -282,9 +277,9 @@ handlers.put("suspend_abandon_cancel", option -> {
         
         pokerGame = new PokerGame(stackSize, opponentStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
         
-handsPlayedThisSession = 0;
+        handsPlayedThisSession = 0;
         
-        showPokerVisualPanel();
+        updateUI();
     }
     
     private void showVIPPromotionForPoker(int stackSize) {
@@ -310,270 +305,103 @@ handsPlayedThisSession = 0;
         main.getOptions().addOption("Back", "back_menu");
     }
 
-private String formatBB(int amount, int bigBlind) {
+    private String formatBB(int amount, int bigBlind) {
         return bigBlind > 0 ? String.format("%.1f", (float) amount / bigBlind) : "0";
     }
 
-    private void showPokerVisualPanel() {
+    public void updateUI() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
-        
-        // Only auto-end if pot is 0 AND not in showdown (player can still be all-in with 0 stack but hand ongoing)
-        // Don't auto-end here - let endHand() handle showing the result panel
-        if (state.playerStack < CasinoConfig.POKER_BIG_BLIND && state.pot == 0 && state.round != PokerGame.Round.SHOWDOWN) {
+        // Guard against resuming game when player has no chips
+        // Only trigger if there's no active hand (pot=0) or hand is already over (SHOWDOWN)
+        // This prevents premature end when player goes all-in (stack=0 but hand still active)
+        if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
             endHand();
             return;
         }
+        int bigBlind = state.bigBlind;
+
+        main.getOptions().clearOptions();
+        main.getTextPanel().addPara("------------------------------------------------");
+        main.getTextPanel().addPara("Pot: %s Stargems (%s BB) | Big Blind: %s", Color.GREEN, 
+            String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
+        main.getTextPanel().highlightInLastPara(
+            String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
+        main.getTextPanel().setHighlightColorsInLastPara(Color.GREEN, Color.GREEN, Color.GREEN);
         
-        currentDelegate = new PokerDialogDelegate(pokerGame, main.getDialog(), main.getDialog().getPlugin().getMemoryMap(), () -> {
-            handlePokerPanelDismissed();
-        });
+        main.getTextPanel().addPara("Your Stack: %s Stargems (%s BB)", Color.CYAN,
+            String.valueOf(state.playerStack), formatBB(state.playerStack, bigBlind));
         
-        if (!pendingOpponentAction.isEmpty()) {
-            currentDelegate.setLastOpponentAction(pendingOpponentAction);
-            pendingOpponentAction = "";
+        main.getTextPanel().addPara("Opponent Stack: %s Stargems (%s BB)", Color.ORANGE,
+            String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind));
+        
+        // Display AI personality information
+        String aiPersonality = pokerGame.getAIPersonalityDescription();
+        main.getTextPanel().addPara(aiPersonality, Color.GRAY);
+        
+        displayColoredCardsOnOneLine(state.playerHand, "Your Hand", Color.CYAN);
+        if (!state.communityCards.isEmpty()) {
+            displayColoredCardsOnOneLine(state.communityCards, "Community", Color.YELLOW);
         }
         
-        if (!pendingPlayerAction.isEmpty()) {
-            currentDelegate.setLastPlayerAction(pendingPlayerAction);
-            pendingPlayerAction = "";
-        }
-        
-        main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
-    }
-    
-    private void handlePokerPanelDismissed() {
-        if (currentDelegate == null) return;
-        
-        if (currentDelegate.getPendingAction() != null) {
-            PokerGame.Action action = currentDelegate.getPendingAction();
-            int raiseAmount = currentDelegate.getPendingRaiseAmount();
-            
-            switch (action) {
-                case FOLD:
-                    processPlayerFold();
-                    break;
-                case CHECK:
-                    processPlayerCheck();
-                    break;
-                case CALL:
-                    processPlayerCall();
-                    break;
-                case RAISE:
-                    processPlayerRaise(raiseAmount);
-                    break;
+        int callAmount = state.opponentBet - state.playerBet;
+        if (callAmount > 0) {
+            if (state.playerStack >= callAmount) {
+                main.getOptions().addOption("Call (" + callAmount + ")", "poker_call");
+            } else if (state.playerStack > 0) {
+                main.getOptions().addOption("Call All-In (" + state.playerStack + " Stargems)", "poker_call");
+            } else {
+                main.getOptions().addOption("Call (0 Stargems)", "poker_call");
             }
-            return;
+            main.getOptions().addOption("Fold", "poker_fold");
+        } else {
+            main.getOptions().addOption("Check", "poker_check");
         }
         
-        if (currentDelegate.getPendingNextHand()) {
-            startNextHand();
-            return;
+        if (state.playerStack > 0 && state.opponentBet - state.playerBet < state.playerStack) {
+            main.getOptions().addOption("Raise", "poker_raise_menu");
         }
         
-        if (currentDelegate.getPendingSuspend()) {
-            suspendGame();
-            return;
-        }
-        
-        if (currentDelegate.getPendingHowToPlay()) {
-            main.help.showPokerHelp();
-            return;
-        }
-        
-        if (currentDelegate.getPendingCleanLeave()) {
-            handleLeaveTable();
-            return;
-        }
-        
-        if (currentDelegate.getPendingFlipTable()) {
-            handleLeaveTable();
-            if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
-                MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-                mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
-                main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
-            }
-            return;
-        }
-    }
-    
-private void processPlayerFold() {
-        if (pokerGame == null) return;
-        pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        pendingPlayerAction = "You fold";
-        // main.getTextPanel().addPara("You fold.", Color.GRAY);
-        processOpponentTurnAndContinue();
-    }
-    
-    private void processPlayerCheck() {
-        if (pokerGame == null) return;
-        pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
-        pendingPlayerAction = "You check";
-        // main.getTextPanel().addPara("You check.", Color.CYAN);
-        processOpponentTurnAndContinue();
-    }
-    
-    private void processPlayerCall() {
-        if (pokerGame == null) return;
-        PokerGame.PokerState state = pokerGame.getState();
-        int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
-        pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
-        pendingPlayerAction = "You call " + callAmount;
-        // main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
-        processOpponentTurnAndContinue();
-    }
-    
-    private void processPlayerRaise(int raiseAmount) {
-        if (pokerGame == null) return;
-        PokerGame.PokerState state = pokerGame.getState();
-        int totalBet = state.playerBet + raiseAmount;
-        pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
-        pendingPlayerAction = "You raise to " + totalBet;
-        // main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
-        processOpponentTurnAndContinue();
-    }
-    
-    private void processOpponentTurnAndContinue() {
-        while (pokerGame != null) {
-            PokerGame.PokerState state = pokerGame.getState();
-            
-            if (state.round == PokerGame.Round.SHOWDOWN) {
-                determineWinner();
-                return;
-            }
-            
-            if (state.currentPlayer != PokerGame.CurrentPlayer.OPPONENT) {
-                break;
-            }
-            
-PokerGame.SimplePokerAI.AIResponse response = pokerGame.getOpponentAction();
-            
-            String opponentActionText = "";
-            switch(response.action) {
-                case CALL: 
-                    opponentActionText = "Opponent calls."; 
-                    // main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
-                    break;
-                case RAISE: 
-                    opponentActionText = "Opponent raises by " + response.raiseAmount + "."; 
-                    // main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
-                    break;
-                case CHECK: 
-                    opponentActionText = "Opponent checks."; 
-                    // main.getTextPanel().addPara(opponentActionText, Color.YELLOW); 
-                    break;
-                case FOLD: 
-                    opponentActionText = "Opponent folds."; 
-                    // main.getTextPanel().addPara(opponentActionText, Color.CYAN); 
-                    break;
-            }
-            
-            pokerGame.processOpponentAction(response);
-            
-            state = pokerGame.getState();
-            if (state.round == PokerGame.Round.SHOWDOWN) {
-                determineWinner();
-                return;
-            }
-            
-            pendingOpponentAction = opponentActionText;
-        }
-        
-        showPokerVisualPanel();
+        main.getOptions().addOption("How to Play Poker", "how_to_poker");
+        main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
+        main.getOptions().addOption("Flip Table and Leave", "poker_abandon_confirm");
     }
 
-// public void updateUI() {
-    //     if (pokerGame == null) return;
-    //     PokerGame.PokerState state = pokerGame.getState();
-    //     // Guard against resuming game when player has no chips
-    //     // Only trigger if there's no active hand (pot=0) or hand is already over (SHOWDOWN)
-    //     // This prevents premature end when player goes all-in (stack=0 but hand still active)
-    //     if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
-    //         endHand();
-    //         return;
-    //     }
-    //     int bigBlind = state.bigBlind;
-    //
-    //     main.getOptions().clearOptions();
-    //     main.getTextPanel().addPara("------------------------------------------------");
-    //     main.getTextPanel().addPara("Pot: %s Stargems (%s BB) | Big Blind: %s", Color.GREEN, 
-    //         String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
-    //     main.getTextPanel().highlightInLastPara(
-    //         String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
-    //     main.getTextPanel().setHighlightColorsInLastPara(Color.GREEN, Color.GREEN, Color.GREEN);
-    //     
-    //     main.getTextPanel().addPara("Your Stack: %s Stargems (%s BB)", Color.CYAN,
-    //         String.valueOf(state.playerStack), formatBB(state.playerStack, bigBlind));
-    //     
-    //     main.getTextPanel().addPara("Opponent Stack: %s Stargems (%s BB)", Color.ORANGE,
-    //         String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind));
-    //     
-    //     // Display AI personality information
-    //     String aiPersonality = pokerGame.getAIPersonalityDescription();
-    //     main.getTextPanel().addPara(aiPersonality, Color.GRAY);
-    //     
-    //     displayColoredCardsOnOneLine(state.playerHand, "Your Hand", Color.CYAN);
-    //     if (!state.communityCards.isEmpty()) {
-    //         displayColoredCardsOnOneLine(state.communityCards, "Community", Color.YELLOW);
-    //     }
-    //     
-    //     int callAmount = state.opponentBet - state.playerBet;
-    //     if (callAmount > 0) {
-    //         if (state.playerStack >= callAmount) {
-    //             main.getOptions().addOption("Call (" + callAmount + ")", "poker_call");
-    //         } else if (state.playerStack > 0) {
-    //             main.getOptions().addOption("Call All-In (" + state.playerStack + " Stargems)", "poker_call");
-    //         } else {
-    //             main.getOptions().addOption("Call (0 Stargems)", "poker_call");
-    //         }
-    //         main.getOptions().addOption("Fold", "poker_fold");
-    //     } else {
-    //         main.getOptions().addOption("Check", "poker_check");
-    //     }
-    //     
-    // if (state.playerStack > 0 && state.opponentStack > 0 && state.opponentBet - state.playerBet < state.playerStack) {
-    //         main.getOptions().addOption("Raise", "poker_raise_menu");
-    //     }
-    //     
-    //     main.getOptions().addOption("How to Play Poker", "how_to_poker");
-    //     main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
-    //     main.getOptions().addOption("Flip Table and Leave", "poker_abandon_confirm");
-    // }
-
-private void startNextHand() {
+    private void startNextHand() {
         if (pokerGame != null) {
             PokerGame.PokerState state = pokerGame.getState();
             if (state.playerStack <= 0 || state.opponentStack <= 0) {
-                main.textPanel.addPara("One of the players is out of chips. Starting new game...", Color.YELLOW);
-                setupGame(state.playerStack > 0 ? state.playerStack : 1000);
-                return;
+                 // Game over logic if someone is bust
+                 main.textPanel.addPara("One of the players is out of chips. Starting new game...", Color.YELLOW);
+                 setupGame(state.playerStack > 0 ? state.playerStack : 1000); // Simplistic restart
+                 return;
             }
             pokerGame.startNewHand();
             handsPlayedThisSession++;
-            processOpponentTurnAndContinue();
+            updateUI();
         }
     }
 
-public void handlePokerCall() {
+    public void handlePokerCall() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
         pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
-        // main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
+        main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerCheck() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
-        // main.getTextPanel().addPara("You check.", Color.CYAN);
+        main.getTextPanel().addPara("You check.", Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        // main.getTextPanel().addPara("You fold.", Color.GRAY);
+        main.getTextPanel().addPara("You fold.", Color.GRAY);
         updateGameState();
     }
     
@@ -595,32 +423,40 @@ public void handlePokerCall() {
         }
         
         // If it's opponent's turn, process it
-if (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
+        if (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
              PokerGame.SimplePokerAI.AIResponse response = pokerGame.getOpponentAction();
              
-             // Log opponent action (commented - visual panel handles display)
-             // switch(response.action) {
-             //     case CALL: 
-             //         main.getTextPanel().addPara("Opponent calls.", Color.YELLOW); break;
-             //     case RAISE: 
-             //         main.getTextPanel().addPara("Opponent raises by " + response.raiseAmount + ".", Color.YELLOW); break;
-             //     case CHECK: 
-             //         main.getTextPanel().addPara("Opponent checks.", Color.YELLOW); break;
-             //     case FOLD: 
-             //         main.getTextPanel().addPara("Opponent folds.", Color.CYAN); break;
-             // }
+             // Log opponent action
+             switch(response.action) {
+                 case CALL: 
+                     main.getTextPanel().addPara("Opponent calls.", Color.YELLOW); break;
+                 case RAISE: 
+                     main.getTextPanel().addPara("Opponent raises by " + response.raiseAmount + ".", Color.YELLOW); break;
+                 case CHECK: 
+                     main.getTextPanel().addPara("Opponent checks.", Color.YELLOW); break;
+                 case FOLD: 
+                     main.getTextPanel().addPara("Opponent folds.", Color.CYAN); break;
+             }
              
-pokerGame.processOpponentAction(response);
+             // Track if AI is folding to a player bet (for anti-gullibility)
+             if (response.action == PokerGame.SimplePokerAI.Action.FOLD) {
+                 // Only track if player has bet (not when checking through)
+                 if (state.playerBet > state.opponentBet) {
+                     pokerGame.getAI().trackAIFoldedToPlayerBet(state.pot);
+                 }
+             }
+             
+             pokerGame.processOpponentAction(response);
              
              // Re-check state after opponent action
              state = pokerGame.getState();
              if (state.round == PokerGame.Round.SHOWDOWN) {
                  determineWinner();
                  return;
-}
+             }
         }
         
-        showPokerVisualPanel();
+        updateUI();
     }
 
     private void showRaiseOptions() {
@@ -671,12 +507,12 @@ pokerGame.processOpponentAction(response);
         main.getOptions().addOption("Back", "poker_back_action");
     }
 
-private void performRaise(int amt) {
+    private void performRaise(int amt) {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         int totalBet = state.playerBet + amt;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, amt);
-        // main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
+        main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
         updateGameState();
     }
     
@@ -794,9 +630,9 @@ private void performRaise(int amt) {
             }
             main.getTextPanel().addPara("'The cards haven't moved. Let's finish this...'", Color.GRAY);
 
-mem.unset("$ipc_suspended_game_type");
+            mem.unset("$ipc_suspended_game_type");
 
-            showPokerVisualPanel();
+            updateUI();
         } else {
             setupGame();
         }
@@ -824,12 +660,10 @@ mem.unset("$ipc_suspended_game_type");
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
                 // Player folded - opponent wins
                 main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot of " + state.pot + " Stargems.", Color.GRAY);
-                state.lastPotWon = state.pot;
                 state.opponentStack += state.pot;
             } else {
                 // Opponent folded - player wins
                 main.getTextPanel().addPara("The IPC Dealer folds. You scoop the pot of " + state.pot + " Stargems!", Color.CYAN);
-                state.lastPotWon = state.pot;
                 state.playerStack += state.pot;
             }
             state.pot = 0;
@@ -860,9 +694,17 @@ mem.unset("$ipc_suspended_game_type");
 
         int cmp = playerScore.compareTo(oppScore);
 
-if (cmp > 0) {
+        // Track showdown for anti-gullibility AI
+        // Check if player was bluffing (had weak hand but AI folded earlier)
+        boolean playerWasBluffing = false;
+        if (cmp < 0) {
+            // Player lost - they were bluffing if they had weak hand
+            playerWasBluffing = playerScore.rank.value <= PokerGame.PokerGameLogic.HandRank.PAIR.value;
+        }
+        pokerGame.getAI().trackPlayerShowdown(playerWasBluffing);
+
+        if (cmp > 0) {
             main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);
-            state.lastPotWon = state.pot;
             state.playerStack += state.pot; // Award pot to player stack
             main.getTextPanel().addPara("You won " + state.pot + " Stargems!", Color.GREEN);
             state.pot = 0;
@@ -871,7 +713,6 @@ if (cmp > 0) {
             endHand();
         } else if (cmp < 0) {
             main.getTextPanel().addPara("DEFEAT. The IPC Dealer wins.", Color.RED);
-            state.lastPotWon = state.pot;
             state.opponentStack += state.pot; // Award pot to opponent
             main.getTextPanel().addPara("Dealer won " + state.pot + " Stargems.", Color.RED);
             state.pot = 0;
@@ -882,7 +723,6 @@ if (cmp > 0) {
             main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
             int halfPot = state.pot / 2;
             int remainder = state.pot % 2;
-            state.lastPotWon = halfPot + remainder;
             state.playerStack += halfPot + remainder; // Player gets remainder if odd
             state.opponentStack += halfPot;
             main.getTextPanel().addPara("You receive " + (halfPot + remainder) + " Stargems.", Color.CYAN);
@@ -959,20 +799,27 @@ if (cmp > 0) {
     }
     
     private void handleLeaveTable() {
-        if (pokerGame != null) {
+        if (pokerGame != null && pokerGame.getState().playerStack > 0) {
             int stackToReturn = pokerGame.getState().playerStack;
-            if (stackToReturn > 0) {
-                CasinoVIPManager.addToBalance(stackToReturn);
-                main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems.", Color.GREEN);
-            }
-            returnStacks();
-            clearSuspendedGameMemory();
-            pokerGame = null;
+            CasinoVIPManager.addToBalance(stackToReturn);
+            main.getTextPanel().addPara("You flip the table with a loud crash!", Color.RED);
+            main.getTextPanel().addPara("A nearby bystander mutters under their breath: \"Tsk, Typical Gachy Impact player.\"", Color.GRAY);
+            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and storm out.", Color.GREEN);
+            main.getTextPanel().addPara("Your new balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
+            pokerGame.getState().playerStack = 0;
+        }
+
+        // Set cooldown if player left early (played less than minimum required hands)
+        if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
+            MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+            mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
+            main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
         handsPlayedThisSession = 0;
+
+        // Clear any suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
-        currentDelegate = null;
 
         main.showMenu();
     }
@@ -995,9 +842,8 @@ if (cmp > 0) {
             main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
         }
 
-handsPlayedThisSession = 0;
+        handsPlayedThisSession = 0;
         clearSuspendedGameMemory();
-        currentDelegate = null;
         main.showMenu();
     }
     
@@ -1010,22 +856,24 @@ handsPlayedThisSession = 0;
 
         if (state.playerStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("You're out of chips! Game over.", Color.RED);
-            // Show poker UI with result first - player clicks Leave to exit
+            returnStacks();
+            clearSuspendedGameMemory();
+            pokerGame = null;
+            handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
             main.getOptions().addOption("Leave Table", "back_menu");
-            showPokerVisualPanel();
         } else if (state.opponentStack < CasinoConfig.POKER_BIG_BLIND) {
             main.getTextPanel().addPara("Opponent is out of chips! You win!", Color.GREEN);
+            returnStacks();
+            clearSuspendedGameMemory();
+            pokerGame = null;
+            handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
             main.getOptions().addOption("Leave Table", "back_menu");
-            showPokerVisualPanel();
         } else {
             main.getOptions().clearOptions();
             main.getOptions().addOption("Next Hand", "next_hand");
             main.getOptions().addOption("Leave Table", "back_menu");
-            
-            // Reopen poker UI so player can see result and click Leave/Next Hand
-            showPokerVisualPanel();
         }
     }
 }

@@ -90,7 +90,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // Main menu options
         options.addOption("Tachy-Impact (Gacha)", "gacha_menu");
         options.addOption("Texas Hold'em (Poker)", "play");
-        options.addOption("Spiral Abyss (Battle Royale Arena)", "arena_visual_panel");
+        options.addOption("Spiral Abyss (Battle Royale Arena)", "arena_lobby");
         options.addOption("Stargem Top-up", "topup_menu");
         options.addOption("Financial Services", "financial_menu");
         options.addOption("How to Play", "how_to_play_main");
