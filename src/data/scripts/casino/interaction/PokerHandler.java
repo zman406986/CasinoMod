@@ -73,7 +73,17 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
             main.textPanel.addPara("You sit back down. The game continues.", Color.CYAN);
             showPokerVisualPanel();
         });
-        handlers.put("back_menu", option -> main.showMenu());
+        handlers.put("back_menu", option -> {
+            // Reset poker state when leaving via back button (not a suspended game)
+            pokerGame = null;
+            panelOpen = false;
+            handsPlayedThisSession = 0;
+            currentDelegate = null;
+            pendingStackSize = 0;
+            pendingOverdraftAmount = 0;
+            clearSuspendedGameMemory();
+            main.showMenu();
+        });
         handlers.put("confirm_overdraft", option -> processOverdraftConfirmation());
         handlers.put("cancel_overdraft", option -> cancelOverdraft());
         
@@ -1018,6 +1028,11 @@ mem.unset("$ipc_suspended_game_type");
         // Clear any suspended game memory since player is intentionally leaving
         clearSuspendedGameMemory();
 
+        // Reset poker game state
+        pokerGame = null;
+        panelOpen = false;
+        currentDelegate = null;
+
         main.showMenu();
     }
 
@@ -1041,6 +1056,12 @@ mem.unset("$ipc_suspended_game_type");
 
         handsPlayedThisSession = 0;
         clearSuspendedGameMemory();
+        
+        // Reset poker game state
+        pokerGame = null;
+        panelOpen = false;
+        currentDelegate = null;
+        
         main.showMenu();
     }
     

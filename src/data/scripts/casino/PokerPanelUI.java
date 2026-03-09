@@ -147,6 +147,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     }
     
     protected void checkAndTriggerAnimations(PokerGame.PokerState state) {
+        // Player cards - existing logic works
         if (!playerCardsAnimated && state.playerHand != null && !state.playerHand.isEmpty()) {
             playerCardsAnimated = true;
             for (int i = 0; i < state.playerHand.size() && i < 2; i++) {
@@ -154,18 +155,29 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
+        // Community cards - trigger for any cards that need animation
         int currentCommunityCount = state.communityCards != null ? state.communityCards.size() : 0;
         if (currentCommunityCount > lastAnimatedCommunityCount) {
             for (int i = lastAnimatedCommunityCount; i < currentCommunityCount && i < 5; i++) {
-                communityCardAnimations[i].triggerFlip((i - lastAnimatedCommunityCount) * CardFlipAnimation.STAGGER_DELAY);
+                // Only trigger if animation hasn't started yet
+                if (communityCardAnimations[i].phase == CardFlipAnimation.Phase.HIDDEN) {
+                    communityCardAnimations[i].triggerFlip((i - lastAnimatedCommunityCount) * CardFlipAnimation.STAGGER_DELAY);
+                }
             }
             lastAnimatedCommunityCount = currentCommunityCount;
         }
         
-        if (state.round == PokerGame.Round.SHOWDOWN && state.folder == null && !opponentCardsAnimated) {
-            opponentCardsAnimated = true;
+        // Opponent cards - trigger at showdown for any hidden cards
+        if (state.round == PokerGame.Round.SHOWDOWN && state.folder == null) {
+            boolean anyTriggered = false;
             for (int i = 0; i < 2; i++) {
-                opponentCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
+                if (opponentCardAnimations[i].phase == CardFlipAnimation.Phase.HIDDEN) {
+                    opponentCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
+                    anyTriggered = true;
+                }
+            }
+            if (anyTriggered) {
+                opponentCardsAnimated = true;
             }
         }
     }
@@ -2300,8 +2312,6 @@ protected void renderCommunityCards(float cx, float cy,
     public void advance(float amount) {
         if (p == null) return;
         
-        PokerGame.PokerState state = game.getState();
-        
         // Handle opponent turn with delay
         if (waitingForOpponent) {
             opponentThinkTimer += amount;
@@ -2322,8 +2332,8 @@ protected void renderCommunityCards(float cx, float cy,
             communityCardAnimations[i].advance(amount);
         }
         
-        // Check for new animations to trigger
-        checkAndTriggerAnimations(state);
+        // Note: Animation triggers are now called from updateGameState() 
+        // when game state changes, not every frame
     }
     
     /**
@@ -2370,6 +2380,15 @@ public void updateGameState(PokerGame game) {
         }
         
         lastAnimatedRound = state.round;
+        
+        // Reset community card animation tracking if needed
+        if (lastAnimatedCommunityCount > 0 && state.communityCards != null && state.communityCards.isEmpty()) {
+            lastAnimatedCommunityCount = 0;
+        }
+        
+        // Check for new animations to trigger based on updated state
+        // This is called here instead of every frame in advance()
+        checkAndTriggerAnimations(state);
         
         // DON'T recreate buttons - they persist across state changes
         // Button visibility is updated in updateButtonVisibility() called from advance()

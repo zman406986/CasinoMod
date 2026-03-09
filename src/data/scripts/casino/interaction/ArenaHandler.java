@@ -99,10 +99,22 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
     
     private void initializeHandlers() {
         handlers.put("arena_visual_panel", option -> initAndShowVisualPanel());
-        handlers.put(OPTION_ARENA_LOBBY, option -> showArenaLobby());
+        handlers.put(OPTION_ARENA_LOBBY, option -> {
+            // Return any active bets when canceling back to lobby
+            returnActiveBets();
+            arenaBets.clear();
+            cachedTotalBet = 0;
+            currentBetAmount = 0;
+            chosenChampion = null;
+            showArenaLobby();
+        });
         handlers.put("arena_add_bet_menu", option -> showAddBetMenu());
         handlers.put(OPTION_HOW_TO_ARENA, option -> main.help.showArenaHelp());
         handlers.put(OPTION_BACK_MENU, option -> {
+            // If leaving without a suspended game, clear any suspended memory
+            if (!hasSuspendedArena()) {
+                clearSuspendedArenaMemory();
+            }
             resetArenaState();
             main.showMenu();
         });
@@ -119,6 +131,10 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         handlers.put(OPTION_ARENA_ADD_ANOTHER_BET, option -> showAddAnotherBetMenu());
         handlers.put(OPTION_ARENA_STATUS, option -> showArenaVisualPanel());
         handlers.put(OPTION_ARENA_LEAVE_NOW, option -> {
+            // If leaving without a suspended game, clear any suspended memory and return bets
+            if (!hasSuspendedArena()) {
+                clearSuspendedArenaMemory();
+            }
             resetArenaState();
             main.showMenu();
         });
@@ -620,6 +636,10 @@ private ArenaDialogDelegate activeDialogDelegate = null;
         if (triggeredDelegate.getPendingLeave()) {
             activeDialogDelegate = null;
             currentDelegate = null;
+            // If leaving without a suspended game, clear any suspended memory
+            if (!hasSuspendedArena()) {
+                clearSuspendedArenaMemory();
+            }
             resetArenaState();
             main.showMenu();
             return;
@@ -1010,6 +1030,9 @@ private boolean simulateArenaStep() {
     }
 
     private void resetArenaState() {
+        // Return any active bets to player before clearing state
+        returnActiveBets();
+        
         activeArena = null;
         arenaCombatants = null;
         chosenChampion = null;
@@ -1023,6 +1046,54 @@ private boolean simulateArenaStep() {
         finalReward = 0;
         currentDelegate = null;
         activeDialogDelegate = null;
+    }
+
+    private void returnActiveBets() {
+        if (cachedTotalBet > 0) {
+            CasinoVIPManager.addToBalance(cachedTotalBet);
+            main.textPanel.addPara("Your bet of " + cachedTotalBet + " Stargems has been returned.", Color.GREEN);
+        }
+    }
+
+    private void clearSuspendedArenaMemory() {
+        com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        mem.unset(MEM_SUSPENDED_GAME_TYPE);
+        mem.unset(MEM_ARENA_CURRENT_ROUND);
+        mem.unset(MEM_ARENA_OPPONENTS_DEFEATED);
+        mem.unset(MEM_ARENA_COMBATANT_COUNT);
+        mem.unset(MEM_ARENA_SUSPEND_TIME);
+        mem.unset(MEM_ARENA_BETS_COUNT);
+        
+        // Clear combatant data (up to reasonable max)
+        for (int i = 0; i < 100; i++) {
+            if (mem.getString(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_id") == null) {
+                break;
+            }
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_id");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_prefix");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_name");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_affix");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_hp");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_max_hp");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_power");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_agility");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_bravery");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_is_dead");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_kills");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_turns_survived");
+            mem.unset(MEM_ARENA_COMBATANT_PREFIX + i + "_base_odds");
+        }
+        
+        // Clear bet data
+        for (int i = 0; i < 100; i++) {
+            if (!mem.contains("$ipc_arena_bet_" + i + "_amount")) {
+                break;
+            }
+            mem.unset("$ipc_arena_bet_" + i + "_amount");
+            mem.unset("$ipc_arena_bet_" + i + "_multiplier");
+            mem.unset("$ipc_arena_bet_" + i + "_round_placed");
+            mem.unset("$ipc_arena_bet_" + i + "_ship_name");
+        }
     }
 
     private void showBetAmountSelection(int championIndex) {
@@ -1314,8 +1385,8 @@ if (chosenChampion == null) {
         long suspendTime = mem.getLong(MEM_ARENA_SUSPEND_TIME);
         float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
         
-        // Clear the suspended game data
-        mem.unset("$ipc_suspended_game_type");
+        // Clear the suspended game data after restoring
+        clearSuspendedArenaMemory();
         
         // Shaming message based on how long player was away
         if (daysAway >= 30) {

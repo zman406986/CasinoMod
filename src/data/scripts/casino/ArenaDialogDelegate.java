@@ -157,6 +157,9 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         
         if (arenaPanel != null) {
             arenaPanel.init(panel, callbacks, dialog);
+            
+            // Initialize state (follows same pattern as PokerDialogDelegate)
+            arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
         }
     }
     

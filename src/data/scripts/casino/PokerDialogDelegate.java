@@ -169,6 +169,9 @@ public class PokerDialogDelegate implements CustomVisualDialogDelegate {
         if (pokerPanel != null) {
             pokerPanel.init(panel, callbacks, dialog);
             
+            // Initialize game state for animation tracking (critical for first hand)
+            pokerPanel.updateGameState(game);
+            
             if (lastOpponentAction != null && !lastOpponentAction.isEmpty()) {
                 pokerPanel.showOpponentAction(lastOpponentAction);
             }
