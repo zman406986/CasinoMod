@@ -568,7 +568,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         howToPlayPanel.getPosition().inTL(helpX, topRightY);
         
         int callAmount = state.opponentBet - state.playerBet;
-        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind;
+        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind || state.opponentDeclaredAllIn;
         boolean canRaise = state.playerStack > 0 && state.opponentStack > 0 && callAmount < state.playerStack && !opponentEffectivelyAllIn;
         boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER && 
                                state.round != PokerGame.Round.SHOWDOWN;
@@ -649,7 +649,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         // Get current game state for button labels
         PokerGame.PokerState state = game.getState();
         int callAmount = state.opponentBet - state.playerBet;
-        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind;
+        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind || state.opponentDeclaredAllIn;
         boolean canRaise = state.playerStack > 0 && state.opponentStack > 0 && callAmount < state.playerStack && !opponentEffectivelyAllIn;
         
         // ----------------------------------------------------------------------

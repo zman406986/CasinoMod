@@ -31,6 +31,8 @@ public static class PokerState {
         public int lastPotWon = 0;
         public boolean playerHasActed = false;
         public boolean opponentHasActed = false;
+        public boolean playerDeclaredAllIn = false;
+        public boolean opponentDeclaredAllIn = false;
     }
 
     private final PokerState state;
@@ -1885,6 +1887,14 @@ state.playerBet = 0;
                 state.pot += callAmount;
                 break;
 case RAISE:
+                // Defensive check: if opponent declared all-in, treat as CALL
+                if (state.opponentDeclaredAllIn) {
+                    int callAmt = state.opponentBet - state.playerBet;
+                    state.playerStack -= callAmt;
+                    state.playerBet = state.opponentBet;
+                    state.pot += callAmt;
+                    break;
+                }
                 state.opponentHasActed = false; // Opponent must respond to raise
                 // raiseAmount is the desired total bet size (e.g., 3x opponent's raise)
                 // NOT an additional amount on top of opponent's bet
@@ -1916,6 +1926,7 @@ case RAISE:
                 }
                 break;
 case ALL_IN:
+                state.playerDeclaredAllIn = true; // Flag that player has committed to all-in
                 state.opponentHasActed = false; // Opponent must respond to all-in
                 int allInAmount = state.playerStack;
                 int opponentContributionAllIn = state.opponentBet;
@@ -1958,8 +1969,8 @@ boolean isRaise = action == Action.RAISE || action == Action.ALL_IN;
 
     public SimplePokerAI.AIResponse getOpponentAction() {
         int currentBetToCall = state.playerBet - state.opponentBet;
-        // If player is all-in (no chips left), AI can only call or fold, not raise
-        if (state.playerStack <= 0) {
+        // If player is all-in (declared all-in OR no chips left), AI can only call or fold, not raise
+        if (state.playerDeclaredAllIn || state.playerStack <= 0) {
             return ai.decideAllInResponse(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack);
         }
         return ai.decide(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack);
@@ -2002,6 +2013,11 @@ case RAISE:
                 if (raiseAmountActual > state.opponentStack) {
                     raiseAmountActual = state.opponentStack;
                     totalBet = state.opponentBet + raiseAmountActual;
+                }
+                
+                // Check if opponent is going all-in (betting their entire stack)
+                if (raiseAmountActual >= state.opponentStack) {
+                    state.opponentDeclaredAllIn = true;
                 }
 
                 // Check if opponent is raising more than player can possibly match (side pot)
@@ -2047,8 +2063,9 @@ case RAISE:
 
 private void checkRoundProgression() {
         if (state.playerBet == state.opponentBet && state.playerHasActed && state.opponentHasActed) {
-            // Check if betting is closed (someone is all-in) - run out all remaining cards
-            if (state.playerStack == 0 || state.opponentStack == 0) {
+            // Check if betting is closed (someone is all-in or declared all-in) - run out all remaining cards
+            if (state.playerStack == 0 || state.opponentStack == 0 || 
+                state.playerDeclaredAllIn || state.opponentDeclaredAllIn) {
                 while (state.round != Round.SHOWDOWN) {
                     advanceRound();
                 }
@@ -2063,6 +2080,8 @@ private void advanceRound() {
         state.opponentBet = 0;
         state.playerHasActed = false;
         state.opponentHasActed = false;
+        state.playerDeclaredAllIn = false;  // Reset all-in flags for new betting round
+        state.opponentDeclaredAllIn = false;
 
         // Reset AI's committed chips tracking when advancing to a new betting round
         ai.resetCommittedChips();

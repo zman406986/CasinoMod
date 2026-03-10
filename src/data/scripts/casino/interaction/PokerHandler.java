@@ -564,7 +564,7 @@ private String formatBB(int amount, int bigBlind) {
             main.getOptions().addOption("Check", "poker_check");
         }
         
-        if (state.playerStack > 0 && state.opponentBet - state.playerBet < state.playerStack) {
+        if (state.playerStack > 0 && state.opponentBet - state.playerBet < state.playerStack && !state.opponentDeclaredAllIn) {
             main.getOptions().addOption("Raise", "poker_raise_menu");
         }
         

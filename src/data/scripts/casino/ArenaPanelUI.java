@@ -937,14 +937,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void createRewardBreakdownLabels() {
         if (panel == null) return;
         
-        float breakdownX = leftX + BUTTON_WIDTH * 2 + BUTTON_SPACING;
-        float breakdownY = bottomY - BUTTON_SPACING;
+        float breakdownX = SHIP_COLUMN_WIDTH + MARGIN + CENTER_COLUMN_WIDTH - MARGIN;
+        float breakdownY = MARGIN + 40f;
         float breakdownW = PANEL_WIDTH - breakdownX - MARGIN;
-        float lineHeight = 28f;
+        float lineHeight = 14f;
         float spacing = 2f;
         
         for (int i = 0; i < MAX_REWARD_LINES; i++) {
-            float y = breakdownY - (i + 1) * (lineHeight + spacing);
+            float y = breakdownY + i * (lineHeight + spacing);
             
             rewardBreakdownPanels[i] = panel.createCustomPanel(breakdownW, lineHeight, null);
             TooltipMakerAPI tooltip = rewardBreakdownPanels[i].createUIElement(breakdownW, lineHeight, false);
@@ -964,7 +964,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float HP_WIDTH = SHIP_COLUMN_WIDTH - MARGIN * 2 - 5f;
         final float HP_HEIGHT = 11f;
         final float ODDS_WIDTH = (SHIP_COLUMN_WIDTH - MARGIN * 2) * 2;
-        final float ODDS_HEIGHT = 13f;
+        final float ODDS_HEIGHT = 30f; // Increased from 13f to accommodate wrapped text
         
         float startY = MARGIN + 10f;
         float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
@@ -997,6 +997,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             float displayOdds = oddsCached && i < cachedOdds.length ? cachedOdds[i] : ship.getCurrentOdds(currentRound);
             shipOddsPanels[i] = panel.createCustomPanel(ODDS_WIDTH, ODDS_HEIGHT, null);
             TooltipMakerAPI oddsTooltip = shipOddsPanels[i].createUIElement(ODDS_WIDTH, ODDS_HEIGHT, false);
+            oddsTooltip.setTextWidthOverride(ODDS_WIDTH - 10f); // Enable text wrapping within panel width
             shipOddsLabels[i] = oddsTooltip.addPara(String.format("Odds: %.2fx", displayOdds), Color.YELLOW, 0f);
             shipOddsLabels[i].setAlignment(Alignment.LMID);
             shipOddsLabels[i].getPosition().inTL(0, 0);
@@ -1244,7 +1245,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                         }
                         
                         if (!betStrings.isEmpty()) {
-                            oddsText += " " + String.join("", betStrings);
+                            // Limit display to prevent overflow - show first 3 bet entries max
+                            int displayCount = Math.min(betStrings.size(), 3);
+                            String displayText = String.join("", betStrings.subList(0, displayCount));
+                            if (betStrings.size() > 3) {
+                                displayText += " +" + (betStrings.size() - 3) + " more";
+                            }
+                            oddsText += " " + displayText;
                         }
                     }
                     
