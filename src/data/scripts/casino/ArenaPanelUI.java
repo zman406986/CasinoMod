@@ -1869,10 +1869,11 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         updateLabels();
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward) {
+    public void setBattleEnded(int winnerIndex, int totalReward, int finalRound) {
         this.battleEnded = true;
         this.winnerIndex = winnerIndex;
         this.totalReward = totalReward;
+        this.currentRound = finalRound;
         this.showingBetAmounts = false;
         this.addingBetDuringBattle = false;
         this.selectedChampionIndex = -1;
@@ -1883,11 +1884,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         updateLabels();
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown) {
+    public void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown, int finalRound) {
         this.battleEnded = true;
         this.winnerIndex = winnerIndex;
         this.totalReward = totalReward;
         this.rewardBreakdown = breakdown;
+        this.currentRound = finalRound;
         this.showingBetAmounts = false;
         this.addingBetDuringBattle = false;
         this.selectedChampionIndex = -1;
@@ -1896,6 +1898,16 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         cacheOdds();
         
         updateLabels();
+    }
+    
+    @Deprecated
+    public void setBattleEnded(int winnerIndex, int totalReward) {
+        setBattleEnded(winnerIndex, totalReward, this.currentRound);
+    }
+    
+    @Deprecated
+    public void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown) {
+        setBattleEnded(winnerIndex, totalReward, breakdown, this.currentRound);
     }
     
     public void resetForNewMatch(

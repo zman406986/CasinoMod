@@ -2017,7 +2017,7 @@ boolean isRaise = action == Action.RAISE || action == Action.ALL_IN;
                 state.pot += callAmount;
                 break;
 case RAISE:
-                int totalBet = response.raiseAmount;
+                int totalBet = state.opponentBet + response.raiseAmount;
                 int raiseAmountActual = totalBet - state.opponentBet;
                 // Protect against betting more than available stack
                 if (raiseAmountActual > state.opponentStack) {

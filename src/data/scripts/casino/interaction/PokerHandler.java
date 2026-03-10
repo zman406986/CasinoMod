@@ -445,10 +445,8 @@ private String formatBB(int amount, int bigBlind) {
     
     private void processPlayerRaise(int raiseAmount) {
         if (pokerGame == null) return;
-        PokerGame.PokerState state = pokerGame.getState();
-        int totalBet = state.playerBet + raiseAmount;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
-        pendingPlayerAction = "You raise to " + totalBet;
+        pendingPlayerAction = "You raise to " + raiseAmount;
         processOpponentTurn();
         showPokerVisualPanel();
     }
@@ -1133,9 +1131,8 @@ private void endHand() {
                 delegate.setLastPlayerAction("You call " + callAmount);
             }
             case RAISE -> {
-                int totalBet = state.playerBet + raiseAmount;
                 pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
-                delegate.setLastPlayerAction("You raise to " + totalBet);
+                delegate.setLastPlayerAction("You raise to " + raiseAmount);
             }
         }
         

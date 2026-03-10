@@ -789,7 +789,7 @@ private boolean simulateArenaStep() {
         ArenaPanelUI.RewardBreakdown breakdown = buildRewardBreakdown(betShips, rewards);
 
         if (currentDelegate != null) {
-            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown);
+            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown, currentRound);
         } else {
             currentDelegate = new ArenaDialogDelegate(
                 arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog,
@@ -798,7 +798,7 @@ private boolean simulateArenaStep() {
                 }, this
             );
             activeDialogDelegate = currentDelegate;
-            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown);
+            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown, currentRound);
             main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
         }
     }

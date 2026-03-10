@@ -252,25 +252,36 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         }
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward) {
+    public void setBattleEnded(int winnerIndex, int totalReward, int finalRound) {
         this.battleEnded = true;
         this.winnerIndex = winnerIndex;
         this.totalReward = totalReward;
+        this.currentRound = finalRound;
         
         if (arenaPanel != null) {
-            arenaPanel.setBattleEnded(winnerIndex, totalReward);
+            arenaPanel.setBattleEnded(winnerIndex, totalReward, finalRound);
         }
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward, ArenaPanelUI.RewardBreakdown breakdown) {
+    public void setBattleEnded(int winnerIndex, int totalReward, ArenaPanelUI.RewardBreakdown breakdown, int finalRound) {
         this.battleEnded = true;
         this.winnerIndex = winnerIndex;
         this.totalReward = totalReward;
+        this.currentRound = finalRound;
         
-if (arenaPanel != null) {
-            arenaPanel.setBattleEnded(winnerIndex, totalReward, breakdown);
+        if (arenaPanel != null) {
+            arenaPanel.setBattleEnded(winnerIndex, totalReward, breakdown, finalRound);
         }
-
+    }
+    
+    @Deprecated
+    public void setBattleEnded(int winnerIndex, int totalReward) {
+        setBattleEnded(winnerIndex, totalReward, this.currentRound);
+    }
+    
+    @Deprecated
+    public void setBattleEnded(int winnerIndex, int totalReward, ArenaPanelUI.RewardBreakdown breakdown) {
+        setBattleEnded(winnerIndex, totalReward, breakdown, this.currentRound);
     }
     
     public void resetForNewMatch(
