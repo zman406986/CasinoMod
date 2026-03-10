@@ -609,8 +609,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         battleLogPanel = panel.createCustomPanel(logPanelW, logPanelH, null);
         panel.addComponent(battleLogPanel).inTL(logPanelX, logPanelY);
         
-        float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2;
-        float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP;
+        float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 30f;
+        float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP - 30f;
         
         for (int i = 0; i < 12; i++) {
             battleLogTextPanels[i] = panel.createCustomPanel(Math.max(textWidthTwoSprites, textWidthOneSprite), LOG_LINE_HEIGHT, null);
@@ -1062,13 +1062,15 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         renderBattleLogSprites(x, y, w, h, alphaMult);
         
         // Draw divider line between battle log and reward breakdown
-        float dividerX = x + SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH;
+        float dividerX = x + SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH - 5f;
+        float dividerTop = y + MARGIN + 50f; // Below instruction text area
+        float dividerBottom = y + h - MARGIN - 50f; // Above button area
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glColor4f(0.3f, 0.3f, 0.4f, alphaMult * 0.5f);
         GL11.glLineWidth(1f);
         GL11.glBegin(GL11.GL_LINES);
-        GL11.glVertex2f(dividerX, y + MARGIN);
-        GL11.glVertex2f(dividerX, y + h - MARGIN);
+        GL11.glVertex2f(dividerX, dividerTop);
+        GL11.glVertex2f(dividerX, dividerBottom);
         GL11.glEnd();
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         
