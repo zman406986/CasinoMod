@@ -830,7 +830,12 @@ private boolean simulateArenaStep() {
     protected int finalReward = 0;
 
     public void simulateArenaStepInPlace(ArenaDialogDelegate delegate) {
-        if (delegate == null || battleEnded) {
+        if (delegate == null) {
+            return;
+        }
+        
+        if (battleEnded) {
+            startNewArenaMatchInPlace(delegate);
             return;
         }
         
@@ -860,7 +865,12 @@ private boolean simulateArenaStep() {
     }
     
     public void simulateAllRemainingStepsInPlace(ArenaDialogDelegate delegate) {
-        if (delegate == null || battleEnded) {
+        if (delegate == null) {
+            return;
+        }
+        
+        if (battleEnded) {
+            startNewArenaMatchInPlace(delegate);
             return;
         }
         

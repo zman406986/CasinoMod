@@ -937,15 +937,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void createRewardBreakdownLabels() {
         if (panel == null) return;
         
-        // Move reward breakdown to right column (where battle log was)
-        float breakdownX = SHIP_COLUMN_WIDTH + CENTER_COLUMN_WIDTH + MARGIN;
-        float breakdownY = MARGIN + 40f;
-        float breakdownW = BATTLE_LOG_WIDTH - MARGIN;
-        float lineHeight = 14f;
-        float spacing = 1f;
+        float breakdownX = leftX + BUTTON_WIDTH * 2 + BUTTON_SPACING;
+        float breakdownY = bottomY - BUTTON_SPACING;
+        float breakdownW = PANEL_WIDTH - breakdownX - MARGIN;
+        float lineHeight = 28f;
+        float spacing = 2f;
         
         for (int i = 0; i < MAX_REWARD_LINES; i++) {
-            float y = breakdownY + i * (lineHeight + spacing);
+            float y = breakdownY - (i + 1) * (lineHeight + spacing);
             
             rewardBreakdownPanels[i] = panel.createCustomPanel(breakdownW, lineHeight, null);
             TooltipMakerAPI tooltip = rewardBreakdownPanels[i].createUIElement(breakdownW, lineHeight, false);

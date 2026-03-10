@@ -501,6 +501,24 @@ public static class PokerState {
             }
         }
         
+        public AIResponse decideAllInResponse(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
+                                int currentBetToCall, int potSize, int stackSize) {
+            // Player is all-in - AI can only call or fold, no raising allowed
+            float equity = communityCards.isEmpty() ? 
+                calculatePreflopEquity(holeCards) : 
+                calculatePostflopEquity(holeCards, communityCards);
+            
+            float potOdds = (float) currentBetToCall / (potSize + currentBetToCall);
+            
+            // Only call if equity justifies the call
+            if (equity > potOdds) {
+                return new AIResponse(Action.CALL, 0);
+            } else {
+                // Fold if pot odds don't justify calling
+                return new AIResponse(Action.FOLD, 0);
+            }
+        }
+        
         private AIResponse preFlopDecision(List<PokerGameLogic.Card> holeCards, int currentBetToCall, int potSize, int stackSize) {
             // Update AI personality based on current player style
             updatePersonality();
@@ -1015,6 +1033,12 @@ public static class PokerState {
             
             // Fallback to simple calculation (shouldn't happen)
             return calculatePreflopEquitySimple(holeCards);
+        }
+        
+        private float calculatePostflopEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards) {
+            String playerRange = estimatePlayerRange();
+            MonteCarloResult mcResult = runMonteCarloSimulation(holeCards, communityCards, playerRange);
+            return mcResult.getTotalEquity();
         }
         
         private float calculatePreflopEquitySimple(List<PokerGameLogic.Card> holeCards) {
@@ -1934,6 +1958,10 @@ boolean isRaise = action == Action.RAISE || action == Action.ALL_IN;
 
     public SimplePokerAI.AIResponse getOpponentAction() {
         int currentBetToCall = state.playerBet - state.opponentBet;
+        // If player is all-in (no chips left), AI can only call or fold, not raise
+        if (state.playerStack <= 0) {
+            return ai.decideAllInResponse(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack);
+        }
         return ai.decide(state.opponentHand, state.communityCards, currentBetToCall, state.pot, state.opponentStack);
     }
 
@@ -1968,7 +1996,6 @@ boolean isRaise = action == Action.RAISE || action == Action.ALL_IN;
                 state.pot += callAmount;
                 break;
 case RAISE:
-                state.playerHasActed = false; // Player must respond to raise
                 int totalBet = response.raiseAmount;
                 int raiseAmountActual = totalBet - state.opponentBet;
                 // Protect against betting more than available stack
@@ -1999,6 +2026,14 @@ case RAISE:
                     // Track committed chips for EV calculation
                     ai.aiCommittedThisRound += raiseAmountActual;
                 }
+
+                // If player has no chips left (all-in), they cannot respond to a raise
+                // Treat this as both players having acted and progress to showdown
+                if (state.playerStack <= 0) {
+                    state.playerHasActed = true;
+                } else {
+                    state.playerHasActed = false; // Player must respond to raise
+                }
                 break;
 }
 
@@ -2012,7 +2047,14 @@ case RAISE:
 
 private void checkRoundProgression() {
         if (state.playerBet == state.opponentBet && state.playerHasActed && state.opponentHasActed) {
-            advanceRound();
+            // Check if betting is closed (someone is all-in) - run out all remaining cards
+            if (state.playerStack == 0 || state.opponentStack == 0) {
+                while (state.round != Round.SHOWDOWN) {
+                    advanceRound();
+                }
+            } else {
+                advanceRound();
+            }
         }
     }
 
