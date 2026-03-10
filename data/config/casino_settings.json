@@ -45,6 +45,7 @@
     "arenaSimulationCount": 500,
     "arenaMidRoundBasePenalty": 0.5,
     "arenaMidRoundProgressivePenalty": 0.15,
+    "arenaMaxBetPerChampion": 10000,
 
     "arenaPrefixMultStrong": 1.3,
     "arenaPrefixMultWeak": 0.7,

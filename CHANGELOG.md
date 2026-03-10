@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 1.1.0
+- Added visual UI panels for Arena and Poker games with custom rendering
+- Added ship sprites and battle log visualization in Arena UI
+- Added card animation in Poker UI
+- Added configurable max bet per champion (default: 10,000 Stargems)
+- Combined multiple bets on same ship/round into single display for cleaner UI
+- Improved Poker AI decision-making for smarter opponent behavior
+- Eliminated most every-frame calculations to improve performance
+
 ## Version 1.0.0
 - Fixed duplicate "Visit Casino" options appearing in market interfaces (removed redundant CasinoMarketInteractionListener, option is now added via rules.csv only)
 - Fixed "Leave" option error when attempting to visit casino on markets that are too small

@@ -290,9 +290,17 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         int referenceAmount = availableCredit > 0 ? availableCredit : playerBalance;
         String percentageLabel = availableCredit > 0 ? "remaining credit" : "account";
 
-        // Add fixed bet amount options
+        int currentBetOnChampion = 0;
+        int maxBetAllowed = CasinoConfig.ARENA_MAX_BET_PER_CHAMPION;
+        if (championIndex >= 0 && championIndex < arenaCombatants.size()) {
+            currentBetOnChampion = getBetAmountForShip(arenaCombatants.get(championIndex));
+        }
+
         for (int betAmount : BET_AMOUNTS) {
             if (playerBalance >= betAmount && availableCredit >= betAmount) {
+                if (championIndex >= 0 && currentBetOnChampion + betAmount > maxBetAllowed) {
+                    continue;
+                }
                 String optionId = championIndex >= 0
                     ? optionPrefix + championIndex + "_" + betAmount
                     : OPTION_ARENA_ADD_BET + betAmount;
@@ -301,11 +309,13 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
             }
         }
 
-        // Add percentage-based options
         int[] percentages = {PERCENT_10, PERCENT_50};
         for (int percent : percentages) {
             int percentAmount = (referenceAmount * percent) / 100;
             if (percentAmount > 0 && playerBalance >= percentAmount && (availableCredit <= 0 || percentAmount <= availableCredit)) {
+                if (championIndex >= 0 && currentBetOnChampion + percentAmount > maxBetAllowed) {
+                    continue;
+                }
                 String optionId = championIndex >= 0
                     ? optionPrefix + championIndex + "_" + percentAmount
                     : OPTION_ARENA_ADD_BET + percentAmount;
@@ -601,15 +611,18 @@ opponentsDefeated = 0;
     }
     
     private void showArenaVisualPanel() {
-        currentDelegate = new ArenaDialogDelegate(
-            arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog,
-            main.getDialog(), null, () -> {
-                handleArenaPanelDismissed();
-            }
-        );
-        activeDialogDelegate = currentDelegate;
-        
-        main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
+        if (currentDelegate == null) {
+            currentDelegate = new ArenaDialogDelegate(
+                arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog,
+                main.getDialog(), null, () -> {
+                    handleArenaPanelDismissed();
+                }, this
+            );
+            activeDialogDelegate = currentDelegate;
+            main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
+        } else {
+            currentDelegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
+        }
     }
     
 private ArenaDialogDelegate activeDialogDelegate = null;
@@ -620,6 +633,7 @@ private ArenaDialogDelegate activeDialogDelegate = null;
         ArenaDialogDelegate triggeredDelegate = activeDialogDelegate;
         
         if (triggeredDelegate.getPendingWatchNext()) {
+            currentDelegate = null;
             if (battleEnded) {
                 startNewArenaMatch();
             } else {
@@ -629,6 +643,7 @@ private ArenaDialogDelegate activeDialogDelegate = null;
         }
         
         if (triggeredDelegate.getPendingSkipToEnd()) {
+            currentDelegate = null;
             if (battleEnded) {
                 startNewArenaMatch();
             } else {
@@ -655,16 +670,19 @@ private ArenaDialogDelegate activeDialogDelegate = null;
         }
         
         if (triggeredDelegate.getPendingReturnToLobby()) {
+            currentDelegate = null;
             startNewArenaMatch();
             return;
         }
         
         if (triggeredDelegate.getPendingBetAmount() > 0 && triggeredDelegate.getPendingChampionIndex() >= 0) {
+            currentDelegate = null;
             performAddBetToChampion(triggeredDelegate.getPendingChampionIndex(), triggeredDelegate.getPendingBetAmount());
             return;
         }
         
         if (triggeredDelegate.getPendingStartBattle()) {
+            currentDelegate = null;
             int chosenIdx = -1;
             for (int i = 0; i < arenaCombatants.size(); i++) {
                 if (chosenChampion != null &&
@@ -764,16 +782,19 @@ private boolean simulateArenaStep() {
 
         ArenaPanelUI.RewardBreakdown breakdown = buildRewardBreakdown(betShips, rewards);
 
-        currentDelegate = new ArenaDialogDelegate(
-            arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog,
-            main.getDialog(), null, () -> {
-                handleArenaPanelDismissed();
-            }
-        );
-        activeDialogDelegate = currentDelegate;
-        
-        currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown);
-        main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
+        if (currentDelegate != null) {
+            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown);
+        } else {
+            currentDelegate = new ArenaDialogDelegate(
+                arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog,
+                main.getDialog(), null, () -> {
+                    handleArenaPanelDismissed();
+                }, this
+            );
+            activeDialogDelegate = currentDelegate;
+            currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown);
+            main.getDialog().showCustomVisualDialog(1000f, 700f, currentDelegate);
+        }
     }
 
     private ArenaPanelUI.RewardBreakdown buildRewardBreakdown(Set<SpiralAbyssArena.SpiralGladiator> betShips, RewardCalculation rewards) {
@@ -807,6 +828,92 @@ private boolean simulateArenaStep() {
     protected boolean battleEnded = false;
     protected int finalWinnerIndex = -1;
     protected int finalReward = 0;
+
+    public void simulateArenaStepInPlace(ArenaDialogDelegate delegate) {
+        if (delegate == null || battleEnded) {
+            return;
+        }
+        
+        List<String> logEntries = activeArena.simulateStep(arenaCombatants, currentRound);
+        
+        activeArena.invalidateOddsCache();
+
+        currentRound++;
+
+        int aliveCount = 0;
+        for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
+            if (!gladiator.isDead) {
+                gladiator.turnsSurvived++;
+                aliveCount++;
+            }
+        }
+
+        for (String logEntry : logEntries) {
+            battleLog.add(logEntry);
+        }
+
+        if (logEntries.isEmpty() && aliveCount <= 1) {
+            finishArenaBattle();
+        } else {
+            delegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
+        }
+    }
+    
+    public void simulateAllRemainingStepsInPlace(ArenaDialogDelegate delegate) {
+        if (delegate == null || battleEnded) {
+            return;
+        }
+        
+        boolean result;
+        do {
+            List<String> logEntries = activeArena.simulateStep(arenaCombatants, currentRound);
+            
+            activeArena.invalidateOddsCache();
+
+            currentRound++;
+
+            int aliveCount = 0;
+            for (SpiralAbyssArena.SpiralGladiator gladiator : arenaCombatants) {
+                if (!gladiator.isDead) {
+                    gladiator.turnsSurvived++;
+                    aliveCount++;
+                }
+            }
+
+            for (String logEntry : logEntries) {
+                battleLog.add(logEntry);
+            }
+            
+            result = !(logEntries.isEmpty() && aliveCount <= 1);
+        } while (result);
+        
+        finishArenaBattle();
+    }
+    
+    public void startNewArenaMatchInPlace(ArenaDialogDelegate delegate) {
+        if (delegate == null) {
+            startNewArenaMatch();
+            return;
+        }
+        
+        cachedTotalBet = 0;
+        arenaBets.clear();
+        
+        activeArena = new SpiralAbyssArena();
+        arenaCombatants = activeArena.generateCombatants(new CasinoGachaManager());
+        chosenChampion = null;
+        opponentsDefeated = 0;
+        currentRound = 0;
+        currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
+        battleLog.clear();
+        battleEnded = false;
+        finalWinnerIndex = -1;
+        finalReward = 0;
+        
+        clearSuspendedArenaMemory();
+        
+        delegate.resetForNewMatch(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
+    }
 
     /**
      * Calculates final positions for all combatants based on survival time.
@@ -1209,7 +1316,7 @@ private boolean simulateArenaStep() {
         return cachedTotalBet;
     }
 
-    private void performAddBetToChampion(int championIndex, int additionalAmount) {
+private void performAddBetToChampion(int championIndex, int additionalAmount) {
         if (championIndex < 0 || championIndex >= arenaCombatants.size()) {
             main.textPanel.addPara("Error: Invalid champion selection.", Color.RED);
             showArenaVisualPanel();
@@ -1227,16 +1334,24 @@ private boolean simulateArenaStep() {
             return;
         }
 
-CasinoVIPManager.addToBalance(-additionalAmount);
+        int currentBetOnShip = getBetAmountForShip(targetChampion);
+        if (currentBetOnShip + additionalAmount > CasinoConfig.ARENA_MAX_BET_PER_CHAMPION) {
+            int maxAllowed = CasinoConfig.ARENA_MAX_BET_PER_CHAMPION - currentBetOnShip;
+            main.getTextPanel().addPara("Maximum bet per champion is " + CasinoConfig.ARENA_MAX_BET_PER_CHAMPION + 
+                " SG. Current bet on " + targetChampion.fullName + ": " + currentBetOnShip + " SG. Max additional: " + maxAllowed + " SG.", Color.RED);
+            showArenaVisualPanel();
+            return;
+        }
+
+        CasinoVIPManager.addToBalance(-additionalAmount);
         float frozenOdds = targetChampion.getCurrentOdds(currentRound);
         arenaBets.add(new BetInfo(additionalAmount, frozenOdds, targetChampion, currentRound));
         cachedTotalBet += additionalAmount;
 
-if (chosenChampion == null) {
+        if (chosenChampion == null) {
             chosenChampion = targetChampion;
         }
 
-        // main.getTextPanel().addPara("Added bet of " + additionalAmount + " Stargems on " + targetChampion.fullName + " at " + String.format("%.1f", frozenOdds) + "x odds.", Color.YELLOW);
         showArenaVisualPanel();
     }
     

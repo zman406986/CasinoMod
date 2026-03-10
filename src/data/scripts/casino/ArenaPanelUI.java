@@ -276,8 +276,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected static final float PANEL_WIDTH = 1000f;
     protected static final float PANEL_HEIGHT = 700f;
     
-    protected static final float SHIP_COLUMN_WIDTH = 250f;
-    protected static final float CENTER_COLUMN_WIDTH = 500f;
+    protected static final float SHIP_COLUMN_WIDTH = 300f;
+    protected static final float CENTER_COLUMN_WIDTH = 450f;
     protected static final float BATTLE_LOG_WIDTH = 280f;
     
     protected static final float BOX_WIDTH = 150f;
@@ -451,6 +451,25 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected float[] lastShipOdds = new float[5];
     protected int[] lastShipBetCount = new int[5];
     protected boolean shipStateInitialized = false;
+    
+    protected int getTotalBetOnShip(int shipIndex) {
+        if (bets == null || combatants == null || shipIndex < 0 || shipIndex >= combatants.size()) {
+            return 0;
+        }
+        SpiralAbyssArena.SpiralGladiator ship = combatants.get(shipIndex);
+        int total = 0;
+        for (BetInfo b : bets) {
+            if (b.ship == ship) {
+                total += b.amount;
+            }
+        }
+        return total;
+    }
+    
+    protected boolean canBetMoreOnShip(int shipIndex) {
+        int currentBet = getTotalBetOnShip(shipIndex);
+        return currentBet < CasinoConfig.ARENA_MAX_BET_PER_CHAMPION;
+    }
 
     public interface ArenaActionCallback {
         void onSelectChampion(int championIndex);
@@ -736,15 +755,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             CustomPanelAPI p = championSelectPanels.get(i);
             if (p != null) {
                 if (i < 5) {
-                    // 5 champion select buttons
-                    if (showChampionSelect || showChampionAsBet) {
+                    boolean canBetMore = canBetMoreOnShip(i);
+                    if ((showChampionSelect || showChampionAsBet) && canBetMore) {
                         float btnY = startY + i * totalItemHeight + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
                         p.getPosition().inTL(champButtonX, btnY);
                     } else {
                         p.getPosition().inTL(-1000f, -1000f);
                     }
                 } else {
-                    // Cancel button - move to bottom row when champion select is shown
                     if (showChampionSelect) {
                         p.getPosition().inTL(leftX, bottomY);
                     } else {
@@ -763,15 +781,20 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                     float btnX;
                     float btnY;
                     if (i == 0) {
-                        // Cancel button - same position as Leave
                         btnX = leftX;
                         btnY = bottomY;
+                        p.getPosition().inTL(btnX, btnY);
                     } else {
-                        // Bet amount buttons - on row above
-                        btnX = leftX + (i - 1) * (BUTTON_WIDTH + BUTTON_SPACING);
-                        btnY = betRowY;
+                        int betAmount = BET_AMOUNTS[i - 1];
+                        int currentBetOnShip = getTotalBetOnShip(selectedChampionIndex);
+                        if (currentBetOnShip + betAmount > CasinoConfig.ARENA_MAX_BET_PER_CHAMPION) {
+                            p.getPosition().inTL(-1000f, -1000f);
+                        } else {
+                            btnX = leftX + (i - 1) * (BUTTON_WIDTH + BUTTON_SPACING);
+                            btnY = betRowY;
+                            p.getPosition().inTL(btnX, btnY);
+                        }
                     }
-                    p.getPosition().inTL(btnX, btnY);
                 } else {
                     p.getPosition().inTL(-1000f, -1000f);
                 }
@@ -896,11 +919,11 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void createResultLabel() {
         if (panel == null) return;
         
-        final float RESULT_WIDTH = SHIP_COLUMN_WIDTH - MARGIN * 2;
+        final float RESULT_WIDTH = 200f;
         final float RESULT_HEIGHT = 50f;
         
-        float x = MARGIN;
-        float y = MARGIN + 40f;
+        float x = PANEL_WIDTH - RESULT_WIDTH - MARGIN;
+        float y = bottomY - RESULT_HEIGHT - BUTTON_SPACING;
         
         resultPanel = panel.createCustomPanel(RESULT_WIDTH, RESULT_HEIGHT, null);
         TooltipMakerAPI tooltip = resultPanel.createUIElement(RESULT_WIDTH, RESULT_HEIGHT, false);
@@ -1201,12 +1224,26 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                     String oddsText = String.format("Odds: %.2fx", displayOdds);
                     
                     if (bets != null && !bets.isEmpty()) {
-                        List<String> betStrings = new ArrayList<>();
+                        Map<Integer, List<BetInfo>> betsByRound = new HashMap<>();
                         for (BetInfo b : bets) {
                             if (b.ship == ship) {
-                                betStrings.add(String.format("[%d, %.2fx]", b.amount, b.multiplier));
+                                betsByRound.computeIfAbsent(b.roundPlaced, k -> new ArrayList<>()).add(b);
                             }
                         }
+                        
+                        List<String> betStrings = new ArrayList<>();
+                        for (Map.Entry<Integer, List<BetInfo>> entry : betsByRound.entrySet()) {
+                            List<BetInfo> roundBets = entry.getValue();
+                            if (!roundBets.isEmpty()) {
+                                int totalAmount = 0;
+                                float multiplier = roundBets.get(0).multiplier;
+                                for (BetInfo b : roundBets) {
+                                    totalAmount += b.amount;
+                                }
+                                betStrings.add(String.format("[%d, %.2fx]", totalAmount, multiplier));
+                            }
+                        }
+                        
                         if (!betStrings.isEmpty()) {
                             oddsText += " " + String.join("", betStrings);
                         }

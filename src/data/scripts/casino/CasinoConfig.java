@@ -148,6 +148,8 @@ public class CasinoConfig {
     public static float ARENA_MID_ROUND_BASE_PENALTY = 0.5f;
     /** Progressive penalty per round for mid-round betting (0.15 = 15% additional reduction per round) */
     public static float ARENA_MID_ROUND_PROGRESSIVE_PENALTY = 0.15f;
+    /** Maximum bet amount on a single champion per round (in Stargems) */
+    public static int ARENA_MAX_BET_PER_CHAMPION = 10000;
     
     // HP-Based Dynamic Odds Configuration
     /** Factor for how much HP affects odds mid-battle (2.0 = up to 2x difference between low and high HP) */
@@ -501,6 +503,9 @@ public class CasinoConfig {
             }
             if (settings.has("arenaMidRoundProgressivePenalty")) {
                 ARENA_MID_ROUND_PROGRESSIVE_PENALTY = (float) settings.getDouble("arenaMidRoundProgressivePenalty");
+            }
+            if (settings.has("arenaMaxBetPerChampion")) {
+                ARENA_MAX_BET_PER_CHAMPION = settings.getInt("arenaMaxBetPerChampion");
             }
             
             // Load HP-based dynamic odds settings

@@ -75,6 +75,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
         public Phase phase = Phase.HIDDEN;
         public float progress = 0f;
         public float delay = 0f;
+        public boolean triggered = false;
         
         public static final float FLIP_DURATION = 0.4f;
         public static final float STAGGER_DELAY = 0.08f;
@@ -91,22 +92,35 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         public void advance(float amount) {
-            if (phase == Phase.HIDDEN) {
+            // Cap delta to prevent instant animation completion on lag/pause
+            // Max 100ms per frame ensures smooth animation even with large time deltas
+            float maxDelta = 0.1f;
+            amount = Math.min(amount, maxDelta);
+
+            // Only progress if animation has been explicitly triggered
+            if (phase == Phase.HIDDEN && triggered) {
                 if (delay > 0) {
                     delay -= amount;
                     if (delay <= 0) {
                         delay = 0;
                         phase = Phase.FLIPPING;
+                        Global.getLogger(PokerPanelUI.class).info("Animation starting FLIPPING phase");
                     }
                 } else {
                     phase = Phase.FLIPPING;
+                    Global.getLogger(PokerPanelUI.class).info("Animation starting FLIPPING phase (no delay)");
                 }
             }
             if (phase == Phase.FLIPPING) {
+                float oldProgress = progress;
                 progress += amount / FLIP_DURATION;
                 if (progress >= 1f) {
                     progress = 1f;
                     phase = Phase.REVEALED;
+                    Global.getLogger(PokerPanelUI.class).info("Animation completed REVEALED phase");
+                } else if (progress > oldProgress + 0.1f) {
+                    // Log significant progress updates (every 10%)
+                    Global.getLogger(PokerPanelUI.class).info("Animation progress: " + String.format("%.2f", progress));
                 }
             }
         }
@@ -114,12 +128,16 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
         public void triggerFlip(float staggerDelay) {
             this.delay = staggerDelay;
             this.progress = 0f;
+            this.phase = Phase.HIDDEN;
+            this.triggered = true;
+            Global.getLogger(PokerPanelUI.class).info("triggerFlip called: delay=" + staggerDelay + " phase=" + phase);
         }
         
         public void reset() {
             phase = Phase.HIDDEN;
             progress = 0f;
             delay = 0f;
+            triggered = false;
         }
     }
     
@@ -147,12 +165,17 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     }
     
     protected void checkAndTriggerAnimations(PokerGame.PokerState state, PokerGame.Round previousRound, int previousCommunityCount) {
+        Global.getLogger(PokerPanelUI.class).info("checkAndTriggerAnimations: prevRound=" + previousRound + 
+            " currRound=" + state.round + " prevCommunity=" + previousCommunityCount + 
+            " currCommunity=" + (state.communityCards != null ? state.communityCards.size() : 0));
+        
         // Player cards - trigger when hand is dealt and not yet animated
         // This uses a simple boolean flag that resets only on new hands
         if (!playerCardsAnimated && state.playerHand != null && !state.playerHand.isEmpty()) {
             playerCardsAnimated = true;
             for (int i = 0; i < state.playerHand.size() && i < 2; i++) {
                 playerCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
+                Global.getLogger(PokerPanelUI.class).info("Triggered player card " + i + " animation");
             }
         }
 
@@ -166,6 +189,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
                     // Stagger delay based on how many new cards (0, 1, or 2 previous cards)
                     float staggerDelay = (i - previousCommunityCount) * CardFlipAnimation.STAGGER_DELAY;
                     communityCardAnimations[i].triggerFlip(staggerDelay);
+                    Global.getLogger(PokerPanelUI.class).info("Triggered community card " + i + " animation, phase=" + communityCardAnimations[i].phase);
                 }
             }
             // NOTE: lastAnimatedCommunityCount is now updated in updateGameState AFTER this call
@@ -177,12 +201,14 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
         // Also handles initial state (previousRound is null) - if we're already at showdown, animate
         boolean enteringShowdown = state.round == PokerGame.Round.SHOWDOWN && 
                                    (previousRound == null || previousRound != PokerGame.Round.SHOWDOWN);
+        Global.getLogger(PokerPanelUI.class).info("enteringShowdown=" + enteringShowdown + " folder=" + state.folder);
         if (enteringShowdown && state.folder == null) {
             boolean anyTriggered = false;
             for (int i = 0; i < 2; i++) {
                 if (opponentCardAnimations[i].phase == CardFlipAnimation.Phase.HIDDEN) {
                     opponentCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
                     anyTriggered = true;
+                    Global.getLogger(PokerPanelUI.class).info("Triggered opponent card " + i + " animation");
                 }
             }
             if (anyTriggered) {

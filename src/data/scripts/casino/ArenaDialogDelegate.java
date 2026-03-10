@@ -11,6 +11,7 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.FireBest;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 
+import data.scripts.casino.interaction.ArenaHandler;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 
 public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
@@ -24,6 +25,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     protected Map<String, MemoryAPI> memoryMap;
     
     protected Runnable onDismissCallback;
+    protected ArenaHandler handler;
     
     protected List<SpiralAbyssArena.SpiralGladiator> combatants;
     protected int currentRound;
@@ -52,6 +54,19 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             InteractionDialogAPI dialog,
             Map<String, MemoryAPI> memoryMap,
             Runnable onDismissCallback) {
+        this(combatants, currentRound, totalBet, bets, battleLog, dialog, memoryMap, onDismissCallback, null);
+    }
+    
+    public ArenaDialogDelegate(
+            List<SpiralAbyssArena.SpiralGladiator> combatants,
+            int currentRound,
+            int totalBet,
+            List<BetInfo> bets,
+            List<String> battleLog,
+            InteractionDialogAPI dialog,
+            Map<String, MemoryAPI> memoryMap,
+            Runnable onDismissCallback,
+            ArenaHandler handler) {
         
         this.combatants = combatants;
         this.currentRound = currentRound;
@@ -61,6 +76,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         this.dialog = dialog;
         this.memoryMap = memoryMap;
         this.onDismissCallback = onDismissCallback;
+        this.handler = handler;
         
         ArenaPanelUI.ArenaActionCallback actionCallback = new ArenaPanelUI.ArenaActionCallback() {
             @Override
@@ -79,17 +95,25 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             
             @Override
             public void onWatchNextRound() {
-                pendingWatchNext = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
+                if (handler != null) {
+                    handler.simulateArenaStepInPlace(ArenaDialogDelegate.this);
+                } else {
+                    pendingWatchNext = true;
+                    if (callbacks != null) {
+                        callbacks.dismissDialog();
+                    }
                 }
             }
             
             @Override
             public void onSkipToEnd() {
-                pendingSkipToEnd = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
+                if (handler != null) {
+                    handler.simulateAllRemainingStepsInPlace(ArenaDialogDelegate.this);
+                } else {
+                    pendingSkipToEnd = true;
+                    if (callbacks != null) {
+                        callbacks.dismissDialog();
+                    }
                 }
             }
             
@@ -120,9 +144,13 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             
             @Override
             public void onReturnToLobby() {
-                pendingReturnToLobby = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
+                if (handler != null) {
+                    handler.startNewArenaMatchInPlace(ArenaDialogDelegate.this);
+                } else {
+                    pendingReturnToLobby = true;
+                    if (callbacks != null) {
+                        callbacks.dismissDialog();
+                    }
                 }
             }
             
