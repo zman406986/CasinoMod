@@ -36,10 +36,8 @@ import java.util.Map;
  * - All exceptions are caught and logged to prevent dialog crashes
  * 
  * ERROR HANDLING:
- * - Returns false if dialog is null
  * - Returns false if market size requirements not met
  * - Returns false if casino interaction fails to start
- * - Logs all errors to help with debugging
  * 
  * @see CasinoInteraction
  * @see CasinoConfig
@@ -48,12 +46,6 @@ public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
 
     /**
      * Executes the rule command to start casino interaction.
-     * 
-     * EXECUTION FLOW:
-     * 1. Validate dialog is not null
-     * 2. Check market size requirements
-     * 3. Start casino interaction via CasinoInteraction.startCasinoInteraction()
-     * 4. Return true on success, false on any failure
      * 
      * AI_AGENT NOTE: This method is called by the game's rule engine.
      * Do not call it directly from other code.
@@ -66,32 +58,27 @@ public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
      */
     @Override
     public boolean execute(String ruleId, InteractionDialogAPI dialog, List<Misc.Token> params, Map<String, MemoryAPI> memoryMap) {
-        if (dialog == null) return false;
-        
         try {
-            // Check market size requirements
-            MarketAPI currentMarket = dialog.getInteractionTarget().getMarket();
+            final MarketAPI currentMarket = dialog.getInteractionTarget().getMarket();
+
             if (currentMarket != null) {
-                int marketSize = currentMarket.getSize();
-                boolean isPlayerMarket = currentMarket.getFaction().isPlayerFaction();
+                final int marketSize = currentMarket.getSize();
+                final boolean isPlayerMarket = currentMarket.getFaction().isPlayerFaction();
                 
-                int minSize = isPlayerMarket ? CasinoConfig.MARKET_SIZE_MIN_FOR_PLAYER_CASINO : CasinoConfig.MARKET_SIZE_MIN_FOR_GENERAL_CASINO;
+                final int minSize = isPlayerMarket ?
+                    CasinoConfig.MARKET_SIZE_MIN_FOR_PLAYER_CASINO :
+                    CasinoConfig.MARKET_SIZE_MIN_FOR_GENERAL_CASINO;
                 
                 if (marketSize < minSize) {
-                    // Market is too small for casino
                     dialog.getTextPanel().addPara("This market is too small to support a casino establishment.", Color.RED);
                     return false;
                 }
             }
             
-            // Log that we're attempting to start the casino interaction
-            Global.getLogger(this.getClass()).info("Attempting to start casino interaction via Casino_StartCasinoInteraction rule command");
-            
-            // Start the casino interaction
             CasinoInteraction.startCasinoInteraction(dialog);
             return true;
         } catch (Exception e) {
-            Global.getLogger(this.getClass()).error("Error starting casino interaction", e);
+            Global.getLogger(getClass()).error("Error starting casino interaction", e);
             return false;
         }
     }
