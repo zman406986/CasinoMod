@@ -2,9 +2,6 @@
 
 A Starsector mod adding a casino experience with poker, gacha, and arena betting.
 
-**Version:** 1.2.0  
-**Game Version:** Starsector 0.98a-RC7
-
 ## Features
 
 ### Texas Hold'em Poker
@@ -67,10 +64,6 @@ Comprehensive credit and debt management:
 - Stargem packages (60 to 6,480 gems)
 - Satirical "Cash Out" flow with CAPTCHA verification
 
-## Requirements
-
-- Starsector 0.98a-RC7
-
 ## Installation
 
 1. Extract to `starsector/mods/Casino`
@@ -113,33 +106,6 @@ Edit `data/config/casino_settings.json` to customize:
 - `arenaMaxBetPerChampion`: Max bet per ship (default: 10000)
 
 Add hull IDs to `data/config/gacha_ships_blacklist.csv` to exclude ships from the gacha pool.
-
-## Architecture
-
-```
-CasinoModPlugin
-├── CasinoMusicPlugin
-├── CasinoConfig              # Configuration loader
-├── CasinoVIPManager          # VIP/balance/credit management
-├── CasinoDebtScript          # Debt collector fleet spawning
-├── CasinoGachaManager        # Gacha pool and pity mechanics
-├── PokerGame                 # Poker logic and AI
-├── PokerPanelUI              # Poker visual UI
-├── PokerDialogDelegate       # Poker dialog handler
-├── SpiralAbyssArena          # Arena simulation
-├── ArenaPanelUI              # Arena visual UI
-├── ArenaDialogDelegate       # Arena dialog handler
-├── GachaAnimation            # Gacha animation
-├── GachaAnimationDialogDelegate
-└── CasinoInteraction         # Main dialog router
-    ├── OptionHandler         # Handler interface
-    ├── PokerHandler          # Poker menu handler
-    ├── GachaHandler          # Gacha menu handler
-    ├── ArenaHandler          # Arena menu handler
-    ├── FinHandler            # Financial services
-    ├── TopupHandler          # Stargem purchase
-    └── HelpHandler           # Help screens
-```
 
 ## Save Data
 
