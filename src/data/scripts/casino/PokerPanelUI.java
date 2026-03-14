@@ -227,6 +227,11 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     protected String lastOpponentStackText = "";
     protected String lastRoundText = "";
     
+    // Display bet values - persist across round transitions until new betting action
+    protected int displayPlayerBet = 0;
+    protected int displayOpponentBet = 0;
+    protected PokerGame.Round displayBetRound = null;
+    
     // ============================================================================
     // CACHED CARD STATES - Avoid recalculating card positions every frame
     // ============================================================================
@@ -720,6 +725,39 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         playerStackLabel.getPosition().inTL(0, 0);
         playerStackPanel.addUIElement(playerTooltip).inTL(0, 0);
         panel.addComponent(playerStackPanel).inTL(MARGIN, playerY);
+    }
+    
+    /**
+     * Updates display bet tracking. Captures bet values before advanceRound() clears them.
+     * Display bets show the amount each player has committed in the current betting round.
+     * 
+     * AI_AGENT_NOTE: The timing issue is that advanceRound() clears bets in the same tick
+     * as the betting action, so UI never sees non-zero values after a completed round.
+     * We solve this by persisting captured values until new betting action starts.
+     */
+    protected void updateDisplayBets(PokerGame.PokerState state) {
+        // Capture current bet values whenever they're non-zero
+        // This preserves the values even after advanceRound() clears them
+        if (state.playerBet > 0) {
+            displayPlayerBet = state.playerBet;
+        }
+        if (state.opponentBet > 0) {
+            displayOpponentBet = state.opponentBet;
+        }
+        
+        // Reset display bets when new betting action starts in a new round
+        // Condition: round changed AND bets are non-zero (new action)
+        if (displayBetRound != state.round) {
+            if (state.playerBet > 0 || state.opponentBet > 0) {
+                // New betting round has started with actual bets - reset to current values
+                displayPlayerBet = state.playerBet;
+                displayOpponentBet = state.opponentBet;
+            }
+            // else: round changed but bets are 0 (between rounds) - keep old captured values
+            // This lets the player see their bet even after round advances instantly
+            
+            displayBetRound = state.round;
+        }
     }
     
     /**
@@ -1455,8 +1493,9 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         // ----------------------------------------------------------------------
         // 3b. Update text labels (stacks with bets, round with pot, waiting)
+        // Display bets are managed by PokerState and persist across round transitions
         // ----------------------------------------------------------------------
-        updateStackDisplays(state.playerStack, state.opponentStack, state.playerBet, state.opponentBet);
+        updateStackDisplays(state.playerStack, state.opponentStack, state.displayPlayerBet, state.displayOpponentBet);
         updateRoundLabel(state.round, state.bigBlind, state.pot);
         updateWaitingLabel(waitingForOpponent);
         

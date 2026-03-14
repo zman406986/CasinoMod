@@ -33,6 +33,12 @@ public static class PokerState {
         public boolean opponentHasActed = false;
         public boolean playerDeclaredAllIn = false;
         public boolean opponentDeclaredAllIn = false;
+        
+        // Display bet values - persist across round transitions for UI display
+        // These track what each player has bet in the current betting round
+        // Updated when bets change, reset only when new betting action starts
+        public int displayPlayerBet = 0;
+        public int displayOpponentBet = 0;
     }
 
     private final PokerState state;
@@ -1776,6 +1782,8 @@ public static class PokerState {
 
         state.playerBet = 0;
         state.opponentBet = 0;
+        state.displayPlayerBet = 0;
+        state.displayOpponentBet = 0;
         state.pot = 0;
         state.folder = null;
         state.playerHasActed = false;
@@ -1832,21 +1840,25 @@ public static class PokerState {
             // Small blind (player) - ensure doesn't go negative
             int playerSmallBlind = Math.min(smallBlind, state.playerStack);
             state.playerBet = playerSmallBlind;
+            state.displayPlayerBet = playerSmallBlind;
             state.playerStack -= playerSmallBlind;
             
             // Big blind (opponent) - ensure doesn't go negative
             int opponentBigBlind = Math.min(bigBlindAmount, state.opponentStack);
             state.opponentBet = opponentBigBlind;
+            state.displayOpponentBet = opponentBigBlind;
             state.opponentStack -= opponentBigBlind;
         } else {
             // Small blind (opponent) - ensure doesn't go negative
             int opponentSmallBlind = Math.min(smallBlind, state.opponentStack);
             state.opponentBet = opponentSmallBlind;
+            state.displayOpponentBet = opponentSmallBlind;
             state.opponentStack -= opponentSmallBlind;
             
             // Big blind (player) - ensure doesn't go negative
             int playerBigBlind = Math.min(bigBlindAmount, state.playerStack);
             state.playerBet = playerBigBlind;
+            state.displayPlayerBet = playerBigBlind;
             state.playerStack -= playerBigBlind;
         }
         state.pot = state.playerBet + state.opponentBet;
@@ -1883,6 +1895,7 @@ public static class PokerState {
                 int callAmount = state.opponentBet - state.playerBet;
                 state.playerStack -= callAmount;
                 state.playerBet = state.opponentBet;
+                state.displayPlayerBet = state.opponentBet;
                 state.pot += callAmount;
                 break;
 case RAISE:
@@ -1891,6 +1904,7 @@ case RAISE:
                     int callAmt = state.opponentBet - state.playerBet;
                     state.playerStack -= callAmt;
                     state.playerBet = state.opponentBet;
+                    state.displayPlayerBet = state.opponentBet;
                     state.pot += callAmt;
                     break;
                 }
@@ -1925,10 +1939,12 @@ case RAISE:
                         state.playerStack += excessToReturn;
                     }
                     state.playerBet = maxOpponentCanMatch;
+                    state.displayPlayerBet = maxOpponentCanMatch;
                     state.pot += actualRaiseAmount;
                 } else {
                     state.playerStack -= raiseAmountActual;
                     state.playerBet = totalBet;
+                    state.displayPlayerBet = totalBet;
                     state.pot += raiseAmountActual;
                 }
                 break;
@@ -1949,11 +1965,13 @@ case ALL_IN:
                     // Player only risks what opponent can match
                     state.pot += actualAllInAmount;
                     state.playerBet += actualAllInAmount;
+                    state.displayPlayerBet = state.playerBet;
                     state.playerStack = excessToReturn; // Return excess chips
                 } else {
                     // Normal all-in where opponent can match or has already matched
                     state.pot += allInAmount;
                     state.playerBet += allInAmount;
+                    state.displayPlayerBet = state.playerBet;
                     state.playerStack = 0;
                 }
                 break;
@@ -2011,6 +2029,7 @@ boolean isRaise = action == Action.RAISE || action == Action.ALL_IN;
                 int callAmount = state.playerBet - state.opponentBet;
                 state.opponentStack -= callAmount;
                 state.opponentBet = state.playerBet;
+                state.displayOpponentBet = state.playerBet;
                 state.pot += callAmount;
                 break;
 case RAISE:
@@ -2042,12 +2061,14 @@ case RAISE:
                         state.opponentStack += excessToReturn;
                     }
                     state.opponentBet = maxPlayerCanMatch;
+                    state.displayOpponentBet = maxPlayerCanMatch;
                     state.pot += actualRaiseAmount;
                     // Track committed chips for EV calculation (only what opponent can match)
                     ai.aiCommittedThisRound += actualRaiseAmount;
                 } else {
                     state.opponentStack -= raiseAmountActual;
                     state.opponentBet = totalBet;
+                    state.displayOpponentBet = totalBet;
                     state.pot += raiseAmountActual;
                     // Track committed chips for EV calculation
                     ai.aiCommittedThisRound += raiseAmountActual;
