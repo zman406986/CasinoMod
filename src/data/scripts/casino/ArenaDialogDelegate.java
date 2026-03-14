@@ -46,28 +46,29 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     protected int totalReward = 0;
     
     public ArenaDialogDelegate(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog,
-            InteractionDialogAPI dialog,
-            Map<String, MemoryAPI> memoryMap,
-            Runnable onDismissCallback) {
+        List<SpiralAbyssArena.SpiralGladiator> combatants,
+        int currentRound,
+        int totalBet,
+        List<BetInfo> bets,
+        List<String> battleLog,
+        InteractionDialogAPI dialog,
+        Map<String, MemoryAPI> memoryMap,
+        Runnable onDismissCallback
+    ) {
         this(combatants, currentRound, totalBet, bets, battleLog, dialog, memoryMap, onDismissCallback, null);
     }
     
     public ArenaDialogDelegate(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog,
-            InteractionDialogAPI dialog,
-            Map<String, MemoryAPI> memoryMap,
-            Runnable onDismissCallback,
-            ArenaHandler handler) {
-        
+        List<SpiralAbyssArena.SpiralGladiator> combatants,
+        int currentRound,
+        int totalBet,
+        List<BetInfo> bets,
+        List<String> battleLog,
+        InteractionDialogAPI dialog,
+        Map<String, MemoryAPI> memoryMap,
+        Runnable onDismissCallback,
+        ArenaHandler handler
+    ) {
         this.combatants = combatants;
         this.currentRound = currentRound;
         this.totalBet = totalBet;
@@ -265,16 +266,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         }
     }
     
-    @Deprecated
-    public void setBattleEnded(int winnerIndex, int totalReward) {
-        setBattleEnded(winnerIndex, totalReward, this.currentRound);
-    }
-    
-    @Deprecated
-    public void setBattleEnded(int winnerIndex, int totalReward, ArenaPanelUI.RewardBreakdown breakdown) {
-        setBattleEnded(winnerIndex, totalReward, breakdown, this.currentRound);
-    }
-    
     public void resetForNewMatch(
             List<SpiralAbyssArena.SpiralGladiator> combatants,
             int currentRound,
@@ -351,5 +342,4 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     public boolean isFinished() {
         return finished;
     }
-    
-    }
+}

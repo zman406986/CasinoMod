@@ -1,12 +1,13 @@
 package data.scripts.casino.util;
 
 import com.fs.starfarer.api.campaign.TextPanelAPI;
-import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.SpiralAbyssArena;
 
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Formats arena battle log entries with multi-color highlighting for the text panel.
@@ -341,43 +342,43 @@ public class LogFormatter {
     }
 
     private static String extractDamageNumber(String logEntry) {
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(\\d+) CRIT damage");
-        java.util.regex.Matcher matcher = pattern.matcher(logEntry);
+        Pattern pattern = Pattern.compile("(\\d+) CRIT damage");
+        Matcher matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("(\\d+) damage");
+        pattern = Pattern.compile("(\\d+) damage");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("dealing (\\d+) to");
+        pattern = Pattern.compile("dealing (\\d+) to");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("takes (\\d+) CRIT");
+        pattern = Pattern.compile("takes (\\d+) CRIT");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("with (\\d+) damage");
+        pattern = Pattern.compile("with (\\d+) damage");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("for (\\d+)[!\\.]");
+        pattern = Pattern.compile("for (\\d+)[!\\.]");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
         }
 
-        pattern = java.util.regex.Pattern.compile("for (\\d+)");
+        pattern = Pattern.compile("for (\\d+)");
         matcher = pattern.matcher(logEntry);
         if (matcher.find()) {
             return matcher.group(1);
@@ -387,35 +388,25 @@ public class LogFormatter {
     }
 
     private static boolean containsDamage(String logEntry) {
-        String lower = logEntry.toLowerCase();
-
-        if (logEntry.matches(".*for \\d+ damage.*")) {
-            return true;
-        }
-
-        if (logEntry.matches(".*with \\d+ damage.*")) {
-            return true;
-        }
-
-        if (lower.contains("emotional damage")) {
-            return true;
-        }
-
-        if (lower.contains("crit") || lower.contains("critical") || lower.contains("devastating")) {
-            return true;
-        }
-
-        if (lower.contains("hits") || lower.contains("strikes") || lower.contains("blasts") ||
-            lower.contains("slashes") || lower.contains("fires") || lower.contains("unleashes") ||
-            lower.contains("rams") || lower.contains("sends") || lower.contains("dealt")) {
-            return true;
-        }
+        if (logEntry.matches(".*for \\d+ damage.*") ||
+            logEntry.matches(".*with \\d+ damage.*")
+        ) { return true; }
+        
+        final String lower = logEntry.toLowerCase();
+        if (lower.contains("emotional damage") ||
+            lower.contains("crit") || lower.contains("critical") ||
+            lower.contains("devastating") || lower.contains("hits") ||
+            lower.contains("strikes") || lower.contains("blasts") ||
+            lower.contains("slashes") || lower.contains("fires") ||
+            lower.contains("unleashes") || lower.contains("rams") ||
+            lower.contains("sends") || lower.contains("dealt")
+        ) { return true; }
 
         return false;
     }
 
     private static boolean isMissMessage(String logEntry) {
-        String lower = logEntry.toLowerCase();
+        final String lower = logEntry.toLowerCase();
         return lower.contains("miss") || lower.contains("dodges") || lower.contains("dodged") ||
                lower.contains("evades") || lower.contains("evaded") ||
                lower.contains("misses") || lower.contains("missed") ||
@@ -426,7 +417,7 @@ public class LogFormatter {
     }
 
     private static boolean isCritMessage(String logEntry) {
-        String lower = logEntry.toLowerCase();
+        final String lower = logEntry.toLowerCase();
         return lower.contains("critical") || lower.contains("crit!") || lower.contains("crit damage") ||
                lower.contains("nowhere to hide") || lower.contains("witness the stars shatter") ||
                lower.contains("disappear among the sea") || lower.contains("rules are made to be broken") ||
