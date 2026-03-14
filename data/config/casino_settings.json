@@ -38,7 +38,7 @@
     "arenaEntryFee": 100,
     "arenaSurvivalBonusPerTurn": 0.05,
     "arenaKillBonusPerKill": 0.1,
-    "arenaDefeatedConsolationMult": 0.5,
+    "arenaDefeatedConsolationMult": 0.10,
     "arenaConsolationPositionFactors": [0.50, 0.25, 0.10, 0.05],
     "arenaActionMultiplier": 1.5,
     "arenaDiminishingReturnsPerRound": 0.20,
@@ -107,14 +107,14 @@
         "$attacker sends $target flying with $dmg damage!",
         "$attacker unleashes $dmg damage upon $target!",
         "$attacker rams into $target for $dmg damage!",
-        "$attacker called $target and dealt $dmg emotional damage!",
+        "$attacker blackmails $target for $dmg emotional damage!",
         "$attacker preemptively strikes $target for $dmg damage!"
     ],
     "arenaMissLines": [
         "$target:'Too slow!' ($attacker missed)",
         "$target:'Frame perfect!' (Evaded $attacker)",
         "$target:'Is that all?' ($attacker missed)",
-        "$target:'Think you can get away?' (Evaded $attacker)",
+        "$target:'Think you can aim?' (Evaded $attacker)",
         "$target:'Too graceful for you?' ($attacker missed)",
         "$target:'The stars favor me today.' (Evaded $attacker)"
     ],

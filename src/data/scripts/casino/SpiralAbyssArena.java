@@ -822,26 +822,7 @@ Global.getLogger(this.getClass()).info("  Selected attacker: " + attacker.shortN
             return CasinoConfig.ARENA_MIN_ODDS;
         }
         
-        float consolationMult = CasinoConfig.ARENA_DEFEATED_CONSOLATION_MULT;
-        float[] positionFactors = CasinoConfig.ARENA_CONSOLATION_POSITION_FACTORS;
-        
-        float expectedConsolationReturn = 0.0f;
-        for (Map.Entry<Integer, Float> entry : shipPositionProbs.entrySet()) {
-            int position = entry.getKey();
-            float probability = entry.getValue();
-            
-            if (position > 0) {
-                int factorIndex = position - 1;
-                float positionFactor = factorIndex < positionFactors.length 
-                    ? positionFactors[factorIndex] 
-                    : positionFactors[positionFactors.length - 1];
-                expectedConsolationReturn += probability * positionFactor * consolationMult;
-            }
-        }
-        
-        float totalExpectedReturn = winProbability + expectedConsolationReturn;
-        
-        float fairOdds = (1.0f - CasinoConfig.ARENA_HOUSE_EDGE) / totalExpectedReturn;
+        float fairOdds = (1.0f - CasinoConfig.ARENA_HOUSE_EDGE) / winProbability;
         
         float midRoundMultiplier = 1.0f;
         if (currentRound > 0) {

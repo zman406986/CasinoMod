@@ -1997,6 +1997,7 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
             currentOverdraftMessage = validation.overdraftMessage;
             showingOverdraftConfirmation = true;
             showingBetAmounts = false;
+            selectedChampionIndex = -1;
             updateButtonVisibility();
             updateMessageLabel();
         } else if (validation.hasError()) {
@@ -2164,6 +2165,8 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         cacheOdds();
         
         updateLabels();
+        updateButtonVisibility();
+        updateMessageLabel();
     }
     
     @Deprecated
