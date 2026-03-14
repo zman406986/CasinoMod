@@ -186,12 +186,9 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         this.callbacks = callbacks;
         
-        callbacks.getPanelFader().setDurationOut(0.5f);
-        
         if (arenaPanel != null) {
-            arenaPanel.init(panel, callbacks, dialog);
+            arenaPanel.init(panel, callbacks);
             
-            // Initialize state (follows same pattern as PokerDialogDelegate)
             arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
         }
     }

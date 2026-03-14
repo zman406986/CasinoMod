@@ -105,9 +105,7 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
          * @return The current odds multiplier (already includes house edge and mid-round penalties)
          */
         public float getCurrentOdds(int currentRound) {
-            if (isDead) {
-                return 0.0f; // Dead ships have no odds
-            }
+            if (isDead) return 0f;
 
             // If we have arena reference and combatants, use simulation-based calculation
             if (arenaRef != null && combatantsRef != null && combatantIndex >= 0) {

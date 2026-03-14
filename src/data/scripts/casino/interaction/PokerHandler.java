@@ -373,6 +373,9 @@ private String formatBB(int amount, int bigBlind) {
                 case RAISE:
                     processPlayerRaise(raiseAmount);
                     break;
+                case ALL_IN:
+                    // TODO handle all in
+                    break;
             }
             return;
         }
@@ -1133,6 +1136,9 @@ private void endHand() {
             case RAISE -> {
                 pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
                 delegate.setLastPlayerAction("You raise to " + raiseAmount);
+            }
+            case ALL_IN -> {
+                // TODO handle all in
             }
         }
         

@@ -12,7 +12,6 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
-import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
@@ -24,13 +23,27 @@ import com.fs.starfarer.api.ui.LabelAPI;
 import com.fs.starfarer.api.ui.PositionAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
 import com.fs.starfarer.api.ui.UIComponentAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
 import com.fs.starfarer.api.util.Misc;
 
 import data.scripts.casino.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 
-public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
+public class ArenaPanelUI extends BaseCustomUIPanelPlugin
+    implements ActionListenerDelegate
+{
     private static final SettingsAPI settings = Global.getSettings();
+
+    private static final String ARENA_LEAVE_DATA = "arena_leave";
+    private static final String ARENA_SELECT_DATA = "arena_champ_data";
+    private static final String ARENA_BET_DATA = "arena_bet_data";
+    private static final String ARENA_BET_CANCEL = "arena_bet_cancel";
+    private static final String NEXT_ROUND_DATA = "arena_watch_next";
+    private static final String NEXT_GAME_DATA = "arena_next_game";
+    private static final String ARENA_SKIP_DATA = "arena_skip";
+    private static final String ARENA_ADD_BET_DATA = "arena_add_bet";
+    private static final String ARENA_SUSPEND_DATA = "arena_suspend";
+    private static final String ARENA_START_BATTLE_DATA = "arena_start_battle";
 
     protected static class ParsedLogEntry {
         String type;
@@ -247,70 +260,67 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
     }
 
-    protected InteractionDialogAPI dialog;
-    protected DialogCallbacks callbacks;
-    protected CustomPanelAPI panel;
-    protected PositionAPI p;
+    private CustomPanelAPI panel;
+    private PositionAPI pos;
     
-    protected ArenaActionCallback actionCallback;
+    private ArenaActionCallback actionCallback;
     
-    protected List<SpiralGladiator> combatants;
-    protected int currentRound;
-    protected int totalBet;
-    protected List<BetInfo> bets;
-    protected List<String> battleLog;
+    private List<SpiralGladiator> combatants;
+    private int currentRound;
+    private int totalBet;
+    private List<BetInfo> bets;
+    private List<String> battleLog;
     
-    protected int selectedChampionIndex = -1;
-    protected boolean battleEnded = false;
-    protected int winnerIndex = -1;
-    protected int totalReward = 0;
-    protected RewardBreakdown rewardBreakdown;
-    protected boolean readyToClose = false;
-    
-    protected boolean buttonsCreated = false;
-    
-    protected static final float PANEL_WIDTH = 1000f;
-    protected static final float PANEL_HEIGHT = 700f;
-    
-    protected static final float SHIP_COLUMN_WIDTH = 300f;
-    protected static final float CENTER_COLUMN_WIDTH = 450f;
+    private int selectedChampionIndex = -1;
+    private boolean battleEnded = false;
+    private int winnerIndex = -1;
+    private int totalReward = 0;
+    private RewardBreakdown rewardBreakdown;
+    private boolean readyToClose = false;
 
-    protected static final float BOX_WIDTH = 150f;
-    protected static final float BOX_HEIGHT = 65f;
-    protected static final float BOX_SPACING = 3f;
-    protected static final float ENTRY_SPACING = 10f;
+    private static final float MARGIN = 20f;
     
-    protected static final float CHAMP_BUTTON_WIDTH = 100f;
-    protected static final float CHAMP_BUTTON_HEIGHT = 25f;
+    private static final float PANEL_WIDTH = 1000f;
+    private static final float PANEL_HEIGHT = 700f;
     
-    protected static final float BUTTON_WIDTH = 120f;
-    protected static final float BUTTON_HEIGHT = 35f;
-    protected static final float BUTTON_SPACING = 10f;
+    private static final float SHIP_COLUMN_WIDTH = 300f;
+    private static final float CENTER_COLUMN_WIDTH = 450f;
+
+    private static final float BOX_WIDTH = 150f;
+    private static final float BOX_HEIGHT = 65f;
+    private static final float BOX_SPACING = 3f;
+    private static final float ENTRY_SPACING = 10f;
     
-    protected static final float MARGIN = 20f;
+    private static final float CHAMP_BUTTON_WIDTH = 100f;
+    private static final float CHAMP_BUTTON_HEIGHT = 25f;
+    private static final float CHAMP_BUTTON_X = BOX_WIDTH + MARGIN + 15f;
     
-    protected static final float leftX = SHIP_COLUMN_WIDTH + MARGIN;
-    protected static final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
+    private static final float BUTTON_WIDTH = 120f;
+    private static final float BUTTON_HEIGHT = 35f;
+    private static final float BUTTON_SPACING = 10f;
     
-    protected static final Color COLOR_HEALTHY = new Color(50, 200, 50);
-    protected static final Color COLOR_DAMAGED = new Color(200, 150, 50);
-    protected static final Color COLOR_DESTROYED = new Color(100, 30, 30);
-    protected static final Color COLOR_BOX_BG = new Color(40, 40, 50);
-    protected static final Color COLOR_BOX_BORDER = new Color(80, 80, 100);
-    protected static final Color COLOR_SELECTED = new Color(255, 215, 0);
+    private static final float leftX = SHIP_COLUMN_WIDTH + MARGIN;
+    private static final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
     
-    protected static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);
-    protected static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
-    protected static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
-    protected static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
+    private static final Color COLOR_HEALTHY = new Color(50, 200, 50);
+    private static final Color COLOR_DAMAGED = new Color(200, 150, 50);
+    private static final Color COLOR_DESTROYED = new Color(100, 30, 30);
+    private static final Color COLOR_BOX_BG = new Color(40, 40, 50);
+    private static final Color COLOR_BOX_BORDER = new Color(80, 80, 100);
+    private static final Color COLOR_SELECTED = new Color(255, 215, 0);
+    
+    private static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);
+    private static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
+    private static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
+    private static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
     private static final Color NET_POSITIVE_COLOR = new Color(50, 255, 100);
     private static final Color NET_NEGATOVE_COLOR = new Color(255, 100, 50);
     private static final Color KILL_COLOR = new Color(255, 150, 50);
     
-    protected static final Color COLOR_BG_DARK = new Color(15, 15, 20);
-    protected static final Color COLOR_SIDEBAR = new Color(25, 25, 35);
-    protected static final Color COLOR_TINT_DEAD = new Color(150, 50, 50);
-    protected static final Color COLOR_TINT_DAMAGED = new Color(255, 200, 100);
+    private static final Color COLOR_BG_DARK = new Color(15, 15, 20);
+    private static final Color COLOR_SIDEBAR = new Color(25, 25, 35);
+    private static final Color COLOR_TINT_DEAD = new Color(150, 50, 50);
+    private static final Color COLOR_TINT_DAMAGED = new Color(255, 200, 100);
 
     private static final Color BATTLE_HIT_COLOR_CRIT = new Color(255, 100, 100);
     private static final Color BATTLE_HIT_COLOR = new Color(255, 255, 100);
@@ -318,6 +328,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     private static final Color BATTLE_EVENT_COLOR = new Color(100,200,255);
     private static final Color BATTLE_EVENT_HIT_COLOR = new Color(255,200,50);
     private static final Color BATTLE_ROUND_COLOR = new Color(180,180,200);
+    private static final Color DISABLED_BTN_COLOR = new Color(255, 200, 0);
     
     private final boolean isPrefixPositive(String prefix) {
         if (prefix == null) return true;
@@ -378,8 +389,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected LabelAPI[] shipHpLabels = new LabelAPI[5];
     protected LabelAPI[] shipOddsLabels = new LabelAPI[5];
     
-    protected CustomPanelAPI battleLogPanel;
-    
     protected LabelAPI[] battleLogTextLabels = new LabelAPI[12];
     
     protected static final float LOG_SPRITE_SIZE = 28f;
@@ -394,15 +403,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected CustomPanelAPI[] rewardBreakdownPanels = new CustomPanelAPI[MAX_REWARD_LINES];
     
     protected LabelAPI instructionLabel;
-    
-    protected ButtonAPI watchNextButton;
-    protected ButtonAPI nextGameButton;
-    protected ButtonAPI skipToEndButton;
-    protected ButtonAPI addBetButton;
-    protected ButtonAPI suspendButton;
-    protected ButtonAPI leaveButton;
-    protected ButtonAPI returnToLobbyButton;
-    protected ButtonAPI startBattleButton;
 
     protected CustomPanelAPI watchNextPanel;
     protected CustomPanelAPI nextGamePanel;
@@ -410,13 +410,10 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected CustomPanelAPI addBetPanel;
     protected CustomPanelAPI suspendPanel;
     protected CustomPanelAPI leaveButtonPanel;
-    protected CustomPanelAPI returnToLobbyPanel;
     protected CustomPanelAPI startBattlePanel;
     
-    protected List<ButtonAPI> championSelectButtons = new ArrayList<>();
-    protected List<ButtonAPI> betAmountButtons = new ArrayList<>();
-    protected List<CustomPanelAPI> championSelectPanels = new ArrayList<>();
-    protected List<CustomPanelAPI> betAmountPanels = new ArrayList<>();
+    protected final List<CustomPanelAPI> championSelectPanels = new ArrayList<>();
+    protected final List<CustomPanelAPI> betAmountPanels = new ArrayList<>();
     
     protected static final int[] BET_AMOUNTS = {100, 500, 1000, 2000, 5000};
     
@@ -553,22 +550,18 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
     }
     
-    public void init(CustomPanelAPI panel, DialogCallbacks callbacks,   
-        InteractionDialogAPI dialog
-    ) {
+    public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         this.panel = panel;
-        this.callbacks = callbacks;
-        this.dialog = dialog;
-        
         callbacks.getPanelFader().setDurationOut(0.5f);
         
         cacheOdds();
         createUIElements();
         updateLabels();
+        updateButtonVisibility();
     }
     
     public void positionChanged(PositionAPI position) {
-        this.p = position;
+        this.pos = position;
     }
     
     private final void createUIElements() {
@@ -581,17 +574,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         createBattleLogPanel();
         createResultLabel();
         createRewardBreakdownLabels();
-        createAllButtonsOnce();
-        
-        buttonsCreated = true;
+        createAllButtons();
     }
     
     private final void createBattleLogPanel() {
         if (panel == null) return;
         
-        // Move battle log to center column, below round/total bet
-        final float logPanelX = SHIP_COLUMN_WIDTH + MARGIN;
-        final float logPanelY = MARGIN + 40f;
         final float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
         final float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
         
@@ -599,10 +587,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         logY = LOG_LINE_HEIGHT;
         logW = logPanelW - LOG_LEFT_MARGIN * 2;
         logH = logPanelH - LOG_LINE_HEIGHT;
-        
-        // FIXME what purpose does this panel serve?
-        battleLogPanel = panel.createCustomPanel(logPanelW, logPanelH, null);
-        panel.addComponent(battleLogPanel).inTL(logPanelX, logPanelY);
         
         final float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 30f;
         final float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP - 30f;
@@ -618,10 +602,9 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
     }
     
-    private final void createAllButtonsOnce() {
+    private final void createAllButtons() {
         if (panel == null) return;
         
-        final float champButtonX = BOX_WIDTH + MARGIN + 15f;
         final float startY = MARGIN + 10f;
         final float NAME_HEIGHT = 16f;
         final float HP_HEIGHT = 11f;
@@ -634,120 +617,115 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             
             final CustomPanelAPI champPanel = panel.createCustomPanel(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, null);
             final TooltipMakerAPI champTooltip = champPanel.createUIElement(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, false);
-            final ButtonAPI btn = champTooltip.addButton("Select", "arena_champ_" + i, CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f);
-            btn.setCustomData(i);
+            champTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = champTooltip.addButton("Select", ARENA_SELECT_DATA + i, CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
             btn.getPosition().inTL(0, 0);
             champPanel.addUIElement(champTooltip).inTL(0, 0);
-            panel.addComponent(champPanel).inTL(champButtonX, buttonY);
+            panel.addComponent(champPanel).inTL(CHAMP_BUTTON_X, buttonY);
             champPanel.setOpacity(0f);
             championSelectPanels.add(champPanel);
-            championSelectButtons.add(btn);
-        }
-        
-        {
-            final float cancelY = startY + 5 * totalItemHeight;
-            final CustomPanelAPI champCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-            final TooltipMakerAPI champCancelTooltip = champCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-            final ButtonAPI champCancelBtn = champCancelTooltip.addButton("Cancel", "arena_champ_cancel", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-            champCancelBtn.setCustomData(-1);
-            champCancelBtn.getPosition().inTL(0, 0);
-            champCancelPanel.addUIElement(champCancelTooltip).inTL(0, 0);
-            panel.addComponent(champCancelPanel).inTL(champButtonX, cancelY);
-            champCancelPanel.setOpacity(0f);
-            championSelectPanels.add(champCancelPanel);
-            championSelectButtons.add(champCancelBtn);
         }
         
         final CustomPanelAPI betCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         final TooltipMakerAPI betCancelTooltip = betCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        final ButtonAPI betCancelBtn = betCancelTooltip.addButton("Cancel", "arena_bet_cancel", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        betCancelBtn.setCustomData(-1);
-        betCancelBtn.getPosition().inTL(0, 0);
+        betCancelTooltip.setActionListenerDelegate(this);
+        betCancelTooltip.addButton("Cancel", ARENA_BET_CANCEL, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         betCancelPanel.addUIElement(betCancelTooltip).inTL(0, 0);
         panel.addComponent(betCancelPanel).inTL(leftX, bottomY);
         betCancelPanel.setOpacity(0f);
         betAmountPanels.add(betCancelPanel);
-        betAmountButtons.add(betCancelBtn);
         
         for (int i = 0; i < BET_AMOUNTS.length; i++) {
             final int amt = BET_AMOUNTS[i];
-            final float btnX = leftX + (i + 1) * (BUTTON_WIDTH + BUTTON_SPACING);
+            final float btnX = leftX + i * (BUTTON_WIDTH + BUTTON_SPACING);
             
             final CustomPanelAPI betBtnPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
             final TooltipMakerAPI betTooltip = betBtnPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-            final ButtonAPI btn = betTooltip.addButton(amt + " SG", "arena_bet_" + amt, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-            btn.setCustomData(amt);
-            btn.getPosition().inTL(0, 0);
-            betBtnPanel.addUIElement(betTooltip).inTL(0, 0);
-            panel.addComponent(betBtnPanel).inTL(btnX, bottomY);
+            betTooltip.setActionListenerDelegate(this);
+            betTooltip.addButton(amt + " SG", ARENA_BET_DATA + amt, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            betBtnPanel.addUIElement(betTooltip);
+            panel.addComponent(betBtnPanel).inTL(btnX, bottomY - BUTTON_HEIGHT - BUTTON_SPACING);
             betBtnPanel.setOpacity(0f);
             betAmountPanels.add(betBtnPanel);
-            betAmountButtons.add(btn);
+        }
+
+        { // Leave Button
+            leaveButtonPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI leaveTooltip = leaveButtonPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            leaveTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = leaveTooltip.addButton("Leave", ARENA_LEAVE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            leaveButtonPanel.addUIElement(leaveTooltip).inTL(0, 0);
+            panel.addComponent(leaveButtonPanel).inTL(leftX, bottomY);
+            leaveButtonPanel.setOpacity(0f);
         }
         
-        returnToLobbyPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI returnTooltip = returnToLobbyPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        returnToLobbyButton = returnTooltip.addButton("Return to Lobby", "arena_return_lobby", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        returnToLobbyButton.getPosition().inTL(0, 0);
-        returnToLobbyPanel.addUIElement(returnTooltip).inTL(0, 0);
-        panel.addComponent(returnToLobbyPanel).inTL(leftX, bottomY);
-        returnToLobbyPanel.setOpacity(0f);
+        { // Suspend Button
+            suspendPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI suspendTooltip = suspendPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            suspendTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = suspendTooltip.addButton("Suspend", ARENA_SUSPEND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            suspendPanel.addUIElement(suspendTooltip).inTL(0, 0);
+            panel.addComponent(suspendPanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            suspendPanel.setOpacity(0f);
+        }
         
-        leaveButtonPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI leaveTooltip = leaveButtonPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        leaveButton = leaveTooltip.addButton("Leave", "arena_leave", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        leaveButton.getPosition().inTL(0, 0);
-        leaveButtonPanel.addUIElement(leaveTooltip).inTL(0, 0);
-        panel.addComponent(leaveButtonPanel).inTL(leftX, bottomY);
-        leaveButtonPanel.setOpacity(0f);
+        { // Add Bet Button
+            addBetPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI addBetTooltip = addBetPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            addBetTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = addBetTooltip.addButton("Add Bet", ARENA_ADD_BET_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            addBetPanel.addUIElement(addBetTooltip).inTL(0, 0);
+            panel.addComponent(addBetPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
+            addBetPanel.setOpacity(0f);
+        }
         
-        suspendPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI suspendTooltip = suspendPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        suspendButton = suspendTooltip.addButton("Suspend", "arena_suspend", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        suspendButton.getPosition().inTL(0, 0);
-        suspendPanel.addUIElement(suspendTooltip).inTL(0, 0);
-        panel.addComponent(suspendPanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        suspendPanel.setOpacity(0f);
-        
-        addBetPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI addBetTooltip = addBetPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        addBetButton = addBetTooltip.addButton("Add Bet", "arena_add_bet", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        addBetButton.getPosition().inTL(0, 0);
-        addBetPanel.addUIElement(addBetTooltip).inTL(0, 0);
-        panel.addComponent(addBetPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
-        addBetPanel.setOpacity(0f);
-        
-        skipToEndPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI skipTooltip = skipToEndPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        skipToEndButton = skipTooltip.addButton("Skip to End", "arena_skip", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        skipToEndButton.getPosition().inTL(0, 0);
-        skipToEndPanel.addUIElement(skipTooltip).inTL(0, 0);
-        panel.addComponent(skipToEndPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
-        skipToEndPanel.setOpacity(0f);
+        { // Skip to End Button
+            skipToEndPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI skipTooltip = skipToEndPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            skipTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = skipTooltip.addButton("Skip to End", ARENA_SKIP_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            skipToEndPanel.addUIElement(skipTooltip).inTL(0, 0);
+            panel.addComponent(skipToEndPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
+            skipToEndPanel.setOpacity(0f);
+        }
 
-        watchNextPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI watchTooltip = watchNextPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        watchNextButton = watchTooltip.addButton("Next Round", "arena_watch_next", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        watchNextButton.getPosition().inTL(0, 0);
-        watchNextPanel.addUIElement(watchTooltip).inTL(0, 0);
-        panel.addComponent(watchNextPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
-        watchNextPanel.setOpacity(0f);
+        { // Watch Next Button
+            watchNextPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI watchTooltip = watchNextPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            watchTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = watchTooltip.addButton("Next Round", NEXT_ROUND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            watchNextPanel.addUIElement(watchTooltip).inTL(0, 0);
+            panel.addComponent(watchNextPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
+            watchNextPanel.setOpacity(0f);
+        }
         
-        nextGamePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI nextGameTooltip = nextGamePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        nextGameButton = nextGameTooltip.addButton("Next Game", "arena_next_game", new Color(0, 0, 0), new Color(255, 200, 0), BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        nextGameButton.getPosition().inTL(0, 0);
-        nextGamePanel.addUIElement(nextGameTooltip).inTL(0, 0);
-        panel.addComponent(nextGamePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        nextGamePanel.setOpacity(0f);
-        
-        startBattlePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        final TooltipMakerAPI startTooltip = startBattlePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        startBattleButton = startTooltip.addButton("Start Battle", "arena_start_battle", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        startBattleButton.getPosition().inTL(0, 0);
-        startBattlePanel.addUIElement(startTooltip).inTL(0, 0);
-        panel.addComponent(startBattlePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        startBattlePanel.setOpacity(0f);
+        { // Next Game Button
+            nextGamePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI nextGameTooltip = nextGamePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            nextGameTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = nextGameTooltip.addButton("Next Game", NEXT_GAME_DATA, Color.BLACK, DISABLED_BTN_COLOR, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            nextGamePanel.addUIElement(nextGameTooltip).inTL(0, 0);
+            panel.addComponent(nextGamePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            nextGamePanel.setOpacity(0f);
+        }
+
+        { // Start Battle Button
+            startBattlePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI startTooltip = startBattlePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            startTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = startTooltip.addButton("Start Battle", ARENA_START_BATTLE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            startBattlePanel.addUIElement(startTooltip).inTL(0, 0);
+            panel.addComponent(startBattlePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            startBattlePanel.setOpacity(0f);
+        }
     }
     
     private final void updateButtonVisibility() {
@@ -788,22 +766,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        if (returnToLobbyPanel != null) {
-            returnToLobbyPanel.setOpacity(0f);
-        }
-        
         if (leaveButtonPanel != null) {
-            if (battleEnded) {
-                leaveButtonPanel.getPosition().inTL(leftX, bottomY);
-            } else if (!showBetAmounts && !showChampionSelect) {
-                leaveButtonPanel.getPosition().inTL(leftX, bottomY);
-            } else if (showChampionSelect) {
-                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else if (showBetAmounts) {
-                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else {
-                leaveButtonPanel.setOpacity(0f);
-            }
+            leaveButtonPanel.setOpacity(0f);
+
+            if (battleEnded || !showBetAmounts && !showChampionSelect ||
+                showChampionSelect || totalBet < 1 && !showBetAmounts
+            ) { leaveButtonPanel.setOpacity(1f); }
         }
         
         if (suspendPanel != null) {
@@ -962,18 +930,16 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + HP_HEIGHT + 6f
             );
         }
-        
-        buttonsCreated = true;
     }
     
     public void renderBelow(float alphaMult) {
         final float x, y, w, h;
         
-        if (p != null) {
-            x = p.getX();
-            y = p.getY();
-            w = p.getWidth();
-            h = p.getHeight();
+        if (pos != null) {
+            x = pos.getX();
+            y = pos.getY();
+            w = pos.getWidth();
+            h = pos.getHeight();
         } else {
             x = 0;
             y = 0;
@@ -1009,7 +975,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         
         updateLabels();
-        updateButtonVisibility();
         
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
@@ -1598,6 +1563,97 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         return text.replace("CRIT damage", "CRIT dmg").replace("damage", "dmg");
     }
 
+    //* Used by TooltipMakerAPI button click listener */
+    @Override
+    public final void actionPerformed(Object input, Object source) {
+        final Object data;
+        if (source instanceof ButtonAPI btn) {
+            data = btn.getCustomData();
+        } else {
+            data = null;
+        }
+
+        processAction(data);
+        updateButtonVisibility();
+    }
+
+    private final void processAction(Object data) {
+        if (data == ARENA_LEAVE_DATA) {
+            if (actionCallback != null) actionCallback.onLeave();
+            return;
+
+        } else if (data == ARENA_BET_CANCEL) {
+            showingBetAmounts = false;
+            selectedChampionIndex = -1;
+            addingBetDuringBattle = false;
+            return;
+
+        } else if (data == NEXT_ROUND_DATA) {
+            if (actionCallback != null) actionCallback.onWatchNextRound();
+            return;
+
+        } else if (data == NEXT_GAME_DATA) {
+            if (actionCallback != null) actionCallback.onNextGame();
+            return;
+
+        } else if (data == ARENA_SKIP_DATA) {
+            if (actionCallback != null) actionCallback.onSkipToEnd();
+            return;
+
+        } else if (data == ARENA_ADD_BET_DATA) {
+            addingBetDuringBattle = true;
+            showingBetAmounts = true;
+            selectedChampionIndex = -1;
+            return;
+
+        } else if (data == ARENA_SUSPEND_DATA) {
+            if (actionCallback != null)  actionCallback.onSuspend();
+            return;
+
+        } else if (data == ARENA_START_BATTLE_DATA) {
+            if (actionCallback != null) actionCallback.onStartBattle();
+            return;
+        }
+
+        if (data instanceof String strData) {
+            if (strData.contains(ARENA_SELECT_DATA)) {
+                final int idx = Integer.parseInt(
+                    strData.replaceAll(".*?(\\d+)$", "$1"));
+
+                if (idx == -1) {
+                    addingBetDuringBattle = false;
+                    showingBetAmounts = false;
+                    selectedChampionIndex = -1;
+                } else {
+                    selectedChampionIndex = idx;
+                    showingBetAmounts = true;
+
+                    if (!showingBetAmounts && selectedChampionIndex < 0 && 
+                        currentRound == 0 && actionCallback != null
+                    ) { actionCallback.onSelectChampion(idx); }
+                }
+                return;
+            }
+
+            if (strData.contains(ARENA_BET_DATA)) {
+                int amount;
+                try {
+                    amount = Integer.parseInt(
+                    strData.replaceAll(".*?(\\d+)$", "$1"));
+                } catch (Exception e) {
+                    amount = 0;
+                }
+
+                if (selectedChampionIndex >= 0 && actionCallback != null) {
+                    actionCallback.onConfirmBet(selectedChampionIndex, amount);
+                    showingBetAmounts = false;
+                    selectedChampionIndex = -1;
+                }
+                return;
+            }
+        }
+    }
+
     public void processInput(List<InputEventAPI> events) {
         for (InputEventAPI event : events) {
             if (event.isConsumed()) continue;
@@ -1617,134 +1673,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 }
             }
         }
-        
-        checkButtonClicks();
     }
-    
-    private void checkButtonClicks() {
-        if (leaveButton != null && leaveButton.isChecked()) {
-            leaveButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onLeave();
-            }
-            return;
-        }
         
-        if (currentRound > 0 && addingBetDuringBattle && showingBetAmounts) {
-            for (ButtonAPI btn : championSelectButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer idx = (Integer) btn.getCustomData();
-                    if (idx != null) {
-                        if (idx == -1) {
-                            addingBetDuringBattle = false;
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
-                        } else {
-                            selectedChampionIndex = idx;
-                            showingBetAmounts = true;
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (!showingBetAmounts && selectedChampionIndex < 0 && currentRound == 0) {
-            for (ButtonAPI btn : championSelectButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer idx = (Integer) btn.getCustomData();
-                    if (idx != null) {
-                        selectedChampionIndex = idx;
-                        showingBetAmounts = true;
-                        if (actionCallback != null) {
-                            actionCallback.onSelectChampion(idx);
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (showingBetAmounts && selectedChampionIndex >= 0) {
-            for (ButtonAPI btn : betAmountButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer amount = (Integer) btn.getCustomData();
-                    if (amount != null) {
-                        if (amount == -1) {
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
-                            addingBetDuringBattle = false;
-                        } else if (selectedChampionIndex >= 0 && actionCallback != null) {
-                            actionCallback.onConfirmBet(selectedChampionIndex, amount);
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (watchNextButton != null && watchNextButton.isChecked()) {
-            watchNextButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onWatchNextRound();
-            }
-            return;
-        }
-        
-        if (nextGameButton != null && nextGameButton.isChecked()) {
-            nextGameButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onNextGame();
-            }
-            return;
-        }
-        
-        if (skipToEndButton != null && skipToEndButton.isChecked()) {
-            skipToEndButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onSkipToEnd();
-            }
-            return;
-        }
-        
-        if (addBetButton != null && addBetButton.isChecked()) {
-            addBetButton.setChecked(false);
-            addingBetDuringBattle = true;
-            showingBetAmounts = true;
-            selectedChampionIndex = -1;
-            return;
-        }
-        
-        if (suspendButton != null && suspendButton.isChecked()) {
-            suspendButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onSuspend();
-            }
-            return;
-        }
-        
-        if (returnToLobbyButton != null && returnToLobbyButton.isChecked()) {
-            returnToLobbyButton.setChecked(false);
-            readyToClose = true;
-            if (actionCallback != null) {
-                actionCallback.onReturnToLobby();
-            }
-            return;
-        }
-        
-        if (startBattleButton != null && startBattleButton.isChecked()) {
-            startBattleButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onStartBattle();
-            }
-        }
-    }
-    
     private void cacheOdds() {
         if (combatants == null) return;
         

@@ -7,6 +7,7 @@ import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.SpiralAbyssArena;
+import data.scripts.casino.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.util.LogFormatter;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -57,12 +58,12 @@ public class ArenaHandler {
     private static final String MEM_ARENA_BETS_COUNT = "$ipc_arena_bets_count";
     private static final String MEM_ARENA_SUSPEND_TIME = "$ipc_arena_suspend_time";
 
-private final CasinoInteraction main;
+    private final CasinoInteraction main;
     private ArenaDialogDelegate currentDelegate;
     
     protected SpiralAbyssArena activeArena;
-    protected List<SpiralAbyssArena.SpiralGladiator> arenaCombatants;
-    protected SpiralAbyssArena.SpiralGladiator chosenChampion;
+    protected List<SpiralGladiator> arenaCombatants;
+    protected SpiralGladiator chosenChampion;
     protected int opponentsDefeated;
     protected int currentRound;
     protected int currentBetAmount = CasinoConfig.ARENA_ENTRY_FEE;
@@ -75,10 +76,10 @@ private final CasinoInteraction main;
     public static class BetInfo {
         public int amount;
         public float multiplier;
-        public SpiralAbyssArena.SpiralGladiator ship;
+        public SpiralGladiator ship;
         public int roundPlaced;
 
-        public BetInfo(int amount, float multiplier, SpiralAbyssArena.SpiralGladiator ship, int roundPlaced) {
+        public BetInfo(int amount, float multiplier, SpiralGladiator ship, int roundPlaced) {
             this.amount = amount;
             this.multiplier = multiplier;
             this.ship = ship;
@@ -86,8 +87,8 @@ private final CasinoInteraction main;
         }
     }
     
-protected List<BetInfo> arenaBets = new ArrayList<>();
-    protected List<String> battleLog = new ArrayList<>();
+    private final List<BetInfo> arenaBets = new ArrayList<>();
+    private final List<String> battleLog = new ArrayList<>();
     
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
