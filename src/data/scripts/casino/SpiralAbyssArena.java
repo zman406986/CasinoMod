@@ -217,7 +217,7 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
         // Use random ships from all gacha-eligible ships, not just featured ones
         // This ensures fresh ship pool for each arena match
         String randomCapital = gacha.getRandomStandardHull(ShipAPI.HullSize.CAPITAL_SHIP, null);
-        if (randomCapital != null && !usedHullIds.contains(randomCapital)) {
+        if (randomCapital != null) {
             pool.add(randomCapital);
             usedHullIds.add(randomCapital);
         }
@@ -539,26 +539,6 @@ Global.getLogger(this.getClass()).info("  Selected attacker: " + attacker.shortN
     }
     
     /**
-     * Calculates win probabilities for all alive combatants using Monte Carlo simulation.
-     * This provides accurate odds based on actual combat dynamics rather than simple HP ratios.
-     * 
-     * @param combatants The list of current combatants
-     * @param currentRound The current round number (0 = pre-battle)
-     * @return Map of combatant index to win probability (0.0 - 1.0)
-     */
-    public Map<Integer, Float> calculateWinProbabilities(List<SpiralGladiator> combatants, int currentRound) {
-        Map<Integer, Map<Integer, Float>> positionProbs = calculatePositionProbabilities(combatants, currentRound);
-        Map<Integer, Float> winProbabilities = new HashMap<>();
-        
-        for (Map.Entry<Integer, Map<Integer, Float>> entry : positionProbs.entrySet()) {
-            Float winProb = entry.getValue().get(0);
-            winProbabilities.put(entry.getKey(), winProb != null ? winProb : 0.0f);
-        }
-        
-        return winProbabilities;
-    }
-    
-    /**
      * Checks if the cached position probabilities are still valid for the given state.
      * Cache is valid if: round matches and all HP values match cached values.
      * 
@@ -815,12 +795,9 @@ Global.getLogger(this.getClass()).info("  Selected attacker: " + attacker.shortN
      * Calculates current odds for a specific ship based on simulation-based probabilities.
      * Uses position probabilities to account for consolation rewards, ensuring the
      * configured house edge is maintained regardless of consolation settings.
-     * 
      * Formula: odds = (1 - houseEdge) / (P_win + Σ P_position × positionFactor × consolationMult)
-     * 
      * This guarantees that betting on all ships equally results in exactly the
      * configured house edge, while still providing meaningful consolation payouts.
-     * 
      * @param combatants The list of all combatants
      * @param shipIndex The index of the ship to calculate odds for
      * @param currentRound The current round number (0 = pre-battle)

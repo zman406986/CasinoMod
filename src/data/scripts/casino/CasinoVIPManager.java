@@ -96,20 +96,20 @@ public class CasinoVIPManager implements EveryFrameScript {
         MemoryAPI memory = Global.getSector().getPlayerMemoryWithoutUpdate();
         
         if (!memory.contains(LAST_PROCESSED_DAY_KEY)) {
-            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
             return;
         }
         
         Long lastProcessedDay = memory.getLong(LAST_PROCESSED_DAY_KEY);
         if (lastProcessedDay == 0) {
-            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
             return;
         }
         
         float daysElapsed = clock.getElapsedDaysSince(lastProcessedDay);
         if (daysElapsed >= 1.0f) {
             checkDaily();
-            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
         }
     }
 
@@ -183,7 +183,7 @@ public class CasinoVIPManager implements EveryFrameScript {
                 checkMonthlyDebtWarning();
             }
             
-            memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
         }
     }
     
@@ -235,7 +235,7 @@ public class CasinoVIPManager implements EveryFrameScript {
                 );
             }
             
-            memory.set(LAST_DEBT_WARNING_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_DEBT_WARNING_KEY, clock.getTimestamp());
         }
     }
 
@@ -270,19 +270,19 @@ public class CasinoVIPManager implements EveryFrameScript {
         CampaignClockAPI clock = Global.getSector().getClock();
         
         if (!memory.contains(LAST_MONTHLY_NOTIFY_KEY)) {
-            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
             return true;
         }
         
         Long lastMonthlyNotify = memory.getLong(LAST_MONTHLY_NOTIFY_KEY);
         if (lastMonthlyNotify == 0) {
-            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
             return true;
         }
         
         float daysSinceLastNotify = clock.getElapsedDaysSince(lastMonthlyNotify);
         if (daysSinceLastNotify >= 30f) {
-            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(clock.getTimestamp()));
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
             return true;
         }
         
@@ -493,12 +493,12 @@ public class CasinoVIPManager implements EveryFrameScript {
             newDuration = currentRemaining + days;
         }
         
-        memory.set("$ipc_vip_start_time", Long.valueOf(currentTimestamp));
+        memory.set("$ipc_vip_start_time", currentTimestamp);
         memory.set("$ipc_vip_duration", Integer.valueOf(newDuration));
         
         addCumulativeVIPPurchases(1);
         
-        memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(-1L));
+        memory.set(LAST_REWARD_TIME_KEY, -1L);
         
         Global.getLogger(CasinoVIPManager.class).info(
             "VIP Pass purchased: startTime=" + currentTimestamp + ", duration=" + newDuration + " days"
@@ -540,7 +540,7 @@ public class CasinoVIPManager implements EveryFrameScript {
             CampaignClockAPI clock = Global.getSector().getClock();
             sendVIPNotificationImmediate(interestAmount);
             
-            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, Long.valueOf(clock.getTimestamp()));
+            Global.getSector().getPlayerMemoryWithoutUpdate().set(LAST_REWARD_TIME_KEY, clock.getTimestamp());
         }
     }
     
@@ -629,7 +629,7 @@ public class CasinoVIPManager implements EveryFrameScript {
         }
         
         if (!memory.contains("$ipc_vip_start_time")) {
-            memory.set("$ipc_vip_start_time", Long.valueOf(0L));
+            memory.set("$ipc_vip_start_time", 0L);
         }
         
         if (!memory.contains("$ipc_vip_duration")) {
@@ -637,15 +637,15 @@ public class CasinoVIPManager implements EveryFrameScript {
         }
         
         if (!memory.contains(LAST_REWARD_TIME_KEY)) {
-            memory.set(LAST_REWARD_TIME_KEY, Long.valueOf(-1L));
+            memory.set(LAST_REWARD_TIME_KEY, -1L);
         }
         
         if (!memory.contains(LAST_PROCESSED_DAY_KEY)) {
-            memory.set(LAST_PROCESSED_DAY_KEY, Long.valueOf(Global.getSector().getClock().getTimestamp()));
+            memory.set(LAST_PROCESSED_DAY_KEY, Global.getSector().getClock().getTimestamp());
         }
         
         if (!memory.contains(LAST_MONTHLY_NOTIFY_KEY)) {
-            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(0L));
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, 0L);
         }
         
         if (!memory.contains(MONTHLY_NOTIFY_MODE_KEY)) {
@@ -653,7 +653,7 @@ public class CasinoVIPManager implements EveryFrameScript {
         }
         
         if (!memory.contains(LAST_DEBT_WARNING_KEY)) {
-            memory.set(LAST_DEBT_WARNING_KEY, Long.valueOf(0L));
+            memory.set(LAST_DEBT_WARNING_KEY, 0L);
         }
     }
     
@@ -689,7 +689,7 @@ public class CasinoVIPManager implements EveryFrameScript {
         memory.set(MONTHLY_NOTIFY_MODE_KEY, newMode);
         
         if (newMode) {
-            memory.set(LAST_MONTHLY_NOTIFY_KEY, Long.valueOf(Global.getSector().getClock().getTimestamp()));
+            memory.set(LAST_MONTHLY_NOTIFY_KEY, Global.getSector().getClock().getTimestamp());
         }
         
         return newMode;

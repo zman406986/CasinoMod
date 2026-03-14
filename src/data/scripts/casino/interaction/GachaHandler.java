@@ -325,13 +325,9 @@ public class GachaHandler {
         this.shipsAwaitingConversionDecision.clear();
         this.shipsAwaitingConversionDecision.addAll(obtainedShips);
 
-        GachaAnimation animation = new GachaAnimation(itemsToAnimate, results -> {
-            justCompletedPull = true;
-        });
+        GachaAnimation animation = new GachaAnimation(itemsToAnimate, results -> justCompletedPull = true);
 
-        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, () -> {
-            showGachaMenu();
-        });
+        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, this::showGachaMenu);
 
         main.getDialog().showCustomVisualDialog(800f, 600f, delegate);
     }

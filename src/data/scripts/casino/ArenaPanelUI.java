@@ -22,6 +22,9 @@ import com.fs.starfarer.api.ui.TooltipMakerAPI;
 import com.fs.starfarer.api.util.Misc;
 
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
+import data.scripts.casino.interaction.ArenaHandler.BetValidationResult;
+
+import static data.scripts.casino.interaction.ArenaHandler.validateBet;
 
 public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
 
@@ -64,12 +67,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 type = "HIT";
                 isCrit = true;
                 parseAttackLine(rawEntry, combatants);
-            } else if (rawEntry.contains(" damage") || rawEntry.contains(" for ")) {
-                type = "HIT";
-                parseAttackLine(rawEntry, combatants);
             } else if (rawEntry.contains("miss") || rawEntry.contains("dodges") || rawEntry.contains("Evaded") || rawEntry.contains("shot goes wide")) {
                 type = "MISS";
                 parseMissLine(rawEntry, combatants);
+            } else if (rawEntry.contains(" damage") || rawEntry.contains(" for ")) {
+                type = "HIT";
+                parseAttackLine(rawEntry, combatants);
             } else if (rawEntry.contains("--- SHIP STATUS ---") || rawEntry.contains("HP:")) {
                 type = "STATUS";
             } else {
@@ -96,7 +99,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                         // Set new first
                         firstPos = pos;
                         firstShip = ship;
-                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
                         secondPos = pos;
                         secondShip = ship;
                     }
@@ -140,7 +143,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                         // Set new first
                         firstPos = pos;
                         firstShip = ship;
-                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
                         secondPos = pos;
                         secondShip = ship;
                     }
@@ -175,7 +178,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                         // Set new first
                         firstPos = pos;
                         firstShip = ship;
-                    } else if (pos < secondPos && !ship.hullId.equals(firstShip != null ? firstShip.hullId : null)) {
+                    } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
                         secondPos = pos;
                         secondShip = ship;
                     }
@@ -235,7 +238,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        boolean shouldSkipDeadAttacker(Map<String, Boolean> deadStatusMap) {
+        boolean shouldSkipDeadAttacker() {
             return false;
         }
     }
@@ -420,6 +423,26 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected boolean showingBetAmounts = false;
     protected boolean addingBetDuringBattle = false;
     
+    protected boolean showingOverdraftConfirmation = false;
+    protected boolean showingErrorMessage = false;
+    protected int pendingBetAmount = 0;
+    protected int pendingChampionIndex = -1;
+    protected String currentErrorMessage = "";
+    protected String currentOverdraftMessage = "";
+    
+    protected LabelAPI balanceLabel;
+    protected CustomPanelAPI balancePanel;
+    
+    protected LabelAPI messageLabel;
+    protected CustomPanelAPI messagePanel;
+    
+    protected ButtonAPI confirmOverdraftButton;
+    protected ButtonAPI cancelOverdraftButton;
+    protected ButtonAPI dismissErrorButton;
+    protected CustomPanelAPI confirmOverdraftPanel;
+    protected CustomPanelAPI cancelOverdraftPanel;
+    protected CustomPanelAPI dismissErrorPanel;
+    
     protected float logX;
     protected float logY;
     protected float logW;
@@ -566,7 +589,9 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         createRoundLabel();
         createBetLabel();
+        createBalanceLabel();
         createInstructionLabel();
+        createMessageLabel();
         createShipLabels();
         createBattleLogPanel();
         createResultLabel();
@@ -737,13 +762,37 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         startBattlePanel.addUIElement(startTooltip).inTL(0, 0);
         panel.addComponent(startBattlePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
         startBattlePanel.getPosition().inTL(-1000f, -1000f);
+        
+        confirmOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, null);
+        TooltipMakerAPI confirmTooltip = confirmOverdraftPanel.createUIElement(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, false);
+        confirmOverdraftButton = confirmTooltip.addButton("Confirm Overdraft", "arena_confirm_overdraft", BUTTON_WIDTH + 30f, BUTTON_HEIGHT, 0f);
+        confirmOverdraftButton.getPosition().inTL(0, 0);
+        confirmOverdraftPanel.addUIElement(confirmTooltip).inTL(0, 0);
+        panel.addComponent(confirmOverdraftPanel).inTL(leftX, bottomY);
+        confirmOverdraftPanel.getPosition().inTL(-1000f, -1000f);
+        
+        cancelOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+        TooltipMakerAPI cancelTooltip = cancelOverdraftPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+        cancelOverdraftButton = cancelTooltip.addButton("Cancel", "arena_cancel_overdraft", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        cancelOverdraftButton.getPosition().inTL(0, 0);
+        cancelOverdraftPanel.addUIElement(cancelTooltip).inTL(0, 0);
+        panel.addComponent(cancelOverdraftPanel).inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
+        cancelOverdraftPanel.getPosition().inTL(-1000f, -1000f);
+        
+        dismissErrorPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+        TooltipMakerAPI dismissTooltip = dismissErrorPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+        dismissErrorButton = dismissTooltip.addButton("OK", "arena_dismiss_error", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        dismissErrorButton.getPosition().inTL(0, 0);
+        dismissErrorPanel.addUIElement(dismissTooltip).inTL(0, 0);
+        panel.addComponent(dismissErrorPanel).inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
+        dismissErrorPanel.getPosition().inTL(-1000f, -1000f);
     }
     
     protected void updateButtonVisibility() {
-        boolean showChampionSelect = (currentRound == 0 && !showingBetAmounts && !battleEnded) ||
-                                      (currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !battleEnded);
-        boolean showChampionAsBet = currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0;
-        boolean showBetAmounts = showingBetAmounts && selectedChampionIndex >= 0 && !battleEnded;
+        boolean showChampionSelect = (currentRound == 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) ||
+                                      (currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage);
+        boolean showChampionAsBet = currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !showingOverdraftConfirmation && !showingErrorMessage;
+        boolean showBetAmounts = showingBetAmounts && selectedChampionIndex >= 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage;
         
         float champButtonX = BOX_WIDTH + MARGIN + 15f;
         float startY = MARGIN + 10f;
@@ -807,7 +856,9 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (leaveButtonPanel != null) {
-            if (battleEnded) {
+            if (showingOverdraftConfirmation || showingErrorMessage) {
+                leaveButtonPanel.getPosition().inTL(-1000f, -1000f);
+            } else if (battleEnded) {
                 leaveButtonPanel.getPosition().inTL(leftX, bottomY);
             } else if (!showBetAmounts && !showChampionSelect) {
                 leaveButtonPanel.getPosition().inTL(leftX, bottomY);
@@ -821,7 +872,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (suspendPanel != null) {
-            if (!battleEnded && currentRound > 0 && !showingBetAmounts) {
+            if (!battleEnded && currentRound > 0 && !showingBetAmounts && !showingOverdraftConfirmation && !showingErrorMessage) {
                 suspendPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
             } else {
                 suspendPanel.getPosition().inTL(-1000f, -1000f);
@@ -829,7 +880,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (addBetPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded) {
+            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
                 addBetPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
             } else {
                 addBetPanel.getPosition().inTL(-1000f, -1000f);
@@ -837,7 +888,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (skipToEndPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded) {
+            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
                 skipToEndPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
             } else {
                 skipToEndPanel.getPosition().inTL(-1000f, -1000f);
@@ -845,7 +896,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (watchNextPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded) {
+            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
                 watchNextPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
             } else {
                 watchNextPanel.getPosition().inTL(-1000f, -1000f);
@@ -861,10 +912,43 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
         
         if (startBattlePanel != null) {
-            if (currentRound == 0 && !showingBetAmounts && totalBet > 0) {
+            if (currentRound == 0 && !showingBetAmounts && totalBet > 0 && !showingOverdraftConfirmation && !showingErrorMessage) {
                 startBattlePanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
             } else {
                 startBattlePanel.getPosition().inTL(-1000f, -1000f);
+            }
+        }
+        
+        if (confirmOverdraftPanel != null) {
+            if (showingOverdraftConfirmation) {
+                confirmOverdraftPanel.getPosition().inTL(leftX, bottomY);
+            } else {
+                confirmOverdraftPanel.getPosition().inTL(-1000f, -1000f);
+            }
+        }
+        
+        if (cancelOverdraftPanel != null) {
+            if (showingOverdraftConfirmation) {
+                cancelOverdraftPanel.getPosition().inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
+            } else {
+                cancelOverdraftPanel.getPosition().inTL(-1000f, -1000f);
+            }
+        }
+        
+        if (dismissErrorPanel != null) {
+            if (showingErrorMessage) {
+                dismissErrorPanel.getPosition().inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
+            } else {
+                dismissErrorPanel.getPosition().inTL(-1000f, -1000f);
+            }
+        }
+        
+        if (messagePanel != null) {
+            if (showingOverdraftConfirmation || showingErrorMessage) {
+                float y = bottomY - 50f - BUTTON_HEIGHT - BUTTON_SPACING * 2;
+                messagePanel.getPosition().inTL((PANEL_WIDTH - 400f) / 2f, y);
+            } else {
+                messagePanel.getPosition().inTL(-1000f, -1000f);
             }
         }
     }
@@ -918,6 +1002,72 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         instructionLabel.getPosition().inTL(0, 0);
         instructionPanel.addUIElement(tooltip).inTL(0, 0);
         panel.addComponent(instructionPanel).inTL(x, MARGIN);
+    }
+    
+    protected void createBalanceLabel() {
+        if (panel == null) return;
+        
+        final float LABEL_WIDTH = 280f;
+        final float LABEL_HEIGHT = 20f;
+        
+        float x = SHIP_COLUMN_WIDTH + MARGIN;
+        float y = MARGIN + 18f;
+
+        balancePanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
+        TooltipMakerAPI tooltip = balancePanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
+        balanceLabel = tooltip.addPara("", Color.WHITE, 0f);
+        balanceLabel.setAlignment(Alignment.LMID);
+        balanceLabel.getPosition().inTL(0, 0);
+        balancePanel.addUIElement(tooltip).inTL(0, 0);
+        panel.addComponent(balancePanel).inTL(x, y);
+        
+        updateBalanceLabel();
+    }
+    
+    protected void createMessageLabel() {
+        if (panel == null) return;
+        
+        final float LABEL_WIDTH = 400f;
+        final float LABEL_HEIGHT = 50f;
+        
+        float x = (PANEL_WIDTH - LABEL_WIDTH) / 2f;
+        float y = bottomY - LABEL_HEIGHT - BUTTON_HEIGHT - BUTTON_SPACING * 2;
+
+        messagePanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
+        TooltipMakerAPI tooltip = messagePanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
+        messageLabel = tooltip.addPara("", Color.WHITE, 0f);
+        messageLabel.setAlignment(Alignment.MID);
+        messageLabel.getPosition().inMid();
+        messagePanel.addUIElement(tooltip).inTL(0, 0);
+        panel.addComponent(messagePanel).inTL(x, y);
+        messagePanel.getPosition().inTL(-1000f, -1000f);
+    }
+    
+    protected void updateBalanceLabel() {
+        if (balanceLabel == null) return;
+        
+        int balance = CasinoVIPManager.getBalance();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        int creditCeiling = CasinoVIPManager.getCreditCeiling();
+        boolean isVIP = CasinoVIPManager.isOverdraftAvailable();
+        
+        StringBuilder sb = new StringBuilder();
+        Color balanceColor;
+        
+        if (balance >= 0) {
+            sb.append("Balance: ").append(balance).append(" SG");
+            balanceColor = Color.GREEN;
+        } else {
+            sb.append("Balance: ").append(balance).append(" SG (debt)");
+            balanceColor = Color.RED;
+        }
+        
+        if (isVIP) {
+            sb.append(" | Credit: ").append(availableCredit).append("/").append(creditCeiling).append(" SG");
+        }
+        
+        balanceLabel.setText(sb.toString());
+        balanceLabel.setColor(balanceColor);
     }
     
     protected void createResultLabel() {
@@ -1175,6 +1325,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     }
     
     protected void updateLabels() {
+        updateBalanceLabel();
+        
         if (roundLabel != null && currentRound != lastCurrentRound) {
             lastCurrentRound = currentRound;
             roundLabel.setText("Round: " + currentRound);
@@ -1189,7 +1341,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             String newInstructionText;
             boolean hideInstruction = false;
             
-            if (battleEnded) {
+            if (showingOverdraftConfirmation) {
+                newInstructionText = "Confirm overdraft to proceed?";
+            } else if (showingErrorMessage) {
+                newInstructionText = "";
+                hideInstruction = true;
+            } else if (battleEnded) {
                 newInstructionText = "Click Next Game for a new match, or Leave to exit";
             } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex < 0) {
                 newInstructionText = "Select a champion to add bet on:";
@@ -1208,7 +1365,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             
             if (hideInstruction) {
                 instructionLabel.setText("");
-            } else if (newInstructionText != null) {
+            } else {
                 instructionLabel.setText(newInstructionText);
             }
         }
@@ -1482,7 +1639,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
 List<ParsedLogEntry> filtered = new ArrayList<>();
         for (ParsedLogEntry entry : cachedParsedEntries) {
-            if (entry.shouldSkipDeadAttacker(hullIdDeadStatus)) {
+            if (entry.shouldSkipDeadAttacker()) {
                 continue;
             }
             if (entry.type.equals("STATUS") || entry.type.isEmpty()) {
@@ -1663,7 +1820,11 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
                 
                 if (key == Keyboard.KEY_ESCAPE) {
                     event.consume();
-                    if (showingBetAmounts) {
+                    if (showingOverdraftConfirmation) {
+                        clearOverdraftConfirmation();
+                    } else if (showingErrorMessage) {
+                        clearErrorMessage();
+                    } else if (showingBetAmounts) {
                         showingBetAmounts = false;
                         selectedChampionIndex = -1;
                     } else if (actionCallback != null) {
@@ -1723,7 +1884,7 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
             }
         }
         
-        if (showingBetAmounts && selectedChampionIndex >= 0) {
+        if (selectedChampionIndex >= 0) {
             for (ButtonAPI btn : betAmountButtons) {
                 if (btn.isChecked()) {
                     btn.setChecked(false);
@@ -1733,10 +1894,8 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
                             showingBetAmounts = false;
                             selectedChampionIndex = -1;
                             addingBetDuringBattle = false;
-                        } else if (selectedChampionIndex >= 0 && actionCallback != null) {
-                            actionCallback.onConfirmBet(selectedChampionIndex, amount);
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
+                        } else {
+                            handleBetAmountClick(selectedChampionIndex, amount);
                         }
                     }
                     return;
@@ -1799,6 +1958,85 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
                 actionCallback.onStartBattle();
             }
         }
+        
+        if (confirmOverdraftButton != null && confirmOverdraftButton.isChecked()) {
+            confirmOverdraftButton.setChecked(false);
+            if (showingOverdraftConfirmation && actionCallback != null) {
+                actionCallback.onConfirmBet(pendingChampionIndex, pendingBetAmount);
+            }
+            clearOverdraftConfirmation();
+            return;
+        }
+        
+        if (cancelOverdraftButton != null && cancelOverdraftButton.isChecked()) {
+            cancelOverdraftButton.setChecked(false);
+            clearOverdraftConfirmation();
+            return;
+        }
+        
+        if (dismissErrorButton != null && dismissErrorButton.isChecked()) {
+            dismissErrorButton.setChecked(false);
+            clearErrorMessage();
+            return;
+        }
+    }
+    
+    protected void handleBetAmountClick(int championIndex, int amount) {
+        BetValidationResult validation = validateBet(amount);
+        
+        if (validation.isAffordable()) {
+            if (actionCallback != null) {
+                actionCallback.onConfirmBet(championIndex, amount);
+            }
+            showingBetAmounts = false;
+            selectedChampionIndex = -1;
+            updateBalanceLabel();
+        } else if (validation.needsOverdraftConfirmation()) {
+            pendingBetAmount = amount;
+            pendingChampionIndex = championIndex;
+            currentOverdraftMessage = validation.overdraftMessage;
+            showingOverdraftConfirmation = true;
+            showingBetAmounts = false;
+            updateButtonVisibility();
+            updateMessageLabel();
+        } else if (validation.hasError()) {
+            currentErrorMessage = validation.errorMessage;
+            showingErrorMessage = true;
+            showingBetAmounts = false;
+            selectedChampionIndex = -1;
+            updateButtonVisibility();
+            updateMessageLabel();
+        }
+    }
+    
+    protected void clearOverdraftConfirmation() {
+        showingOverdraftConfirmation = false;
+        pendingBetAmount = 0;
+        pendingChampionIndex = -1;
+        currentOverdraftMessage = "";
+        updateButtonVisibility();
+        updateMessageLabel();
+    }
+    
+    protected void clearErrorMessage() {
+        showingErrorMessage = false;
+        currentErrorMessage = "";
+        updateButtonVisibility();
+        updateMessageLabel();
+    }
+    
+    protected void updateMessageLabel() {
+        if (messageLabel == null) return;
+        
+        if (showingOverdraftConfirmation) {
+            messageLabel.setText("OVERDRAFT CONFIRMATION\n" + currentOverdraftMessage);
+            messageLabel.setColor(new Color(255, 200, 50));
+        } else if (showingErrorMessage) {
+            messageLabel.setText(currentErrorMessage);
+            messageLabel.setColor(Color.RED);
+        } else {
+            messageLabel.setText("");
+        }
     }
     
     protected void cacheOdds() {
@@ -1844,6 +2082,8 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         this.showingBetAmounts = false;
         this.addingBetDuringBattle = false;
         this.selectedChampionIndex = -1;
+        this.showingOverdraftConfirmation = false;
+        this.showingErrorMessage = false;
         
         oddsCached = false;
         cacheOdds();
@@ -1860,6 +2100,8 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         this.showingBetAmounts = false;
         this.addingBetDuringBattle = false;
         this.selectedChampionIndex = -1;
+        this.showingOverdraftConfirmation = false;
+        this.showingErrorMessage = false;
         
         oddsCached = false;
         cacheOdds();
@@ -1891,6 +2133,12 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         this.showingBetAmounts = false;
         this.addingBetDuringBattle = false;
         this.selectedChampionIndex = -1;
+        this.showingOverdraftConfirmation = false;
+        this.showingErrorMessage = false;
+        this.pendingBetAmount = 0;
+        this.pendingChampionIndex = -1;
+        this.currentErrorMessage = "";
+        this.currentOverdraftMessage = "";
         
         this.combatants = combatants;
         this.currentRound = currentRound;
@@ -1935,4 +2183,12 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         return readyToClose;
     }
     
+    public void showExternalError(String message) {
+        currentErrorMessage = message;
+        showingErrorMessage = true;
+        showingOverdraftConfirmation = false;
+        updateButtonVisibility();
+        updateMessageLabel();
     }
+    
+}

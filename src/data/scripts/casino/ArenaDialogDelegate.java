@@ -86,6 +86,10 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             
             @Override
             public void onConfirmBet(int championIndex, int amount) {
+                if (handler != null) {
+                    handler.performAddBetToChampionInPlace(ArenaDialogDelegate.this, championIndex, amount);
+                    return;
+                }
                 pendingChampionIndex = championIndex;
                 pendingBetAmount = amount;
                 if (callbacks != null) {
@@ -160,6 +164,10 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             
             @Override
             public void onStartBattle() {
+                if (handler != null) {
+                    handler.startArenaBattleInPlace(ArenaDialogDelegate.this);
+                    return;
+                }
                 pendingStartBattle = true;
                 if (callbacks != null) {
                     callbacks.dismissDialog();
@@ -352,4 +360,10 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         return finished;
     }
     
+    public void showErrorMessage(String message) {
+        if (arenaPanel != null) {
+            arenaPanel.showExternalError(message);
+        }
     }
+    
+}

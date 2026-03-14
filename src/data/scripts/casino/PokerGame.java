@@ -44,8 +44,8 @@ public static class PokerState {
     private final PokerState state;
     private final SimplePokerAI ai;
     private PokerGameLogic.Deck deck;
-    private final int smallBlind;
-    private final int bigBlindAmount;
+    private int smallBlind;
+    private int bigBlindAmount;
 
     public PokerGame() {
         this(1000, 1000, 10, 20);
@@ -69,6 +69,74 @@ public static class PokerState {
         state.bigBlind = bigBlindAmount;
 
         startNewHand();
+    }
+    
+    private PokerGame(boolean forSuspend) {
+        ai = new SimplePokerAI();
+        state = new PokerState();
+        deck = new PokerGameLogic.Deck();
+        deck.shuffle();
+    }
+    
+    public static PokerGame createSuspendedGame(
+            int playerStack, int opponentStack, int bigBlind,
+            int pot, int playerBet, int opponentBet,
+            Dealer dealer, Round round, CurrentPlayer currentPlayer,
+            List<PokerGameLogic.Card> playerHand,
+            List<PokerGameLogic.Card> opponentHand,
+            List<PokerGameLogic.Card> communityCards,
+            boolean playerHasActed, boolean opponentHasActed,
+            boolean playerDeclaredAllIn, boolean opponentDeclaredAllIn) {
+        
+        PokerGame game = new PokerGame(true);
+        
+        game.bigBlindAmount = bigBlind;
+        game.smallBlind = bigBlind / 2;
+        
+        game.state.playerStack = playerStack;
+        game.state.opponentStack = opponentStack;
+        game.state.bigBlind = bigBlind;
+        game.state.pot = pot;
+        game.state.playerBet = playerBet;
+        game.state.opponentBet = opponentBet;
+        game.state.dealer = dealer;
+        game.state.round = round;
+        game.state.currentPlayer = currentPlayer;
+        game.state.playerHand = new ArrayList<>(playerHand);
+        game.state.opponentHand = new ArrayList<>(opponentHand);
+        game.state.communityCards = new ArrayList<>(communityCards);
+        game.state.playerHasActed = playerHasActed;
+        game.state.opponentHasActed = opponentHasActed;
+        game.state.playerDeclaredAllIn = playerDeclaredAllIn;
+        game.state.opponentDeclaredAllIn = opponentDeclaredAllIn;
+        game.state.displayPlayerBet = playerBet;
+        game.state.displayOpponentBet = opponentBet;
+        
+        game.evaluateHands();
+        
+        game.ai.newHandStarted(game.state.dealer == Dealer.OPPONENT);
+        game.ai.resetBettingRoundTracking(pot);
+        
+        return game;
+    }
+    
+    public static String cardToString(PokerGameLogic.Card card) {
+        if (card == null) return "";
+        return card.rank.value + "-" + card.suit.name();
+    }
+    
+    public static PokerGameLogic.Card stringToCard(String str) {
+        if (str == null || str.isEmpty()) return null;
+        String[] parts = str.split("-");
+        if (parts.length != 2) return null;
+        int rankValue = Integer.parseInt(parts[0]);
+        PokerGameLogic.Suit suit = PokerGameLogic.Suit.valueOf(parts[1]);
+        for (PokerGameLogic.Rank r : PokerGameLogic.Rank.values()) {
+            if (r.value == rankValue) {
+                return new PokerGameLogic.Card(r, suit);
+            }
+        }
+        return null;
     }
 
     /**

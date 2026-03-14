@@ -86,6 +86,92 @@ private final CasinoInteraction main;
         }
     }
     
+    /**
+     * Result of validating a bet amount against player's balance and credit.
+     * Used to determine if a bet can proceed, needs overdraft confirmation, or should be rejected.
+     */
+    public static class BetValidationResult {
+        public enum ResultType {
+            CAN_AFFORD,
+            NEEDS_OVERDRAFT,
+            ERROR
+        }
+        
+        public final ResultType type;
+        public final String errorMessage;
+        public final String overdraftMessage;
+        public final int newBalance;
+        public final int overdraftAmount;
+        
+        private BetValidationResult(ResultType type, String errorMessage, String overdraftMessage, 
+                                    int newBalance, int overdraftAmount) {
+            this.type = type;
+            this.errorMessage = errorMessage;
+            this.overdraftMessage = overdraftMessage;
+            this.newBalance = newBalance;
+            this.overdraftAmount = overdraftAmount;
+        }
+        
+        public static BetValidationResult canAfford() {
+            return new BetValidationResult(ResultType.CAN_AFFORD, null, null, 0, 0);
+        }
+        
+        public static BetValidationResult needsOverdraft(String message, int newBalance, int overdraftAmount) {
+            return new BetValidationResult(ResultType.NEEDS_OVERDRAFT, null, message, newBalance, overdraftAmount);
+        }
+        
+        public static BetValidationResult error(String message) {
+            return new BetValidationResult(ResultType.ERROR, message, null, 0, 0);
+        }
+        
+        public boolean isAffordable() { return type == ResultType.CAN_AFFORD; }
+        public boolean needsOverdraftConfirmation() { return type == ResultType.NEEDS_OVERDRAFT; }
+        public boolean hasError() { return type == ResultType.ERROR; }
+    }
+    
+    /**
+     * Validates whether a bet can be placed, considering balance and overdraft availability.
+     * 
+     * @param amount The bet amount to validate
+     * @return BetValidationResult indicating if bet can proceed, needs overdraft, or should be rejected
+     */
+    public static BetValidationResult validateBet(int amount) {
+        int balance = CasinoVIPManager.getBalance();
+        int availableCredit = CasinoVIPManager.getAvailableCredit();
+        boolean isVIP = CasinoVIPManager.isOverdraftAvailable();
+        
+        if (balance >= amount) {
+            return BetValidationResult.canAfford();
+        }
+        
+        if (!isVIP) {
+            return BetValidationResult.error(
+                "Overdraft requires VIP Pass subscription."
+            );
+        }
+        
+        if (availableCredit <= 0) {
+            return BetValidationResult.error(
+                "Credit facility exhausted. Visit Stargem Top-up."
+            );
+        }
+        
+        if (availableCredit < amount) {
+            return BetValidationResult.error(
+                "Available credit: " + availableCredit + " SG (insufficient for " + amount + " SG bet)"
+            );
+        }
+        
+        int newBalance = balance - amount;
+        int overdraftAmount = -newBalance;
+        
+        StringBuilder msg = new StringBuilder();
+        msg.append("Balance: ").append(balance).append(" → ").append(newBalance).append(" SG");
+        msg.append(" (using ").append(overdraftAmount).append(" SG overdraft)");
+        
+        return BetValidationResult.needsOverdraft(msg.toString(), newBalance, overdraftAmount);
+    }
+    
 protected List<BetInfo> arenaBets = new ArrayList<>();
     protected List<String> battleLog = new ArrayList<>();
     
@@ -284,11 +370,14 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
     /**
      * Adds bet amount options to the menu based on player's available balance and credit.
      * Includes fixed amounts (100, 500, 2000) and percentage-based options (10%, 50%).
+     * AI_AGENT_NOTE: Uses availableCredit for determining affordability, not playerBalance.
+     * This allows VIP players with overdraft to see bet options even with 0 balance.
      */
     private boolean addBetOptions(int playerBalance, int availableCredit, String optionPrefix, int championIndex) {
         boolean hasBetOptions = false;
+        boolean isVIP = CasinoVIPManager.isOverdraftAvailable();
         int referenceAmount = availableCredit > 0 ? availableCredit : playerBalance;
-        String percentageLabel = availableCredit > 0 ? "remaining credit" : "account";
+        String percentageLabel = isVIP ? "available credit" : "account";
 
         int currentBetOnChampion = 0;
         int maxBetAllowed = CasinoConfig.ARENA_MAX_BET_PER_CHAMPION;
@@ -297,14 +386,18 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         }
 
         for (int betAmount : BET_AMOUNTS) {
-            if (playerBalance >= betAmount && availableCredit >= betAmount) {
+            if (availableCredit >= betAmount) {
                 if (championIndex >= 0 && currentBetOnChampion + betAmount > maxBetAllowed) {
                     continue;
                 }
                 String optionId = championIndex >= 0
                     ? optionPrefix + championIndex + "_" + betAmount
                     : OPTION_ARENA_ADD_BET + betAmount;
-                main.getOptions().addOption("Add " + betAmount + " Stargems", optionId);
+                String label = "Add " + betAmount + " Stargems";
+                if (playerBalance < betAmount && isVIP) {
+                    label += " (overdraft)";
+                }
+                main.getOptions().addOption(label, optionId);
                 hasBetOptions = true;
             }
         }
@@ -312,7 +405,7 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         int[] percentages = {PERCENT_10, PERCENT_50};
         for (int percent : percentages) {
             int percentAmount = (referenceAmount * percent) / 100;
-            if (percentAmount > 0 && playerBalance >= percentAmount && (availableCredit <= 0 || percentAmount <= availableCredit)) {
+            if (percentAmount > 0 && availableCredit >= percentAmount) {
                 if (championIndex >= 0 && currentBetOnChampion + percentAmount > maxBetAllowed) {
                     continue;
                 }
@@ -320,6 +413,9 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
                     ? optionPrefix + championIndex + "_" + percentAmount
                     : OPTION_ARENA_ADD_BET + percentAmount;
                 String label = "Add " + percentAmount + " Stargems (" + percent + "% of " + percentageLabel + ")";
+                if (playerBalance < percentAmount && isVIP) {
+                    label += " (overdraft)";
+                }
                 main.getOptions().addOption(label, optionId);
                 hasBetOptions = true;
             }
@@ -579,7 +675,7 @@ CasinoVIPManager.addToBalance(-additionalAmount);
         main.options.addOption("Cancel", "arena_add_bet_menu");
     }
 
-    private void startArenaBattle(int chosenIdx) {
+private void startArenaBattle(int chosenIdx) {
         if (chosenIdx < 0 || chosenIdx >= arenaCombatants.size()) {
             main.textPanel.addPara("Error: Invalid champion selection. Returning to lobby.", Color.RED);
             showArenaLobby();
@@ -597,7 +693,7 @@ CasinoVIPManager.addToBalance(-additionalAmount);
             cachedTotalBet += CasinoConfig.ARENA_ENTRY_FEE;
         }
 
-opponentsDefeated = 0;
+ opponentsDefeated = 0;
         currentRound = 0;
 
         Set<SpiralAbyssArena.SpiralGladiator> betShips = new HashSet<>();
@@ -608,6 +704,36 @@ opponentsDefeated = 0;
         }
         
         simulateArenaStep();
+    }
+    
+    public void startArenaBattleInPlace(ArenaDialogDelegate delegate) {
+        if (delegate == null) {
+            int chosenIdx = -1;
+            for (int i = 0; i < arenaCombatants.size(); i++) {
+                if (chosenChampion != null &&
+                    arenaCombatants.get(i).fullName.equals(chosenChampion.fullName)) {
+                    chosenIdx = i;
+                    break;
+                }
+            }
+            if (chosenIdx != -1) {
+                startArenaBattle(chosenIdx);
+            }
+            return;
+        }
+        
+        int totalBet = getCurrentTotalBet();
+        
+        if (totalBet <= 0 && chosenChampion != null) {
+            float frozenOdds = chosenChampion.getCurrentOdds(0);
+            arenaBets.add(new BetInfo(CasinoConfig.ARENA_ENTRY_FEE, frozenOdds, chosenChampion, 0));
+            cachedTotalBet += CasinoConfig.ARENA_ENTRY_FEE;
+        }
+
+        opponentsDefeated = 0;
+        currentRound = 0;
+        
+        simulateArenaStepInPlace(delegate);
     }
     
     private void showArenaVisualPanel() {
@@ -1387,6 +1513,43 @@ private void performAddBetToChampion(int championIndex, int additionalAmount) {
         }
 
         showArenaVisualPanel();
+    }
+    
+    public void performAddBetToChampionInPlace(ArenaDialogDelegate delegate, int championIndex, int additionalAmount) {
+        if (delegate == null) {
+            performAddBetToChampion(championIndex, additionalAmount);
+            return;
+        }
+        
+        if (championIndex < 0 || championIndex >= arenaCombatants.size()) {
+            delegate.showErrorMessage("Invalid champion selection.");
+            return;
+        }
+
+        SpiralAbyssArena.SpiralGladiator targetChampion = arenaCombatants.get(championIndex);
+        if (targetChampion.isDead) {
+            delegate.showErrorMessage(targetChampion.fullName + " has been defeated!");
+            return;
+        }
+
+        int currentBetOnShip = getBetAmountForShip(targetChampion);
+        if (currentBetOnShip + additionalAmount > CasinoConfig.ARENA_MAX_BET_PER_CHAMPION) {
+            int maxAllowed = CasinoConfig.ARENA_MAX_BET_PER_CHAMPION - currentBetOnShip;
+            delegate.showErrorMessage("Maximum bet per champion is " + CasinoConfig.ARENA_MAX_BET_PER_CHAMPION + 
+                " SG. Max additional: " + maxAllowed + " SG.");
+            return;
+        }
+
+        CasinoVIPManager.addToBalance(-additionalAmount);
+        float frozenOdds = targetChampion.getCurrentOdds(currentRound);
+        arenaBets.add(new BetInfo(additionalAmount, frozenOdds, targetChampion, currentRound));
+        cachedTotalBet += additionalAmount;
+
+        if (chosenChampion == null) {
+            chosenChampion = targetChampion;
+        }
+        
+        delegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
     }
     
     private int getBetAmountForShip(SpiralAbyssArena.SpiralGladiator ship) {

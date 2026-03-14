@@ -22,18 +22,15 @@ import com.fs.starfarer.api.util.Misc;
 
 /**
  * Poker UI Panel - renders the poker table, cards, and handles player input.
- * 
  * ARCHITECTURE NOTES:
  * - Extends BaseCustomUIPanelPlugin (base game pattern, see DuelPanel, GachaAnimation)
  * - Uses CustomVisualDialogDelegate wrapper for integration with interaction dialogs
  * - Renders in renderBelow() for content, render() for overlays (following DuelPanel pattern)
  * - Uses GL11.glScissor() to clip all rendering to panel boundaries
  * - Button creation follows the panel->tooltip->button hierarchy pattern
- * 
  * KEY RENDERING ORDER:
  * 1. renderBelow(): Background -> Table -> Community Cards -> Player Cards -> UI Elements
  * 2. render(): Overlays, effects, animations (if any)
- * 
  * STATE MANAGEMENT:
  * - PokerHandler owns the game state (PokerGame instance)
  * - This panel is purely for rendering and input
@@ -227,11 +224,6 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     protected String lastOpponentStackText = "";
     protected String lastRoundText = "";
     
-    // Display bet values - persist across round transitions until new betting action
-    protected int displayPlayerBet = 0;
-    protected int displayOpponentBet = 0;
-    protected PokerGame.Round displayBetRound = null;
-    
     // ============================================================================
     // CACHED CARD STATES - Avoid recalculating card positions every frame
     // ============================================================================
@@ -257,8 +249,6 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     // ============================================================================
     protected ButtonAPI foldButton;
     protected ButtonAPI checkCallButton;
-    protected ButtonAPI raiseButton;
-    protected ButtonAPI allInButton;
     protected List<ButtonAPI> raiseOptionButtons = new ArrayList<>();
     protected List<CustomPanelAPI> raiseOptionPanels = new ArrayList<>();
     protected ButtonAPI backButton;
@@ -370,12 +360,6 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     protected static final Color COLOR_ROUND_RIVER = new Color(200, 150, 100);
     protected static final Color COLOR_ROUND_SHOWDOWN = new Color(255, 200, 50);
     protected static final Color COLOR_CARD_SHADOW = new Color(0, 0, 0, 150);
-    protected static final Color COLOR_RANK_ACE = new Color(255, 215, 0);
-    protected static final Color COLOR_RANK_KING = new Color(200, 50, 50);
-    protected static final Color COLOR_RANK_QUEEN = new Color(150, 50, 200);
-    protected static final Color COLOR_RANK_JACK = new Color(50, 150, 200);
-    protected static final Color COLOR_RANK_TEN = new Color(50, 200, 100);
-    protected static final Color COLOR_RANK_LOW = new Color(100, 100, 100);
     
     // ============================================================================
     // CALLBACK INTERFACE
@@ -410,7 +394,6 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * Called by PokerDialogDelegate.init() - this is where we create UI elements.
      * IMPORTANT: Unlike other implementations, we create buttons here, not in positionChanged(),
      * because positionChanged() may not be reliably called by the framework.
-     * 
      * INIT SEQUENCE:
      * 1. DialogDelegate.init() -> PokerPanelUI.init()
      * 2. We store panel reference and create buttons immediately
@@ -451,12 +434,10 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     /**
      * Creates buttons during init(), before positionChanged() is called.
      * This follows the GachaAnimation pattern - create UI elements in init().
-     * 
      * BUTTON LAYOUT (player side - BOTTOM of panel only):
      * - Leave button: top-right corner (always visible)
      * - Action buttons (Fold/Check/Raise): bottom row
      * - Raise options: row above action buttons
-     * 
      * NOTE: Buttons are ONLY at the bottom where the player sits.
      * The top of the panel is for the AI opponent's cards/info.
      */
@@ -490,7 +471,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         howToPlayPanel.addUIElement(helpTooltip).inTL(0, 0);
         panel.addComponent(howToPlayPanel).inTL(-1000, -1000);
         
-        createPotDisplay(null);
+        createPotDisplay();
         createStackDisplays();
         createRoundLabel();
         createWaitingLabel();
@@ -686,15 +667,11 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * Pot info is now integrated into the round label.
      * This method is kept for compatibility but does nothing.
      */
-    protected void createPotDisplay(PokerGame.PokerState state) {
+    protected void createPotDisplay() {
         // Pot is now shown in the round label instead
         // This method is kept for compatibility but does nothing
     }
     
-    protected void updatePotDisplay(int pot) {
-        // Pot is now shown in the round label instead
-    }
-
     /**
      * Creates stack display labels using LabelAPI.
      * Layout: Opponent at top (Y=70), Player at bottom (Y=580)
@@ -730,37 +707,9 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     /**
      * Updates display bet tracking. Captures bet values before advanceRound() clears them.
      * Display bets show the amount each player has committed in the current betting round.
-     * 
      * AI_AGENT_NOTE: The timing issue is that advanceRound() clears bets in the same tick
      * as the betting action, so UI never sees non-zero values after a completed round.
      * We solve this by persisting captured values until new betting action starts.
-     */
-    protected void updateDisplayBets(PokerGame.PokerState state) {
-        // Capture current bet values whenever they're non-zero
-        // This preserves the values even after advanceRound() clears them
-        if (state.playerBet > 0) {
-            displayPlayerBet = state.playerBet;
-        }
-        if (state.opponentBet > 0) {
-            displayOpponentBet = state.opponentBet;
-        }
-        
-        // Reset display bets when new betting action starts in a new round
-        // Condition: round changed AND bets are non-zero (new action)
-        if (displayBetRound != state.round) {
-            if (state.playerBet > 0 || state.opponentBet > 0) {
-                // New betting round has started with actual bets - reset to current values
-                displayPlayerBet = state.playerBet;
-                displayOpponentBet = state.opponentBet;
-            }
-            // else: round changed but bets are 0 (between rounds) - keep old captured values
-            // This lets the player see their bet even after round advances instantly
-            
-            displayBetRound = state.round;
-        }
-    }
-    
-    /**
      * Updates stack display labels with stack and current bet.
      */
     protected void updateStackDisplays(int playerStack, int opponentStack, int playerBet, int opponentBet) {
@@ -953,22 +902,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * Creates AI personality display label - at top-right below buttons.
      */
     protected void createAIPersonalityLabel() {
-        if (panel == null) return;
-        
-        final float LABEL_WIDTH = 300f;
-        final float LABEL_HEIGHT = 20f;
-        
-        float x = PANEL_WIDTH - LABEL_WIDTH - MARGIN;
-        float y = MARGIN + BUTTON_HEIGHT + 10f;
-        
-        aiPersonalityPanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = aiPersonalityPanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        String personality = game.getAIPersonalityDescription();
-        aiPersonalityLabel = tooltip.addPara(personality, new Color(150, 150, 150), 0f);
-        aiPersonalityLabel.setAlignment(Alignment.RMID);
-        aiPersonalityLabel.getPosition().inTL(0, 0);
-        aiPersonalityPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(aiPersonalityPanel).inTL(x, y);
+        // AI personality display removed - no longer needed
     }
     
     /**
@@ -1242,14 +1176,12 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
                 resultText = "You folded - Opponent wins " + potWon + " Stargems";
                 resultColor = COLOR_OPPONENT;
-                hideOpponentAction();
-                hidePlayerAction();
             } else {
                 resultText = "Opponent folded - You win " + potWon + " Stargems!";
                 resultColor = COLOR_PLAYER;
-                hideOpponentAction();
-                hidePlayerAction();
             }
+            hideOpponentAction();
+            hidePlayerAction();
         } else if (state.playerHandRank != null && state.opponentHandRank != null) {
             cachedPlayerScore = PokerGame.PokerGameLogic.evaluate(state.playerHand, state.communityCards);
             cachedOpponentScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
@@ -1443,7 +1375,6 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * 3. Community cards
      * 4. Player hand
      * 5. Pot and stack displays
-     * 
      * NOTE: If position (p) is null, we use hardcoded dimensions matching the
      * dialog size (800x600) as fallback.
      */
@@ -1778,7 +1709,6 @@ protected void renderCommunityCards(float cx, float cy,
      * OpenGL coordinate system: Y=0 at BOTTOM, Y increases UP.
      * HIGH Y = visual TOP, LOW Y = visual BOTTOM.
      * Heart = bumps at visual TOP (HIGH Y), point at visual BOTTOM (LOW Y).
-     * 
      * Geometry: Triangle width = 1.2 * size, bump radius = triangle_width / 4
      * Bump centers at 1/4 and 3/4 points of triangle bottom.
      * Uses TOP semicircles (bulging upward) for the bumps.
@@ -1807,7 +1737,6 @@ protected void renderCommunityCards(float cx, float cy,
      * OpenGL coordinate system: Y=0 at BOTTOM, Y increases UP.
      * HIGH Y = visual TOP, LOW Y = visual BOTTOM.
      * Spade = point at visual TOP (HIGH Y), bumps at visual BOTTOM (LOW Y), stem below.
-     * 
      * Geometry: Triangle width = 1.2 * size, bump radius = triangle_width / 4
      * Bump centers at 1/4 and 3/4 points of triangle bottom.
      * Uses BOTTOM semicircles (bulging downward) for the bumps.
@@ -2139,6 +2068,7 @@ public void updateGameState(PokerGame game) {
                         int amount = Integer.parseInt(id.substring("poker_raise_".length()));
                         handleRaiseAmountClick(amount);
                     } catch (NumberFormatException e) {
+                        Global.getLogger(PokerPanelUI.class).warn("Invalid raise button ID: " + id);
                     }
                 }
                 return;

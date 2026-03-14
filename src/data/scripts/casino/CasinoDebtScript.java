@@ -397,7 +397,7 @@ public class CasinoDebtScript implements EveryFrameScript {
     
     private void recordSpawnTime() {
         Global.getSector().getMemoryWithoutUpdate().set(MEM_LAST_SPAWN_TIMESTAMP, 
-                Long.valueOf(Global.getSector().getClock().getTimestamp()));
+                Global.getSector().getClock().getTimestamp());
     }
     
     /**

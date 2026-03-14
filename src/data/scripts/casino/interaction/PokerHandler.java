@@ -24,7 +24,6 @@ public class PokerHandler {
     private final CasinoInteraction main;
     private PokerGame pokerGame;
     private PokerDialogDelegate currentDelegate;
-    private boolean panelOpen = false;
 
     private static final int COOLDOWN_DAYS = 1;
     private static final int MIN_HANDS_BEFORE_LEAVE = 3;
@@ -63,7 +62,7 @@ private int handsPlayedThisSession = 0;
 handlers.put("poker_back_action", option -> showPokerVisualPanel());
         handlers.put("poker_suspend", option -> suspendGame());
         handlers.put("poker_back_to_menu", option -> handleLeaveTable());
-        handlers.put("leave_now", option -> handleSuspendLeave());
+        handlers.put("poker_leave_now", option -> handleSuspendLeave());
         handlers.put("poker_abandon_confirm", option -> showAbandonConfirm());
         handlers.put("poker_abandon_confirm_leave", option -> handleLeaveTable());
         handlers.put("poker_abandon_cancel", option -> showPokerVisualPanel());
@@ -76,7 +75,6 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
         handlers.put("back_menu", option -> {
             // Reset poker state when leaving via back button (not a suspended game)
             pokerGame = null;
-            panelOpen = false;
             handsPlayedThisSession = 0;
             currentDelegate = null;
             pendingStackSize = 0;
@@ -268,9 +266,6 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
             return;
         }
         
-        // Deduct the stack from balance (can go negative)
-        CasinoVIPManager.addToBalance(-pendingStackSize);
-        
         main.textPanel.addPara("IPC Credit Alert: Overdraft of " + pendingOverdraftAmount + " Stargems authorized.", Color.YELLOW);
         
         startGameWithStack(pendingStackSize);
@@ -288,6 +283,8 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
     }
     
 private void startGameWithStack(int stackSize) {
+        CasinoVIPManager.addToBalance(-stackSize);
+        
         int opponentStack = Math.max(CasinoConfig.POKER_DEFAULT_OPPONENT_STACK, stackSize);
         
         pokerGame = new PokerGame(stackSize, opponentStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
@@ -334,10 +331,7 @@ private String formatBB(int amount, int bigBlind) {
             return;
         }
         
-        panelOpen = true;
-        currentDelegate = new PokerDialogDelegate(pokerGame, main.getDialog(), null, () -> {
-            handlePokerPanelDismissed();
-        }, this);
+        currentDelegate = new PokerDialogDelegate(pokerGame, main.getDialog(), null, this::handlePokerPanelDismissed, this);
         
         if (!pendingOpponentAction.isEmpty()) {
             currentDelegate.setLastOpponentAction(pendingOpponentAction);
@@ -353,7 +347,6 @@ private String formatBB(int amount, int bigBlind) {
     }
     
     private void handlePokerPanelDismissed() {
-        panelOpen = false;
         if (currentDelegate == null) return;
         
         if (currentDelegate.getPendingAction() != null) {
@@ -404,7 +397,6 @@ private String formatBB(int amount, int bigBlind) {
                 mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
                 main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
             }
-            return;
         }
     }
     
@@ -538,10 +530,6 @@ private String formatBB(int amount, int bigBlind) {
         
         main.getTextPanel().addPara("Opponent Stack: %s Stargems (%s BB)", Color.ORANGE,
             String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind));
-        
-        // Display AI personality information
-        String aiPersonality = pokerGame.getAIPersonalityDescription();
-        main.getTextPanel().addPara(aiPersonality, Color.GRAY);
         
         displayColoredCardsOnOneLine(state.playerHand, "Your Hand", Color.CYAN);
         if (!state.communityCards.isEmpty()) {
@@ -729,20 +717,47 @@ private void startNextHand() {
         mem.set("$ipc_poker_pot_size", state.pot);
         mem.set("$ipc_poker_player_bet", state.playerBet);
         mem.set("$ipc_poker_opponent_bet", state.opponentBet);
-        // currentBetToCall is derived from bets
         mem.set("$ipc_poker_player_stack", state.playerStack);
         mem.set("$ipc_poker_opponent_stack", state.opponentStack);
         mem.set("$ipc_poker_player_is_dealer", state.dealer == PokerGame.Dealer.PLAYER);
+        mem.set("$ipc_poker_big_blind", state.bigBlind);
+        
+        mem.set("$ipc_poker_round", state.round.name());
+        mem.set("$ipc_poker_current_player", state.currentPlayer.name());
+        mem.set("$ipc_poker_player_has_acted", state.playerHasActed);
+        mem.set("$ipc_poker_opponent_has_acted", state.opponentHasActed);
+        mem.set("$ipc_poker_player_all_in", state.playerDeclaredAllIn);
+        mem.set("$ipc_poker_opponent_all_in", state.opponentDeclaredAllIn);
+
+        if (state.playerHand != null) {
+            mem.set("$ipc_poker_player_hand_count", state.playerHand.size());
+            for (int i = 0; i < state.playerHand.size(); i++) {
+                mem.set("$ipc_poker_player_hand_" + i, PokerGame.cardToString(state.playerHand.get(i)));
+            }
+        }
+        
+        if (state.opponentHand != null) {
+            mem.set("$ipc_poker_opponent_hand_count", state.opponentHand.size());
+            for (int i = 0; i < state.opponentHand.size(); i++) {
+                mem.set("$ipc_poker_opponent_hand_" + i, PokerGame.cardToString(state.opponentHand.get(i)));
+            }
+        }
+        
+        if (state.communityCards != null) {
+            mem.set("$ipc_poker_community_count", state.communityCards.size());
+            for (int i = 0; i < state.communityCards.size(); i++) {
+                mem.set("$ipc_poker_community_" + i, PokerGame.cardToString(state.communityCards.get(i)));
+            }
+        }
 
         mem.set("$ipc_poker_hands_played", handsPlayedThisSession);
-
         mem.set("$ipc_poker_suspend_time", Global.getSector().getClock().getTimestamp());
 
         main.getTextPanel().addPara("You stand up abruptly. 'Hold that thought! I'll be right back!'", Color.YELLOW);
         main.getTextPanel().addPara("The IPC Dealer raises an eyebrow but nods slowly. 'The cards will stay as they are.'", Color.CYAN);
         main.getTextPanel().addPara("'Don't be long. We have other customers waiting.'", Color.GRAY);
         main.getOptions().clearOptions();
-        main.getOptions().addOption("Leave", "leave_now");
+        main.getOptions().addOption("Leave", "poker_leave_now");
     }
 
     private void showAbandonConfirm() {
@@ -799,29 +814,84 @@ private void startNextHand() {
             int pStack = mem.getInt("$ipc_poker_player_stack");
             int oStack = mem.getInt("$ipc_poker_opponent_stack");
             boolean pDealer = mem.getBoolean("$ipc_poker_player_is_dealer");
+            int bigBlind = mem.contains("$ipc_poker_big_blind") ? 
+                mem.getInt("$ipc_poker_big_blind") : CasinoConfig.POKER_BIG_BLIND;
 
-            // Restore hands played counter
             if (mem.contains("$ipc_poker_hands_played")) {
                 handsPlayedThisSession = mem.getInt("$ipc_poker_hands_played");
             } else {
                 handsPlayedThisSession = 0;
             }
 
-            // Create game instance
-            // Using placeholder stack sizes, but then we override state
-            pokerGame = new PokerGame(pStack, oStack, CasinoConfig.POKER_SMALL_BLIND, CasinoConfig.POKER_BIG_BLIND);
-            PokerGame.PokerState state = pokerGame.getState();
-            state.pot = pot;
-            state.playerBet = pBet;
-            state.opponentBet = oBet;
-            state.dealer = pDealer ? PokerGame.Dealer.PLAYER : PokerGame.Dealer.OPPONENT;
+            PokerGame.Round round = PokerGame.Round.PREFLOP;
+            if (mem.contains("$ipc_poker_round")) {
+                try {
+                    round = PokerGame.Round.valueOf(mem.getString("$ipc_poker_round"));
+                } catch (Exception ignored) {}
+            }
+            
+            PokerGame.CurrentPlayer currentPlayer = PokerGame.CurrentPlayer.PLAYER;
+            if (mem.contains("$ipc_poker_current_player")) {
+                try {
+                    currentPlayer = PokerGame.CurrentPlayer.valueOf(mem.getString("$ipc_poker_current_player"));
+                } catch (Exception ignored) {}
+            }
+            
+            boolean playerHasActed = mem.getBoolean("$ipc_poker_player_has_acted");
+            boolean opponentHasActed = mem.getBoolean("$ipc_poker_opponent_has_acted");
+            boolean playerAllIn = mem.getBoolean("$ipc_poker_player_all_in");
+            boolean opponentAllIn = mem.getBoolean("$ipc_poker_opponent_all_in");
 
-            // Cards are reshuffled in new game due to restore limitation mentioned in original code
+            List<PokerGame.PokerGameLogic.Card> playerHand = new ArrayList<>();
+            if (mem.contains("$ipc_poker_player_hand_count")) {
+                int count = mem.getInt("$ipc_poker_player_hand_count");
+                for (int i = 0; i < count; i++) {
+                    if (mem.contains("$ipc_poker_player_hand_" + i)) {
+                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                            mem.getString("$ipc_poker_player_hand_" + i));
+                        if (card != null) playerHand.add(card);
+                    }
+                }
+            }
+            
+            List<PokerGame.PokerGameLogic.Card> opponentHand = new ArrayList<>();
+            if (mem.contains("$ipc_poker_opponent_hand_count")) {
+                int count = mem.getInt("$ipc_poker_opponent_hand_count");
+                for (int i = 0; i < count; i++) {
+                    if (mem.contains("$ipc_poker_opponent_hand_" + i)) {
+                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                            mem.getString("$ipc_poker_opponent_hand_" + i));
+                        if (card != null) opponentHand.add(card);
+                    }
+                }
+            }
+            
+            List<PokerGame.PokerGameLogic.Card> communityCards = new ArrayList<>();
+            if (mem.contains("$ipc_poker_community_count")) {
+                int count = mem.getInt("$ipc_poker_community_count");
+                for (int i = 0; i < count; i++) {
+                    if (mem.contains("$ipc_poker_community_" + i)) {
+                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                            mem.getString("$ipc_poker_community_" + i));
+                        if (card != null) communityCards.add(card);
+                    }
+                }
+            }
+
+            PokerGame.Dealer dealer = pDealer ? PokerGame.Dealer.PLAYER : PokerGame.Dealer.OPPONENT;
+            
+            pokerGame = PokerGame.createSuspendedGame(
+                pStack, oStack, bigBlind,
+                pot, pBet, oBet,
+                dealer, round, currentPlayer,
+                playerHand, opponentHand, communityCards,
+                playerHasActed, opponentHasActed,
+                playerAllIn, opponentAllIn
+            );
 
             long suspendTime = mem.getLong("$ipc_poker_suspend_time");
             float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
 
-            // Shaming message based on how long player was away
             main.getTextPanel().addPara("The IPC Dealer stares at you with dead eyes.", Color.CYAN);
             if (daysAway >= 30) {
                 main.getTextPanel().addPara("'You've been gone for " + String.format("%.1f", daysAway) + " days.' The dealer gestures to a cobweb-covered chair. 'We've been standing perfectly still, not breathing, not blinking. The other players have started to fossilize.'", Color.YELLOW);
@@ -834,7 +904,7 @@ private void startNextHand() {
             }
             main.getTextPanel().addPara("'The cards haven't moved. Let's finish this...'", Color.GRAY);
 
-mem.unset("$ipc_suspended_game_type");
+            mem.unset("$ipc_suspended_game_type");
 
             showPokerVisualPanel();
         } else {
@@ -854,6 +924,23 @@ mem.unset("$ipc_suspended_game_type");
         mem.unset("$ipc_poker_player_is_dealer");
         mem.unset("$ipc_poker_hands_played");
         mem.unset("$ipc_poker_suspend_time");
+        mem.unset("$ipc_poker_big_blind");
+        mem.unset("$ipc_poker_round");
+        mem.unset("$ipc_poker_current_player");
+        mem.unset("$ipc_poker_player_has_acted");
+        mem.unset("$ipc_poker_opponent_has_acted");
+        mem.unset("$ipc_poker_player_all_in");
+        mem.unset("$ipc_poker_opponent_all_in");
+        mem.unset("$ipc_poker_player_hand_count");
+        mem.unset("$ipc_poker_opponent_hand_count");
+        mem.unset("$ipc_poker_community_count");
+        for (int i = 0; i < 2; i++) {
+            mem.unset("$ipc_poker_player_hand_" + i);
+            mem.unset("$ipc_poker_opponent_hand_" + i);
+        }
+        for (int i = 0; i < 5; i++) {
+            mem.unset("$ipc_poker_community_" + i);
+        }
     }
 
     private void determineWinner() {
@@ -1028,7 +1115,6 @@ mem.unset("$ipc_suspended_game_type");
 
         // Reset poker game state
         pokerGame = null;
-        panelOpen = false;
         currentDelegate = null;
 
         main.showMenu();
@@ -1057,7 +1143,6 @@ mem.unset("$ipc_suspended_game_type");
         
         // Reset poker game state
         pokerGame = null;
-        panelOpen = false;
         currentDelegate = null;
         
         main.showMenu();
@@ -1258,7 +1343,6 @@ private void endHand() {
         handsPlayedThisSession = 0;
         clearSuspendedGameMemory();
         pokerGame = null;
-        panelOpen = false;
         
         delegate.closeDialog();
         main.showMenu();

@@ -23,12 +23,12 @@ public class HelpHandler {
         handlers.put("how_to_financial", option -> showFinancialHelp());
         handlers.put("how_to_topup", option -> showTopupHelp());
         handlers.put("back_menu", option -> main.showMenu());
-        handlers.put("gacha_menu", option -> main.gacha.handle(option));
-        handlers.put("play", option -> main.poker.handle(option));
-        handlers.put("arena_lobby", option -> main.arena.handle(option));
-        handlers.put("financial_menu", option -> main.financial.handle(option));
-        handlers.put("topup_menu", option -> main.topup.handle(option));
-        handlers.put("arena_status", option -> main.arena.handle(option));
+        handlers.put("gacha_menu", main.gacha::handle);
+        handlers.put("play", main.poker::handle);
+        handlers.put("arena_lobby", main.arena::handle);
+        handlers.put("financial_menu", main.financial::handle);
+        handlers.put("topup_menu", main.topup::handle);
+        handlers.put("arena_status", main.arena::handle);
     }
 
     public void handle(String option) {
@@ -45,17 +45,6 @@ public class HelpHandler {
         }
         
         main.showMenu();
-    }
-
-    public void showIntroPage() {
-        main.options.clearOptions();
-        main.textPanel.addPara("--- Interastral Peace Casino ---", Color.CYAN);
-        main.textPanel.addPara("Welcome! Use 'How to Play' anytime to learn about the games and features.");
-        main.options.addOption("Continue to Casino", "back_menu");
-    }
-
-    public void showMainMenu() {
-        showGeneralHelp();
     }
 
     public void showGeneralHelp() {
