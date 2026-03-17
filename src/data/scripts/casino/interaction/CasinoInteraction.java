@@ -5,6 +5,7 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
 import data.scripts.CasinoMusicPlugin;
 import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.Strings;
 
 import java.awt.Color;
 import java.util.Map;
@@ -71,28 +72,26 @@ public class CasinoInteraction implements InteractionDialogPlugin {
             CasinoMusicPlugin.startCasinoMusic();
         }
         
-        textPanel.addPara("Welcome to the Interastral Peace Casino.", Color.CYAN);
-        textPanel.addPara("How may we assist you today?", Color.GRAY);
+        textPanel.addPara(Strings.get("main_menu.welcome"), Color.CYAN);
+        textPanel.addPara(Strings.get("main_menu.subtitle"), Color.GRAY);
 
-        // Display current balance
         int balance = CasinoVIPManager.getBalance();
         int daysRemaining = CasinoVIPManager.getDaysRemaining();
         
         Color balanceColor = balance >= 0 ? Color.GREEN : Color.RED;
-        textPanel.addPara("Current Balance: " + balance + " Stargems", balanceColor);
+        textPanel.addPara(Strings.format("main_menu.balance", balance), balanceColor);
         
         if (daysRemaining > 0) {
-            textPanel.addPara("VIP Status: " + daysRemaining + " days remaining", Color.CYAN);
+            textPanel.addPara(Strings.format("main_menu.vip_status", daysRemaining), Color.CYAN);
         }
 
-        // Main menu options
-        options.addOption("Tachy-Impact (Gacha)", "gacha_menu");
-        options.addOption("Texas Hold'em (Poker)", "play");
-        options.addOption("Spiral Abyss (Battle Royale Arena)", "arena_visual_panel");
-        options.addOption("Stargem Top-up", "topup_menu");
-        options.addOption("Financial Services", "financial_menu");
-        options.addOption("How to Play", "how_to_play_main");
-        options.addOption("Leave", "leave");
+        options.addOption(Strings.get("main_menu.btn_gacha"), "gacha_menu");
+        options.addOption(Strings.get("main_menu.btn_poker"), "play");
+        options.addOption(Strings.get("main_menu.btn_arena"), "arena_visual_panel");
+        options.addOption(Strings.get("main_menu.btn_topup"), "topup_menu");
+        options.addOption(Strings.get("main_menu.btn_financial"), "financial_menu");
+        options.addOption(Strings.get("main_menu.btn_help"), "how_to_play_main");
+        options.addOption(Strings.get("main_menu.btn_leave"), "leave");
 
         setState(State.MAIN_MENU);
     }

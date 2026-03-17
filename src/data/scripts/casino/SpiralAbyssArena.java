@@ -792,12 +792,34 @@ Global.getLogger(this.getClass()).info("  Selected attacker: " + attacker.shortN
     }
     
     /**
+     * Gets the position factor for consolation calculation.
+     * Position 1 (2nd place) = highest factor, decreases for lower positions.
+     */
+    public static float getPositionFactor(int finalPosition) {
+        if (finalPosition <= 0) return 0.0f;
+        
+        float[] factors = CasinoConfig.ARENA_CONSOLATION_POSITION_FACTORS;
+        int index = finalPosition - 1;
+        
+        if (index < factors.length) {
+            return factors[index];
+        }
+        return factors[factors.length - 1];
+    }
+    
+    /**
      * Calculates current odds for a specific ship based on simulation-based probabilities.
      * Uses position probabilities to account for consolation rewards, ensuring the
      * configured house edge is maintained regardless of consolation settings.
-     * Formula: odds = (1 - houseEdge) / (P_win + Σ P_position × positionFactor × consolationMult)
-     * This guarantees that betting on all ships equally results in exactly the
+     * 
+     * The formula accounts for expected consolation payout:
+     * expectedConsolation = Σ P_position × consolationBase × positionFactor
+     * 
+     * fairOdds = (1 - houseEdge - expectedConsolation) / P_win
+     * 
+     * This ensures that betting on all ships equally results in exactly the
      * configured house edge, while still providing meaningful consolation payouts.
+     * 
      * @param combatants The list of all combatants
      * @param shipIndex The index of the ship to calculate odds for
      * @param currentRound The current round number (0 = pre-battle)
@@ -822,7 +844,22 @@ Global.getLogger(this.getClass()).info("  Selected attacker: " + attacker.shortN
             return CasinoConfig.ARENA_MIN_ODDS;
         }
         
-        float fairOdds = (1.0f - CasinoConfig.ARENA_HOUSE_EDGE) / winProbability;
+        float expectedConsolationRate = 0.0f;
+        for (Map.Entry<Integer, Float> posEntry : shipPositionProbs.entrySet()) {
+            int position = posEntry.getKey();
+            float probability = posEntry.getValue();
+            if (position > 0) {
+                float positionFactor = getPositionFactor(position);
+                expectedConsolationRate += probability * CasinoConfig.ARENA_CONSOLATION_BASE * positionFactor;
+            }
+        }
+        
+        float availableForWinPayout = 1.0f - CasinoConfig.ARENA_HOUSE_EDGE - expectedConsolationRate;
+        if (availableForWinPayout <= 0.0f) {
+            return CasinoConfig.ARENA_MIN_ODDS;
+        }
+        
+        float fairOdds = availableForWinPayout / winProbability;
         
         float midRoundMultiplier = 1.0f;
         if (currentRound > 0) {

@@ -7,6 +7,7 @@ import com.fs.starfarer.api.util.Misc;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoDebtScript;
 import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.Strings;
 import java.awt.Color;
 import java.util.List;
 import java.util.ArrayList;
@@ -28,17 +29,8 @@ public class FinHandler {
     private final Map<String, OptionHandler> handlers = new HashMap<>();
     private final Map<Predicate<String>, OptionHandler> predicateHandlers = new HashMap<>();
 
-    private static class CaptchaQuestion {
-        final String question;
-        final String[] options;
-        final int correctIndex;
-
-        CaptchaQuestion(String question, String[] options, int correctIndex) {
-            this.question = question;
-            this.options = options;
-            this.correctIndex = correctIndex;
-        }
-    }
+    private record CaptchaQuestion(String question, String[] options, int correctIndex)
+    {    }
 
     // Pool of CAPTCHA questions
     private final List<CaptchaQuestion> captchaQuestions = new ArrayList<>();
@@ -152,7 +144,7 @@ public class FinHandler {
 
     public void showFinancialMenu() {
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("Financial Services Terminal", Color.GREEN);
+        main.getTextPanel().addPara(Strings.get("financial.title"), Color.GREEN);
 
         int cashoutStage = 0;
         if (Global.getSector().getMemoryWithoutUpdate().contains("$casino_cashout_stage")) {
@@ -160,27 +152,25 @@ public class FinHandler {
         }
 
         if (cashoutStage == 1) {
-            main.getOptions().addOption("Check Cashout Status", "cash_out_return");
-            main.getOptions().addOption("Back", "back_menu");
+            main.getOptions().addOption(Strings.get("financial.check_cashout"), "cash_out_return");
+            main.getOptions().addOption(Strings.get("common.back"), "back_menu");
             main.setState(CasinoInteraction.State.FINANCIAL);
             return;
         }
 
-        // Display financial status
         displayFinancialInfo();
 
-        main.getOptions().addOption("Sell Ships for Stargems", "buy_ship");
-        main.getOptions().addOption("Purchase VIP Pass (can stack)", "buy_vip");
+        main.getOptions().addOption(Strings.get("financial.sell_ships"), "buy_ship");
+        main.getOptions().addOption(Strings.get("financial.purchase_vip"), "buy_vip");
 
-        // Add notification toggle option
         boolean monthlyMode = CasinoVIPManager.isMonthlyNotificationMode();
-        String notifyText = monthlyMode ? "Notifications: Monthly" : "Notifications: Daily";
+        String notifyText = monthlyMode ? Strings.get("financial.notifications_monthly") : Strings.get("financial.notifications_daily");
         main.getOptions().addOption(notifyText, "toggle_vip_notifications");
 
-        main.getOptions().addOption("How Financial Services Work", "how_to_financial");
-        main.getOptions().addOption("Cash Out", "cash_out");
+        main.getOptions().addOption(Strings.get("financial.how_works"), "how_to_financial");
+        main.getOptions().addOption(Strings.get("financial.cash_out"), "cash_out");
 
-        main.getOptions().addOption("Back", "back_menu");
+        main.getOptions().addOption(Strings.get("common.back"), "back_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
     
@@ -189,43 +179,40 @@ public class FinHandler {
         int creditCeiling = CasinoVIPManager.getCreditCeiling();
         int daysRemaining = CasinoVIPManager.getDaysRemaining();
         
-        main.getTextPanel().addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("financial_status.header"), Color.CYAN);
         
-        // Show balance with color coding
         Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
-        main.getTextPanel().addPara("Balance: " + currentBalance + " Stargems", balanceColor);
+        main.getTextPanel().addPara(Strings.format("financial_status.balance", currentBalance), balanceColor);
         
-        main.getTextPanel().addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
+        main.getTextPanel().addPara(Strings.format("financial_status.credit_ceiling", creditCeiling), Color.GRAY);
         
         if (daysRemaining > 0) {
-            main.getTextPanel().addPara("VIP Status: " + daysRemaining + " days remaining", Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("financial.vip_active", daysRemaining), Color.CYAN);
         } else {
-            main.getTextPanel().addPara("VIP Status: Inactive", Color.GRAY);
+            main.getTextPanel().addPara(Strings.get("financial.vip_inactive"), Color.GRAY);
         }
         
-        // Show interest rate info if in debt
         if (currentBalance < 0) {
             boolean hasVIP = daysRemaining > 0;
             float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NON_VIP_DAILY_INTEREST_RATE;
-            main.getTextPanel().addPara("Daily Interest: " + (int)(interestRate * 100) + "%", Color.YELLOW);
+            main.getTextPanel().addPara(Strings.format("financial.daily_interest", interestRate * 100), Color.YELLOW);
         }
 
-        // Show debt collector status
         if (CasinoDebtScript.isCollectorActive()) {
-            main.getTextPanel().addPara("WARNING: Corporate Reconciliation Team is actively pursuing you!", Color.RED);
+            main.getTextPanel().addPara(Strings.get("financial.warning_collector_pursuing"), Color.RED);
         } else if (CasinoDebtScript.isCollectorPending()) {
-            main.getTextPanel().addPara("CAUTION: A Corporate Reconciliation Team has been dispatched.", Misc.getHighlightColor());
+            main.getTextPanel().addPara(Strings.get("financial.caution_dispatched"), Misc.getHighlightColor());
         }
 
-        main.getTextPanel().addPara("------------------------", Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("financial_status.divider"), Color.CYAN);
     }
     
     private void toggleVIPNotifications() {
         boolean newMode = CasinoVIPManager.toggleMonthlyNotificationMode();
         if (newMode) {
-            main.textPanel.addPara("Casino notifications set to monthly (VIP rewards, debt interest). Critical alerts (90% threshold, collector dispatch) always show.", Color.CYAN);
+            main.textPanel.addPara(Strings.get("financial.notification_monthly_set"), Color.CYAN);
         } else {
-            main.textPanel.addPara("Casino notifications set to daily (VIP rewards, debt interest). Critical alerts (90% threshold, collector dispatch) always show.", Color.CYAN);
+            main.textPanel.addPara(Strings.get("financial.notification_daily_set"), Color.CYAN);
         }
         showFinancialMenu();
     }
@@ -233,19 +220,19 @@ public class FinHandler {
     private void showVIPConfirm() {
         main.getOptions().clearOptions();
         int currentDays = CasinoVIPManager.getDaysRemaining();
-        String message = "Purchase VIP Subscription (" + CasinoConfig.VIP_PASS_DAYS + " Days) for " + CasinoConfig.VIP_PASS_COST + " Credits?";
+        String message = Strings.format("financial_vip.confirm_purchase", CasinoConfig.VIP_PASS_DAYS, CasinoConfig.VIP_PASS_COST);
         if (currentDays > 0) {
-            message += " (Current VIP: " + currentDays + " days remaining)";
+            message += " " + Strings.format("financial_vip.current_vip", currentDays);
         }
         main.textPanel.addPara(message, Color.YELLOW);
-        main.getOptions().addOption("Confirm Purchase", "confirm_buy_vip");
-        main.getOptions().addOption("Cancel", "financial_menu");
+        main.getOptions().addOption(Strings.get("financial_vip.confirm_purchase_btn"), "confirm_buy_vip");
+        main.getOptions().addOption(Strings.get("common.cancel"), "financial_menu");
     }
 
     private void purchaseVIPPass() {
         int cost = CasinoConfig.VIP_PASS_COST;
         if (Global.getSector().getPlayerFleet().getCargo().getCredits().get() < cost) {
-            main.textPanel.addPara("Insufficient Credits!", Color.RED);
+            main.textPanel.addPara(Strings.get("financial_vip.insufficient_credits"), Color.RED);
             showFinancialMenu();
             return;
         }
@@ -254,7 +241,7 @@ public class FinHandler {
         CasinoVIPManager.addSubscriptionDays(CasinoConfig.VIP_PASS_DAYS);
         
         int daysAfter = CasinoVIPManager.getDaysRemaining();
-        main.textPanel.addPara("VIP Status Activated! " + daysAfter + " days remaining.", Color.CYAN);
+        main.textPanel.addPara(Strings.format("financial_vip.activated", daysAfter), Color.CYAN);
         showFinancialMenu();
     }
 
@@ -262,54 +249,54 @@ public class FinHandler {
 
     private void performCashOut() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Thank you for calling Tachy-Impact Customer Support!", Color.YELLOW);
-        main.textPanel.addPara("Your credits are important to us. Please listen carefully as our menu options have changed.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.welcome_1"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.welcome_2"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Did you know? You can spend your Stargems on rare ships right now! No waiting required!", Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.promo"), Color.CYAN);
 
-        main.getOptions().addOption("Continue to Support Menu", "cash_out_phone");
-        main.getOptions().addOption("Hang Up (Cancel)", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.continue_support"), "cash_out_phone");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutPhone() {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Automated Support System", Color.YELLOW);
-        main.textPanel.addPara("For billing inquiries, press 1.", Color.GRAY);
-        main.textPanel.addPara("For sales and new accounts, press 2.", Color.GRAY);
-        main.textPanel.addPara("For technical support, press 3.", Color.GRAY);
-        main.textPanel.addPara("To speak with a representative, press 0.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.automated_system"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.menu_billing"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.menu_sales"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.menu_tech"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.menu_representative"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("*Note: Option 0 is currently unavailable in your sector.*", Color.RED);
+        main.textPanel.addPara(Strings.get("cashout.note_unavailable"), Color.RED);
 
-        main.getOptions().addOption("Press 1 - Billing", "cash_out_phone_billing");
-        main.getOptions().addOption("Press 2 - Sales", "cash_out_phone_sales");
-        main.getOptions().addOption("Press 3 - Technical Support", "cash_out_phone_support");
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.press_1"), "cash_out_phone_billing");
+        main.getOptions().addOption(Strings.get("cashout.press_2"), "cash_out_phone_sales");
+        main.getOptions().addOption(Strings.get("cashout.press_3"), "cash_out_phone_support");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutPhoneDeadEnd(String department) {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
 
         if (department.equals("billing")) {
-            main.textPanel.addPara("Billing Department", Color.YELLOW);
-            main.textPanel.addPara("We're sorry, but our billing system is currently experiencing high call volumes.", Color.ORANGE);
-            main.textPanel.addPara("Please try again later or visit our website at www.tachy-impact.nope", Color.GRAY);
+            main.textPanel.addPara(Strings.get("cashout.billing_dept"), Color.YELLOW);
+            main.textPanel.addPara(Strings.get("cashout.billing_busy"), Color.ORANGE);
+            main.textPanel.addPara(Strings.get("cashout.billing_try_later"), Color.GRAY);
         } else {
-            main.textPanel.addPara("Sales Department", Color.YELLOW);
-            main.textPanel.addPara("Great news! We have a special offer on Stargem packages today!", Color.CYAN);
-            main.textPanel.addPara("Unfortunately, we cannot process cashouts through this line.", Color.ORANGE);
+            main.textPanel.addPara(Strings.get("cashout.sales_dept"), Color.YELLOW);
+            main.textPanel.addPara(Strings.get("cashout.sales_offer"), Color.CYAN);
+            main.textPanel.addPara(Strings.get("cashout.sales_no_cashout"), Color.ORANGE);
         }
 
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Returning to main menu...", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.returning_menu"), Color.GRAY);
 
-        main.getOptions().addOption("Return to Phone Menu", "cash_out_phone");
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.return_phone_menu"), "cash_out_phone");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
@@ -317,33 +304,32 @@ public class FinHandler {
         main.getOptions().clearOptions();
         holdWaitCount++;
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Please hold for the next available representative...", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.please_hold"), Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
 
-        // Escalating wait times
         String[] waitMessages = {
-            "Your estimated wait time is: 4 minutes",
-            "Your estimated wait time is: 12 minutes",
-            "Your estimated wait time is: 47 minutes",
-            "Your estimated wait time is: 2 hours",
-            "Your estimated wait time is: UNAVAILABLE"
+            Strings.get("cashout.wait_4min"),
+            Strings.get("cashout.wait_12min"),
+            Strings.get("cashout.wait_47min"),
+            Strings.get("cashout.wait_2hrs"),
+            Strings.get("cashout.wait_unavailable")
         };
 
         String[] holdMusic = {
-            "*Elevator music plays softly in the background...*",
-            "*A synth version of 'Fractured Spacetime' plays on loop...*",
-            "*Static crackles occasionally interrupt the silence...*",
-            "*Someone is humming off-key in the distance...*",
-            "*The hold music skips and repeats the same 3-second clip...*"
+            Strings.get("cashout.music_elevator"),
+            Strings.get("cashout.music_synth"),
+            Strings.get("cashout.music_static"),
+            Strings.get("cashout.music_humming"),
+            Strings.get("cashout.music_skips")
         };
 
         String[] funFacts = {
-            "Did you know? Tachy-Impact processes over 50 transactions per day!",
-            "Fun fact: Our VIP members enjoy 5% better hold music quality!",
-            "Reminder: Spending Stargems is faster than cashing out!",
-            "Tip of the day: Premium ships appreciate in value!",
-            "Did you know? 9 out of 10 customers give up before reaching a representative!"
+            Strings.get("cashout.fact_transactions"),
+            Strings.get("cashout.fact_vip_music"),
+            Strings.get("cashout.fact_spending"),
+            Strings.get("cashout.fact_premium"),
+            Strings.get("cashout.fact_give_up")
         };
 
         int index = Math.min(holdWaitCount - 1, waitMessages.length - 1);
@@ -355,39 +341,36 @@ public class FinHandler {
         }
 
         if (holdWaitCount >= 5) {
-            // Finally connect to someone
             main.textPanel.addPara("", Color.GRAY);
-            main.textPanel.addPara("A representative is now available!", Color.GREEN);
-            main.getOptions().addOption("Connect to Representative", "cash_out_captcha");
+            main.textPanel.addPara(Strings.get("cashout.rep_available"), Color.GREEN);
+            main.getOptions().addOption(Strings.get("cashout.connect_rep"), "cash_out_captcha");
         } else {
-            main.getOptions().addOption("Continue Holding", "cash_out_hold");
+            main.getOptions().addOption(Strings.get("cashout.continue_holding"), "cash_out_hold");
         }
 
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutCaptcha() {
         main.getOptions().clearOptions();
-        holdWaitCount = 0; // Reset for potential future holds
+        holdWaitCount = 0;
 
-        // Pick a random question
         currentCaptchaIndex = random.nextInt(captchaQuestions.size());
         CaptchaQuestion q = captchaQuestions.get(currentCaptchaIndex);
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Security Verification Required", Color.YELLOW);
-        main.textPanel.addPara("Before we proceed, please complete this security verification:", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.security_title"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.security_instruction"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
         main.textPanel.addPara(q.question, Color.CYAN);
 
-        // Add options for each answer
         for (int i = 0; i < q.options.length; i++) {
             String optionId = (i == q.correctIndex) ? "captcha_answer_" + i : "captcha_wrong_" + i;
             main.getOptions().addOption(q.options[i], optionId);
         }
 
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
@@ -406,19 +389,18 @@ public class FinHandler {
         main.getOptions().clearOptions();
 
         String[] wrongResponses = {
-            "That answer doesn't match our records. Please try again.",
-            "Incorrect. Are you sure you're not a robot?",
-            "Wrong answer. Let me transfer you back to the beginning... just kidding, try again!",
-            "Error: Mathematical calculation mismatch detected.",
-            "That is not the answer we were looking for."
+            Strings.get("cashout.wrong_1"),
+            Strings.get("cashout.wrong_2"),
+            Strings.get("cashout.wrong_3"),
+            Strings.get("cashout.wrong_4"),
+            Strings.get("cashout.wrong_5")
         };
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
         main.textPanel.addPara(wrongResponses[random.nextInt(wrongResponses.length)], Color.RED);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Please try again:", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.try_again"), Color.YELLOW);
 
-        // Show the same question again
         if (currentCaptchaIndex >= 0 && currentCaptchaIndex < captchaQuestions.size()) {
             CaptchaQuestion q = captchaQuestions.get(currentCaptchaIndex);
             main.textPanel.addPara(q.question, Color.CYAN);
@@ -429,94 +411,93 @@ public class FinHandler {
             }
         }
 
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutTier1() {
         main.getOptions().clearOptions();
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Representative: 'Steve'", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.rep_steve"), Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Hello! Thank you for holding. My name is Steve.", Color.CYAN);
-        main.textPanel.addPara("I understand you'd like to cash out your Stargems.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.steve_greeting"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.steve_acknowledge"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Have you tried spending your Stargems on our premium ship collection instead?", Color.ORANGE);
-        main.textPanel.addPara("We have some excellent deals right now!", Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.steve_upsell_1"), Color.ORANGE);
+        main.textPanel.addPara(Strings.get("cashout.steve_upsell_2"), Color.CYAN);
 
-        main.getOptions().addOption("No, I want to cash out", "cash_out_escalate_no");
-        main.getOptions().addOption("Tell me about the ships", "cash_out_escalate_ships");
+        main.getOptions().addOption(Strings.get("cashout.steve_no_cashout"), "cash_out_escalate_no");
+        main.getOptions().addOption(Strings.get("cashout.steve_tell_ships"), "cash_out_escalate_ships");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutEscalate() {
         main.getOptions().clearOptions();
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Representative: 'Steve'", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.rep_steve"), Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("I see. Let me transfer you to our Senior Account Specialist.", Color.CYAN);
-        main.textPanel.addPara("They have the authority to process cashout requests.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.steve_transfer"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.steve_authority"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("*Transferring...*", Color.ORANGE);
-        main.textPanel.addPara("*Click...*", Color.GRAY);
-        main.textPanel.addPara("*Hold music resumes...*", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.transferring"), Color.ORANGE);
+        main.textPanel.addPara(Strings.get("cashout.click"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.hold_resumes"), Color.GRAY);
 
-        main.getOptions().addOption("Continue Holding", "cash_out_final");
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.continue_holding"), "cash_out_final");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutFinal() {
         main.getOptions().clearOptions();
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("*Hold music continues for several minutes...*", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.hold_continues"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("We're sorry.", Color.ORANGE);
-        main.textPanel.addPara("All our senior representatives are currently assisting other customers.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.sorry"), Color.ORANGE);
+        main.textPanel.addPara(Strings.get("cashout.all_busy"), Color.GRAY);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("ERROR CODE: CASH-404", Color.RED);
-        main.textPanel.addPara("Description: Representative not found", Color.RED);
+        main.textPanel.addPara(Strings.get("cashout.error_code"), Color.RED);
+        main.textPanel.addPara(Strings.get("cashout.error_desc"), Color.RED);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Please call back during normal business hours.", Color.GRAY);
-        main.textPanel.addPara("(Normal business hours: 3:00 AM to 3:15 AM, Tuesdays only)", Color.ORANGE);
+        main.textPanel.addPara(Strings.get("cashout.call_back_hours"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.business_hours"), Color.ORANGE);
 
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
 
-        // Reset any stored state
         Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
     }
 
     private void performCashOutReturn() {
         main.getOptions().clearOptions();
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Welcome back!", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.welcome_back"), Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("We see you have a pending cashout request from your previous call.", Color.CYAN);
-        main.textPanel.addPara("Please hold while we connect you to a representative...", Color.GRAY);
+        main.textPanel.addPara(Strings.get("cashout.pending_cashout"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.connecting_rep"), Color.GRAY);
 
-        main.getOptions().addOption("Continue to Hold", "cash_out_return_hold");
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.continue_hold"), "cash_out_return_hold");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
     private void performCashOutReturnHold() {
         main.getOptions().clearOptions();
 
-        main.textPanel.addPara("Tachy-Impact Customer Support", Color.GREEN);
-        main.textPanel.addPara("Please hold...", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("cashout.support_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("cashout.please_hold_ellipsis"), Color.YELLOW);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Your previous request ID could not be located in our system.", Color.RED);
-        main.textPanel.addPara("Please start the process again from the beginning.", Color.ORANGE);
+        main.textPanel.addPara(Strings.get("cashout.request_not_found"), Color.RED);
+        main.textPanel.addPara(Strings.get("cashout.start_over"), Color.ORANGE);
         main.textPanel.addPara("", Color.GRAY);
-        main.textPanel.addPara("Thank you for choosing Tachy-Impact Financial Services!", Color.CYAN);
+        main.textPanel.addPara(Strings.get("cashout.thank_you"), Color.CYAN);
 
-        main.getOptions().addOption("Start Over", "cash_out");
-        main.getOptions().addOption("Hang Up", "financial_menu");
+        main.getOptions().addOption(Strings.get("cashout.start_over_btn"), "cash_out");
+        main.getOptions().addOption(Strings.get("cashout.hang_up"), "financial_menu");
         main.setState(CasinoInteraction.State.FINANCIAL);
 
         Global.getSector().getMemoryWithoutUpdate().set("$casino_cashout_stage", 0);
@@ -525,7 +506,7 @@ public class FinHandler {
     private List<FleetMemberAPI> pendingShipTrade = null;
 
     private void openShipTradePicker() {
-        main.getDialog().showFleetMemberPickerDialog("Select ships to sell for Stargems:", "Sell", "Cancel", 8, 7, 80, true, true, Global.getSector().getPlayerFleet().getFleetData().getMembersListCopy(),
+        main.getDialog().showFleetMemberPickerDialog(Strings.get("financial_ship_trade.select_ships"), Strings.get("financial_ship_trade.sell"), Strings.get("common.cancel"), 8, 7, 80, true, true, Global.getSector().getPlayerFleet().getFleetData().getMembersListCopy(),
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
                      if (members != null && !members.isEmpty()) {
@@ -541,24 +522,24 @@ public class FinHandler {
 
     private void showShipTradeConfirmation(List<FleetMemberAPI> members) {
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("Confirm Ship Trade", Color.YELLOW);
+        main.getTextPanel().addPara(Strings.get("financial_ship_trade.confirm_title"), Color.YELLOW);
         main.getTextPanel().addPara("");
 
         int totalValue = 0;
         for (FleetMemberAPI m : members) {
             int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
             totalValue += val;
-            main.getTextPanel().addPara("  " + m.getShipName() + " (" + m.getHullSpec().getHullName() + "): " + val + " Stargems", Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("financial_ship_trade.ship_value", m.getShipName(), m.getHullSpec().getHullName(), val), Color.CYAN);
         }
 
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("Total: " + totalValue + " Stargems", Color.GREEN);
+        main.getTextPanel().addPara(Strings.format("financial_ship_trade.total", totalValue), Color.GREEN);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("WARNING: You will NOT be able to buy these ships back!", Color.RED);
-        main.getTextPanel().addPara("This action is permanent.", Color.RED);
+        main.getTextPanel().addPara(Strings.get("financial_ship_trade.warning_no_buyback"), Color.RED);
+        main.getTextPanel().addPara(Strings.get("financial_ship_trade.permanent"), Color.RED);
 
-        main.getOptions().addOption("Confirm Trade", "confirm_ship_trade");
-        main.getOptions().addOption("Cancel", "cancel_ship_trade");
+        main.getOptions().addOption(Strings.get("financial_ship_trade.confirm_trade"), "confirm_ship_trade");
+        main.getOptions().addOption(Strings.get("common.cancel"), "cancel_ship_trade");
         main.setState(CasinoInteraction.State.FINANCIAL);
     }
 
@@ -568,7 +549,7 @@ public class FinHandler {
                 int val = (int)(m.getBaseValue() / CasinoConfig.STARGEM_EXCHANGE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
                 CasinoVIPManager.addToBalance(val);
                 Global.getSector().getPlayerFleet().getFleetData().removeFleetMember(m);
-                main.getTextPanel().addPara("Traded " + m.getShipName() + " for " + val + " Stargems.", Color.GREEN);
+                main.getTextPanel().addPara(Strings.format("financial_ship_trade.traded", m.getShipName(), val), Color.GREEN);
             }
             pendingShipTrade = null;
         }

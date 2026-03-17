@@ -2,6 +2,7 @@ package data.scripts.casino;
 
 import java.util.*;
 
+
 public class PokerGame {
 
     public enum Action { FOLD, CHECK, CALL, RAISE, ALL_IN }
@@ -71,6 +72,7 @@ public static class PokerState {
         startNewHand();
     }
     
+    @SuppressWarnings("unused")
     private PokerGame(boolean forSuspend) {
         ai = new SimplePokerAI();
         state = new PokerState();
@@ -517,12 +519,11 @@ public static class PokerState {
         }
         
         public String getPersonalityDescription() {
-            // Return a human-readable description of current AI personality
             return switch (personality)
             {
-                case TIGHT -> "The IPC Dealer is playing conservatively, waiting for premium hands.";
-                case AGGRESSIVE -> "The IPC Dealer is playing aggressively, applying pressure with frequent raises.";
-                case CALCULATED -> "The IPC Dealer is playing a balanced, calculated strategy.";
+                case TIGHT -> Strings.get("poker_ai.tight_desc");
+                case AGGRESSIVE -> Strings.get("poker_ai.aggressive_desc");
+                case CALCULATED -> Strings.get("poker_ai.calculated_desc");
             };
         }
         
@@ -1829,6 +1830,7 @@ public static class PokerState {
         return ai.getCurrentPersonality();
     }
 
+    @SuppressWarnings("unused")
     public String getAIPersonalityDescription() {
         return ai.getPersonalityDescription();
     }

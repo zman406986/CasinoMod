@@ -44,7 +44,7 @@ public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate 
         callbacks.getPanelFader().setDurationOut(1f);
         
         // Initialize the gacha animation
-        gachaAnimation.init(panel, callbacks, dialog);
+        gachaAnimation.init(panel, callbacks);
         
         // Start the animation immediately
         gachaAnimation.startAnimation();

@@ -191,8 +191,7 @@ public class CasinoDebtScript implements EveryFrameScript {
             int ceiling = CasinoVIPManager.getCreditCeiling();
             
             Global.getSector().getCampaignUI().addMessage(
-                "WARNING: Your debt of " + currentDebt + " Stargems is at 90% of the collection threshold! " +
-                "Credit ceiling: " + ceiling + ". Reduce your debt to avoid Corporate Reconciliation Teams.",
+                Strings.format("debt.near_threshold", currentDebt, ceiling),
                 Misc.getHighlightColor()
             );
             
@@ -224,8 +223,7 @@ public class CasinoDebtScript implements EveryFrameScript {
             
             if (!alreadyWarnedSpawn) {
                 Global.getSector().getCampaignUI().addMessage(
-                    "A Corporate Reconciliation Team has been dispatched to collect your debt. " +
-                    "They will arrive in " + (int)PENDING_DELAY_DAYS + " days.",
+                    Strings.format("debt.dispatched", (int)PENDING_DELAY_DAYS),
                     Misc.getNegativeHighlightColor()
                 );
                 memory.set(MEM_WARNED_SPAWNED, true);
@@ -252,7 +250,7 @@ public class CasinoDebtScript implements EveryFrameScript {
             memory.set(MEM_WARNED_SPAWNED, false);
             Global.getLogger(this.getClass()).info("Debt collector spawn cancelled - debt paid below threshold");
             Global.getSector().getCampaignUI().addMessage(
-                "The Corporate Reconciliation Team has been recalled - your debt is below the collection threshold.",
+                Strings.get("debt.recalled"),
                 Misc.getPositiveHighlightColor()
             );
             return;
@@ -317,7 +315,7 @@ public class CasinoDebtScript implements EveryFrameScript {
         
         // Notify player
         Global.getSector().getCampaignUI().addMessage(
-            "The Corporate Reconciliation Team has been defeated. However, your debt remains and continues to accrue interest.",
+            Strings.get("debt.defeated"),
             Misc.getHighlightColor()
         );
     }
@@ -467,7 +465,7 @@ public class CasinoDebtScript implements EveryFrameScript {
         
         // Send notification to player
         Global.getSector().getCampaignUI().addMessage(
-            "A Corporate Reconciliation Team has arrived to collect your debt!",
+            Strings.get("debt.arrived"),
             Misc.getNegativeHighlightColor()
         );
         

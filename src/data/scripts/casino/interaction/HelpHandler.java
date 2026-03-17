@@ -1,6 +1,7 @@
 package data.scripts.casino.interaction;
 
 import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.Strings;
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
@@ -49,28 +50,28 @@ public class HelpHandler {
 
     public void showGeneralHelp() {
         main.options.clearOptions();
-        main.textPanel.addPara("--- How to Play ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("help.how_to_play"), Color.CYAN);
         
-        main.textPanel.addPara("Stargems:", Color.YELLOW);
-        main.textPanel.addPara("- Casino currency (1 Gem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits)");
-        main.textPanel.addPara("- Buy Stargems at the Top-Up terminal");
-        main.textPanel.addPara("- Sell ships at Financial Services for Stargems");
+        main.textPanel.addPara(Strings.get("help.stargems_title"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("help.stargems_1", (int)CasinoConfig.STARGEM_EXCHANGE_RATE));
+        main.textPanel.addPara(Strings.get("help.stargems_2"));
+        main.textPanel.addPara(Strings.get("help.stargems_3"));
         
-        main.textPanel.addPara("VIP Pass:", Color.YELLOW);
-        main.textPanel.addPara("- Lasts " + CasinoConfig.VIP_PASS_DAYS + " days");
-        main.textPanel.addPara("- " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily reward");
-        main.textPanel.addPara("- Overdraft access (spend beyond balance)");
-        main.textPanel.addPara("- Reduced interest on debt");
+        main.textPanel.addPara(Strings.get("help.vip_title"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("help.vip_1", CasinoConfig.VIP_PASS_DAYS));
+        main.textPanel.addPara(Strings.format("help.vip_2", CasinoConfig.VIP_DAILY_REWARD));
+        main.textPanel.addPara(Strings.get("help.vip_3"));
+        main.textPanel.addPara(Strings.get("help.vip_4"));
         
-        main.textPanel.addPara("Games:", Color.GRAY);
-        main.textPanel.addPara("- Poker: Texas Hold'em against the dealer");
-        main.textPanel.addPara("- Arena: Bet on ships in a battle royale");
-        main.textPanel.addPara("- Gacha: Pull for ships with pity system");
+        main.textPanel.addPara(Strings.get("help.games_title"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("help.games_1"));
+        main.textPanel.addPara(Strings.get("help.games_2"));
+        main.textPanel.addPara(Strings.get("help.games_3"));
 
-        main.options.addOption("About Poker", "how_to_poker");
-        main.options.addOption("About Arena", "how_to_arena");
-        main.options.addOption("About Gacha", "how_to_gacha");
-        main.options.addOption("Back", "back_menu");
+        main.options.addOption(Strings.get("help.about_poker"), "how_to_poker");
+        main.options.addOption(Strings.get("help.about_arena"), "how_to_arena");
+        main.options.addOption(Strings.get("help.about_gacha"), "how_to_gacha");
+        main.options.addOption(Strings.get("common.back"), "back_menu");
         main.setState(CasinoInteraction.State.HELP);
     }
 
@@ -112,18 +113,18 @@ public class HelpHandler {
 
     public void showArenaHelp(String returnTo) {
         main.options.clearOptions();
-        main.textPanel.addPara("\n--- Spiral Abyss Arena ---", Color.CYAN);
-        main.textPanel.addPara("Bet on ships to be the last one standing in a battle royale!");
+        main.textPanel.addPara(Strings.get("help.arena_title"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("help.arena_desc"));
         main.textPanel.addPara("");
-        main.textPanel.addPara("How it works:", Color.GRAY);
-        main.textPanel.addPara("- Bet on as many ships as you want");
-        main.textPanel.addPara("- Your bet is locked at the odds you see when placing it");
-        main.textPanel.addPara("- You can keep betting between rounds");
-        main.textPanel.addPara("- Ships get bonuses for kills and surviving longer");
-        main.textPanel.addPara("- Even eliminated ships can earn consolation prizes");
-        main.textPanel.addPara("- Random chaos events may occur between rounds");
+        main.textPanel.addPara(Strings.get("help.arena_how_works"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("help.arena_1"));
+        main.textPanel.addPara(Strings.get("help.arena_2"));
+        main.textPanel.addPara(Strings.get("help.arena_3"));
+        main.textPanel.addPara(Strings.get("help.arena_4"));
+        main.textPanel.addPara(Strings.get("help.arena_5"));
+        main.textPanel.addPara(Strings.get("help.arena_6"));
 
-        main.options.addOption("Back", returnTo);
+        main.options.addOption(Strings.get("common.back"), returnTo);
     }
 
     public void showArenaHelp() {
@@ -132,73 +133,73 @@ public class HelpHandler {
 
     public void showGachaHelp() {
         main.options.clearOptions();
-        main.textPanel.addPara("\n--- Tachy-Impact ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("help.gacha_title"), Color.CYAN);
         
-        main.textPanel.addPara("How it works:", Color.YELLOW);
-        main.textPanel.addPara("- Pull for ships using Stargems (" + CasinoConfig.GACHA_COST + " per pull)");
-        main.textPanel.addPara("- Choose 1x or 10x pull");
+        main.textPanel.addPara(Strings.get("help.gacha_how_works"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("help.gacha_1", CasinoConfig.GACHA_COST));
+        main.textPanel.addPara(Strings.get("help.gacha_2"));
         
-        main.textPanel.addPara("Ship Rarities:", Color.GRAY);
-        main.textPanel.addPara("- 5*: Capital ships (rare)");
-        main.textPanel.addPara("- 4*: Cruisers (uncommon)");
-        main.textPanel.addPara("- 3*: Destroyers and frigates (common)");
+        main.textPanel.addPara(Strings.get("help.gacha_rarities"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("help.gacha_5star"));
+        main.textPanel.addPara(Strings.get("help.gacha_4star"));
+        main.textPanel.addPara(Strings.get("help.gacha_3star"));
         
-        main.textPanel.addPara("Pity System:", Color.GRAY);
-        main.textPanel.addPara("- 5* guaranteed by pull " + CasinoConfig.PITY_HARD_5);
-        main.textPanel.addPara("- 4* guaranteed by pull " + CasinoConfig.PITY_HARD_4);
-        main.textPanel.addPara("- 50/50: If you get a non-featured 5*, next 5* is guaranteed featured");
+        main.textPanel.addPara(Strings.get("help.gacha_pity"), Color.GRAY);
+        main.textPanel.addPara(Strings.format("help.gacha_pity_5", CasinoConfig.PITY_HARD_5));
+        main.textPanel.addPara(Strings.format("help.gacha_pity_4", CasinoConfig.PITY_HARD_4));
+        main.textPanel.addPara(Strings.get("help.gacha_5050"));
         
-        main.textPanel.addPara("After Pulling:", Color.GRAY);
-        main.textPanel.addPara("- Keep ships for your fleet or convert to Stargems");
+        main.textPanel.addPara(Strings.get("help.gacha_after"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("help.gacha_after_1"));
 
-        main.options.addOption("Back", "gacha_menu");
+        main.options.addOption(Strings.get("common.back"), "gacha_menu");
     }
 
     public void showFinancialHelp() {
         main.options.clearOptions();
-        main.textPanel.addPara("\n--- Financial Services ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("help.financial_title"), Color.CYAN);
         
-        main.textPanel.addPara("VIP Pass:", Color.YELLOW);
-        main.textPanel.addPara("- Cost: " + CasinoConfig.VIP_PASS_COST + " Credits for " + CasinoConfig.VIP_PASS_DAYS + " days");
-        main.textPanel.addPara("- Daily Reward: " + CasinoConfig.VIP_DAILY_REWARD + " Stargems");
-        main.textPanel.addPara("- Overdraft access: Spend beyond your balance");
-        main.textPanel.addPara("- Reduced interest on debt");
-        main.textPanel.addPara("- Higher credit ceiling");
+        main.textPanel.addPara(Strings.get("help.financial_vip"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("help.financial_vip_cost", CasinoConfig.VIP_PASS_COST, CasinoConfig.VIP_PASS_DAYS));
+        main.textPanel.addPara(Strings.format("help.financial_vip_reward", CasinoConfig.VIP_DAILY_REWARD));
+        main.textPanel.addPara(Strings.get("help.financial_vip_overdraft"));
+        main.textPanel.addPara(Strings.get("help.financial_vip_interest"));
+        main.textPanel.addPara(Strings.get("help.financial_vip_ceiling"));
         main.textPanel.addPara("");
 
-        main.textPanel.addPara("Debt & Interest:", Color.YELLOW);
-        main.textPanel.addPara("- Negative balances accrue daily interest");
-        main.textPanel.addPara("- Debt has a maximum limit");
-        main.textPanel.addPara("- Corporate Reconciliation Teams may be dispatched for severe debt!", Color.RED);
+        main.textPanel.addPara(Strings.get("help.financial_debt"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("help.financial_debt_1"));
+        main.textPanel.addPara(Strings.get("help.financial_debt_2"));
+        main.textPanel.addPara(Strings.get("help.financial_debt_3"), Color.RED);
         main.textPanel.addPara("");
 
-        main.textPanel.addPara("Ship Trading:", Color.YELLOW);
-        main.textPanel.addPara("- Sell ships for Stargems");
-        main.textPanel.addPara("- Ships cannot be bought back!", Color.RED);
+        main.textPanel.addPara(Strings.get("help.financial_trading"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("help.financial_trading_1"));
+        main.textPanel.addPara(Strings.get("help.financial_trading_2"), Color.RED);
 
-        main.options.addOption("Back", "financial_menu");
+        main.options.addOption(Strings.get("common.back"), "financial_menu");
     }
 
     public void showTopupHelp() {
         main.options.clearOptions();
-        main.textPanel.addPara("\n--- Stargem Top-Up ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("help.topup_title"), Color.CYAN);
         
-        main.textPanel.addPara("Stargems:", Color.YELLOW);
-        main.textPanel.addPara("- Casino's premium currency");
-        main.textPanel.addPara("- Used for all casino games");
-        main.textPanel.addPara("- Exchange Rate: 1 Stargem = " + (int)CasinoConfig.STARGEM_EXCHANGE_RATE + " Credits");
+        main.textPanel.addPara(Strings.get("help.topup_stargems"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("help.topup_stargems_1"));
+        main.textPanel.addPara(Strings.get("help.topup_stargems_2"));
+        main.textPanel.addPara(Strings.format("help.topup_exchange", (int)CasinoConfig.STARGEM_EXCHANGE_RATE));
         main.textPanel.addPara("");
 
-        main.textPanel.addPara("Purchasing Stargems:", Color.YELLOW);
-        main.textPanel.addPara("- Buy gem packages with credits");
-        main.textPanel.addPara("- Larger packages offer better value");
+        main.textPanel.addPara(Strings.get("help.topup_purchasing"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("help.topup_purchase_1"));
+        main.textPanel.addPara(Strings.get("help.topup_purchase_2"));
         main.textPanel.addPara("");
 
-        main.textPanel.addPara("Other Ways to Get Stargems:", Color.GRAY);
-        main.textPanel.addPara("- VIP daily reward");
-        main.textPanel.addPara("- Sell ships at Financial Services");
-        main.textPanel.addPara("- Win at Poker or Arena");
+        main.textPanel.addPara(Strings.get("help.topup_other"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("help.topup_other_1"));
+        main.textPanel.addPara(Strings.get("help.topup_other_2"));
+        main.textPanel.addPara(Strings.get("help.topup_other_3"));
 
-        main.options.addOption("Back", "topup_menu");
+        main.options.addOption(Strings.get("common.back"), "topup_menu");
     }
 }

@@ -1,7 +1,6 @@
 package data.scripts.casino.util;
 
 import com.fs.starfarer.api.campaign.TextPanelAPI;
-import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.SpiralAbyssArena;
 
 import java.awt.Color;

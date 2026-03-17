@@ -69,7 +69,9 @@ public class CasinoConfig {
     // Arena - Bonuses
     public static float ARENA_SURVIVAL_BONUS_PER_TURN;
     public static float ARENA_KILL_BONUS_PER_KILL;
-    public static float ARENA_DEFEATED_CONSOLATION_MULT;
+    public static float ARENA_CONSOLATION_BASE;
+    public static float ARENA_KILL_BONUS_FLAT;
+    public static float ARENA_KILL_BONUS_DIMINISH_PER_ROUND;
     public static float[] ARENA_CONSOLATION_POSITION_FACTORS = {0.50f, 0.25f, 0.10f, 0.05f};
     public static float ARENA_ACTION_MULTIPLIER;
     public static float ARENA_DIMINISHING_RETURNS_PER_ROUND;
@@ -115,10 +117,8 @@ public class CasinoConfig {
     public static final List<String> VIP_ADS = new ArrayList<>();
     public static final List<GemPackage> GEM_PACKAGES = new ArrayList<>();
 
-    public static class GemPackage {
-        public final int gems;
-        public final int cost;
-        public GemPackage(int gems, int cost) { this.gems = gems; this.cost = cost; }
+    public record GemPackage(int gems, int cost)
+    {
     }
 
     public static class ArenaStat {
@@ -200,7 +200,9 @@ public class CasinoConfig {
             ARENA_ENTRY_FEE = settings.optInt("arenaEntryFee", 100);
             ARENA_SURVIVAL_BONUS_PER_TURN = (float) settings.optDouble("arenaSurvivalBonusPerTurn", 0.05);
             ARENA_KILL_BONUS_PER_KILL = (float) settings.optDouble("arenaKillBonusPerKill", 0.1);
-            ARENA_DEFEATED_CONSOLATION_MULT = (float) settings.optDouble("arenaDefeatedConsolationMult", 0.5);
+            ARENA_CONSOLATION_BASE = (float) settings.optDouble("arenaConsolationBase", 0.10);
+            ARENA_KILL_BONUS_FLAT = (float) settings.optDouble("arenaKillBonusFlat", 0.10);
+            ARENA_KILL_BONUS_DIMINISH_PER_ROUND = (float) settings.optDouble("arenaKillBonusDiminishPerRound", 0.30);
 
             if (settings.has("arenaConsolationPositionFactors")) {
                 JSONArray factors = settings.getJSONArray("arenaConsolationPositionFactors");
@@ -297,6 +299,7 @@ public class CasinoConfig {
         }
 
         loadGachaShipsBlacklist();
+        Strings.load();
     }
 
     private static void loadGachaShipsBlacklist() {

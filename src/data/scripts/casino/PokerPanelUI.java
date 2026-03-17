@@ -8,16 +8,19 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
-import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.ui.Alignment;
 import com.fs.starfarer.api.ui.ButtonAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
+import com.fs.starfarer.api.ui.Fonts;
 import com.fs.starfarer.api.ui.LabelAPI;
 import com.fs.starfarer.api.ui.PositionAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
+import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 
 /**
@@ -36,12 +39,25 @@ import com.fs.starfarer.api.util.Misc;
  * - This panel is purely for rendering and input
  * - All game logic flows through PokerHandler -> PokerGame
  */
-public class PokerPanelUI extends BaseCustomUIPanelPlugin {
+public class PokerPanelUI extends BaseCustomUIPanelPlugin
+    implements ActionListenerDelegate {
+
+    private static final SettingsAPI settings = Global.getSettings();
+
+    // ============================================================================
+    // BUTTON ID CONSTANTS
+    // ============================================================================
+    private static final String POKER_FOLD = "poker_fold";
+    private static final String POKER_CHECK_CALL = "poker_check_call";
+    private static final String POKER_RAISE_PREFIX = "poker_raise_";
+    private static final String POKER_NEXT_HAND = "poker_next_hand";
+    private static final String POKER_SUSPEND = "poker_suspend";
+    private static final String POKER_HOW_TO_PLAY = "poker_how_to_play";
+    private static final String POKER_FLIP_TABLE = "poker_flip_table";
 
     // ============================================================================
     // CORE REFERENCES
     // ============================================================================
-    protected InteractionDialogAPI dialog;
     protected DialogCallbacks callbacks;
     protected CustomPanelAPI panel;
     protected PositionAPI p;
@@ -245,69 +261,46 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin {
     protected boolean resultCached = false;
     
     // ============================================================================
-    // UI ELEMENTS - Buttons are recreated each update, references stored for state checks
+    // UI ELEMENTS - Panels for buttons with setOpacity, ButtonAPI for dynamic text
     // ============================================================================
-    protected ButtonAPI foldButton;
-    protected ButtonAPI checkCallButton;
-    protected List<ButtonAPI> raiseOptionButtons = new ArrayList<>();
-    protected List<CustomPanelAPI> raiseOptionPanels = new ArrayList<>();
-    protected ButtonAPI backButton;
-    protected ButtonAPI suspendButton;
-    protected ButtonAPI howToPlayButton;
     protected ButtonAPI flipTableButton;
+    protected ButtonAPI checkCallButton;
+    protected List<CustomPanelAPI> raiseOptionPanels = new ArrayList<>();
     protected CustomPanelAPI flipTablePanel;
     protected CustomPanelAPI suspendPanel;
     protected CustomPanelAPI howToPlayPanel;
     protected CustomPanelAPI foldPanel;
     protected CustomPanelAPI checkCallPanel;
+    protected CustomPanelAPI nextHandPanel;
 
     // Stack display labels
     protected LabelAPI playerStackLabel;
     protected LabelAPI opponentStackLabel;
-    protected CustomPanelAPI playerStackPanel;
-    protected CustomPanelAPI opponentStackPanel;
     
     // Round indicator label
     protected LabelAPI roundLabel;
-    protected CustomPanelAPI roundPanel;
     
     // Waiting indicator label
     protected LabelAPI waitingLabel;
-    protected CustomPanelAPI waitingPanel;
     
     // Opponent action display label
     protected LabelAPI opponentActionLabel;
-    protected CustomPanelAPI opponentActionPanel;
     protected String lastOpponentAction = "";
     
     // Player action display label
     protected LabelAPI playerActionLabel;
-    protected CustomPanelAPI playerActionPanel;
     protected String lastPlayerAction = "";
-    
-    // AI personality label
-    protected LabelAPI aiPersonalityLabel;
-    protected CustomPanelAPI aiPersonalityPanel;
-    
+
     // Return from suspend message
     protected LabelAPI returnMessageLabel;
-    protected CustomPanelAPI returnMessagePanel;
     
     // Card rank labels (for displaying actual text on cards)
     protected LabelAPI[] playerCardRankLabels = new LabelAPI[2];
     protected LabelAPI[] opponentCardRankLabels = new LabelAPI[2];
     protected LabelAPI[] communityCardRankLabels = new LabelAPI[5];
-    protected CustomPanelAPI[] playerCardPanels = new CustomPanelAPI[2];
-    protected CustomPanelAPI[] opponentCardPanels = new CustomPanelAPI[2];
-    protected CustomPanelAPI[] communityCardPanels = new CustomPanelAPI[5];
     
     // Result labels for showdown
     protected LabelAPI resultLabel;
-    protected CustomPanelAPI resultPanel;
-    
-    // "Next Hand" button for after showdown
-    protected ButtonAPI nextHandButton;
-    protected CustomPanelAPI nextHandPanel;
     
     // ============================================================================
     // LAYOUT CONSTANTS - Relative positioning for resolution independence
@@ -399,10 +392,9 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * 2. We store panel reference and create buttons immediately
      * 3. positionChanged() may be called later (optional)
      */
-    public void init(CustomPanelAPI panel, DialogCallbacks callbacks, InteractionDialogAPI dialog) {
+    public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         this.panel = panel;
         this.callbacks = callbacks;
-        this.dialog = dialog;
         
         // Reset state for new panel
         waitingForOpponent = false;
@@ -452,24 +444,30 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
 
         flipTablePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         TooltipMakerAPI flipTooltip = flipTablePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        flipTableButton = flipTooltip.addButton("Run Away", "poker_flip_table", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        flipTooltip.setActionListenerDelegate(this);
+        flipTableButton = flipTooltip.addButton(Strings.get("poker_panel.run_away"), POKER_FLIP_TABLE, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        flipTableButton.setQuickMode(true);
         flipTableButton.getPosition().inTL(0, 0);
         flipTablePanel.addUIElement(flipTooltip).inTL(0, 0);
-        panel.addComponent(flipTablePanel).inTL(-1000, -1000);
+        panel.addComponent(flipTablePanel).inTL(PANEL_WIDTH - BUTTON_WIDTH - MARGIN, MARGIN);
 
         suspendPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         TooltipMakerAPI suspendTooltip = suspendPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        suspendButton = suspendTooltip.addButton("Wait...", "poker_suspend", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        suspendButton.getPosition().inTL(0, 0);
+        suspendTooltip.setActionListenerDelegate(this);
+        ButtonAPI suspendBtn = suspendTooltip.addButton(Strings.get("poker_panel.wait"), POKER_SUSPEND, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        suspendBtn.setQuickMode(true);
+        suspendBtn.getPosition().inTL(0, 0);
         suspendPanel.addUIElement(suspendTooltip).inTL(0, 0);
-        panel.addComponent(suspendPanel).inTL(-1000, -1000);
+        panel.addComponent(suspendPanel).inTL(PANEL_WIDTH - BUTTON_WIDTH * 2 - BUTTON_SPACING - MARGIN, MARGIN);
 
         howToPlayPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         TooltipMakerAPI helpTooltip = howToPlayPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        howToPlayButton = helpTooltip.addButton("How to Play", "poker_how_to_play", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        howToPlayButton.getPosition().inTL(0, 0);
+        helpTooltip.setActionListenerDelegate(this);
+        ButtonAPI helpBtn = helpTooltip.addButton(Strings.get("poker_panel.how_to_play"), POKER_HOW_TO_PLAY, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        helpBtn.setQuickMode(true);
+        helpBtn.getPosition().inTL(0, 0);
         howToPlayPanel.addUIElement(helpTooltip).inTL(0, 0);
-        panel.addComponent(howToPlayPanel).inTL(-1000, -1000);
+        panel.addComponent(howToPlayPanel).inTL(PANEL_WIDTH - BUTTON_WIDTH * 3 - BUTTON_SPACING * 2 - MARGIN, MARGIN);
         
         createPotDisplay();
         createStackDisplays();
@@ -485,31 +483,38 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
 
         foldPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         TooltipMakerAPI foldTooltip = foldPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        foldButton = foldTooltip.addButton("Fold", "poker_fold", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        foldButton.getPosition().inTL(0, 0);
+        foldTooltip.setActionListenerDelegate(this);
+        ButtonAPI foldBtn = foldTooltip.addButton(Strings.get("poker_panel.fold_btn"), POKER_FOLD, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        foldBtn.setQuickMode(true);
+        foldBtn.getPosition().inTL(0, 0);
         foldPanel.addUIElement(foldTooltip).inTL(0, 0);
-        panel.addComponent(foldPanel).inTL(-1000, -1000);
+        panel.addComponent(foldPanel).inTL(0, 0);
+        foldPanel.setOpacity(0f);
         
         checkCallPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
         TooltipMakerAPI checkCallTooltip = checkCallPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        checkCallButton = checkCallTooltip.addButton("Check", "poker_check_call", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        checkCallTooltip.setActionListenerDelegate(this);
+        checkCallButton = checkCallTooltip.addButton(Strings.get("poker_panel.check_btn"), POKER_CHECK_CALL, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        checkCallButton.setQuickMode(true);
         checkCallButton.getPosition().inTL(0, 0);
         checkCallPanel.addUIElement(checkCallTooltip).inTL(0, 0);
-        panel.addComponent(checkCallPanel).inTL(-1000, -1000);
+        panel.addComponent(checkCallPanel).inTL(0, 0);
+        checkCallPanel.setOpacity(0f);
         
         for (int i = 0; i < 5; i++) {
             int amt = i * 100;
-            String btnId = "poker_raise_" + amt;
+            String btnId = POKER_RAISE_PREFIX + amt;
             
             CustomPanelAPI raiseOptPanel = panel.createCustomPanel(RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, null);
             TooltipMakerAPI raiseOptTooltip = raiseOptPanel.createUIElement(RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, false);
-            ButtonAPI btn = raiseOptTooltip.addButton("Raise " + amt, btnId, RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-            btn.setCustomData(btnId);
+            raiseOptTooltip.setActionListenerDelegate(this);
+            ButtonAPI btn = raiseOptTooltip.addButton(Strings.format("poker_panel.raise_btn", amt), btnId, RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
             btn.getPosition().inTL(0, 0);
             raiseOptPanel.addUIElement(raiseOptTooltip).inTL(0, 0);
-            panel.addComponent(raiseOptPanel).inTL(-1000, -1000);
+            panel.addComponent(raiseOptPanel).inTL(0, 0);
+            raiseOptPanel.setOpacity(0f);
             raiseOptionPanels.add(raiseOptPanel);
-            raiseOptionButtons.add(btn);
         }
         
         buttonsCreated = true;
@@ -521,24 +526,12 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         PokerGame.PokerState state = game.getState();
         if (state == null) return;
         
-        float topRightX = PANEL_WIDTH - BUTTON_WIDTH - MARGIN;
-        float topRightY = MARGIN;
-        
         boolean isShowdown = state.round == PokerGame.Round.SHOWDOWN;
-        String flipTableLabel = isShowdown ? "Leave" : "Run Away";
+        String flipTableLabel = isShowdown ? Strings.get("poker_panel.leave_btn") : Strings.get("poker_panel.run_away");
         flipTableButton.setText(flipTableLabel);
-        flipTablePanel.getPosition().inTL(topRightX, topRightY);
-        
-        float suspendX = topRightX - BUTTON_WIDTH - BUTTON_SPACING;
-        suspendPanel.getPosition().inTL(suspendX, topRightY);
-        
-        float helpX = suspendX - BUTTON_WIDTH - BUTTON_SPACING;
-        howToPlayPanel.getPosition().inTL(helpX, topRightY);
         
         int callAmount = state.opponentBet - state.playerBet;
-        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind || state.opponentDeclaredAllIn;
-        boolean canRaise = state.playerStack > 0 && state.opponentStack > 0 && callAmount < state.playerStack && !opponentEffectivelyAllIn;
-        boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER && 
+        boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER &&
                                state.round != PokerGame.Round.SHOWDOWN;
         
         float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
@@ -547,95 +540,23 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         if (isPlayerTurn) {
             foldPanel.getPosition().inTL(actionStartX, bottomY);
+            foldPanel.setOpacity(1f);
             
-            String checkCallLabel = callAmount > 0 ? "Call " + callAmount : "Check";
+            String checkCallLabel = callAmount > 0 ? Strings.format("poker_panel.call_btn", callAmount) : Strings.get("poker_panel.check_btn");
             checkCallButton.setText(checkCallLabel);
             float checkCallX = actionStartX + BUTTON_WIDTH + BUTTON_SPACING;
             checkCallPanel.getPosition().inTL(checkCallX, bottomY);
+            checkCallPanel.setOpacity(1f);
         } else {
-            foldPanel.getPosition().inTL(-1000, -1000);
-            checkCallPanel.getPosition().inTL(-1000, -1000);
+            foldPanel.setOpacity(0f);
+            checkCallPanel.setOpacity(0f);
         }
         
-        if (canRaise && isPlayerTurn) {
-            float[] raiseAmounts = getRaiseOptions(state);
-            float raiseOptionsY = bottomY - BUTTON_HEIGHT - BUTTON_SPACING;
-            float totalRaiseWidth = RAISE_BUTTON_WIDTH * raiseAmounts.length + BUTTON_SPACING * (raiseAmounts.length - 1);
-            float raiseStartX = (PANEL_WIDTH - totalRaiseWidth) / 2f;
-            
-            for (int i = 0; i < raiseOptionPanels.size(); i++) {
-                if (i < raiseAmounts.length) {
-                    int amt = (int) raiseAmounts[i];
-                    String label = formatRaiseLabel(amt, state.bigBlind, state.pot, state.playerStack, state.opponentBet, state.playerBet);
-                    String btnId = "poker_raise_" + amt;
-                    float btnX = raiseStartX + (RAISE_BUTTON_WIDTH + BUTTON_SPACING) * i;
-                    
-                    raiseOptionButtons.get(i).setText(label);
-                    raiseOptionButtons.get(i).setCustomData(btnId);
-                    raiseOptionPanels.get(i).getPosition().inTL(btnX, raiseOptionsY);
-                } else {
-                    raiseOptionPanels.get(i).getPosition().inTL(-1000, -1000);
-                }
-            }
-        } else {
-            for (CustomPanelAPI pnl : raiseOptionPanels) {
-                pnl.getPosition().inTL(-1000, -1000);
-            }
+        for (CustomPanelAPI pnl : raiseOptionPanels) {
+            pnl.setOpacity(0f);
         }
     }
-    
-    /**
-     * Calculates raise amount options based on pot size and stack.
-     * Returns TOTAL BET amounts (call amount + raise amount), not just raise portion.
-     * This matches the text-based UI behavior where "Raise 50" when needing to call 300
-     * should result in a total bet of 350.
-     */
-    protected float[] getRaiseOptions(PokerGame.PokerState state) {
-        List<Float> options = new ArrayList<>();
-        int pot = state.pot;
-        int stack = state.playerStack;
-        int bb = state.bigBlind;
-        int opponentBet = state.opponentBet;
-        
-        // Total bet = opponent's bet + raise portion
-        // 1. BB (minimum raise) - total bet = opponentBet + bb
-        int bbTotal = opponentBet + bb;
-        if (bbTotal <= state.playerBet + stack) options.add((float) bbTotal);
-        
-        // 2. Half Pot - total bet = opponentBet + halfPot
-        int halfPot = pot / 2;
-        int halfPotTotal = opponentBet + halfPot;
-        if (halfPot >= bb && halfPotTotal <= state.playerBet + stack && !options.contains((float) halfPotTotal)) {
-            options.add((float) halfPotTotal);
-        }
-        
-        // 3. Pot - total bet = opponentBet + pot
-        int potTotal = opponentBet + pot;
-        if (pot >= bb && potTotal <= state.playerBet + stack && !options.contains((float) potTotal)) {
-            options.add((float) potTotal);
-        }
-        
-        // 4. 2x Pot - total bet = opponentBet + 2xPot
-        int twoPot = pot * 2;
-        int twoPotTotal = opponentBet + twoPot;
-        if (twoPot > pot && twoPotTotal <= state.playerBet + stack && !options.contains((float) twoPotTotal)) {
-            options.add((float) twoPotTotal);
-        }
-        
-        // 5. All-in (always last) - total bet = playerBet + remaining stack
-        int allInTotal = state.playerBet + stack;
-        if (stack > 0 && !options.contains((float) allInTotal)) {
-            options.add((float) allInTotal);
-        }
-        
-        // Convert to primitive array
-        float[] result = new float[options.size()];
-        for (int i = 0; i < options.size(); i++) {
-            result[i] = options.get(i);
-        }
-        return result;
-    }
-    
+
     /**
      * Formats raise label to show total bet and raise portion.
      * Format: "Label (total / X.X BB)" where total = callAmount + raisePortion
@@ -645,21 +566,21 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         String label;
         if (raisePortion == bigBlind) {
-            label = "BB";
+            label = Strings.get("poker_raise_labels.bb");
         } else if (pot > 0 && raisePortion == pot / 2) {
-            label = "Half Pot";
+            label = Strings.get("poker_raise_labels.half_pot");
         } else if (raisePortion == pot) {
-            label = "Pot";
+            label = Strings.get("poker_raise_labels.pot");
         } else if (pot > 0 && raisePortion == pot * 2) {
-            label = "2x Pot";
+            label = Strings.get("poker_raise_labels.2x_pot");
         } else if (totalBet == playerBet + playerStack) {
-            label = "All-In";
+            label = Strings.get("poker_raise_labels.all_in");
         } else {
-            label = "Raise";
+            label = Strings.get("poker_raise_labels.raise");
         }
         
         float bbAmount = bigBlind > 0 ? (float) totalBet / bigBlind : 0;
-        return String.format("%s (%d / %.1f BB)", label, totalBet, bbAmount);
+        return Strings.format("poker_raise_labels.format", label, totalBet, bbAmount);
     }
     
     /**
@@ -673,35 +594,22 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     }
     
     /**
-     * Creates stack display labels using LabelAPI.
-     * Layout: Opponent at top (Y=70), Player at bottom (Y=580)
+     * Creates stack display labels using settings.createLabel() directly.
+     * Layout: Opponent at top (Y=140), Player at bottom (Y=PANEL_HEIGHT-150)
      * Shows: "Opponent Stack: 9900 | Opponent current bet: 100"
      */
     protected void createStackDisplays() {
         if (panel == null) return;
-        
-        final float STACK_PANEL_WIDTH = 420f;
-        final float STACK_PANEL_HEIGHT = 30f;
 
-        float oppY = 140f;
-        
-        opponentStackPanel = panel.createCustomPanel(STACK_PANEL_WIDTH, STACK_PANEL_HEIGHT, null);
-        TooltipMakerAPI oppTooltip = opponentStackPanel.createUIElement(STACK_PANEL_WIDTH, STACK_PANEL_HEIGHT, false);
-        opponentStackLabel = oppTooltip.addPara("Opponent Stack: 0 | Opponent current bet: 0", COLOR_OPPONENT, 0f);
+        opponentStackLabel = settings.createLabel(Strings.format("poker_panel.opponent_stack_bet", 0, 0), Fonts.DEFAULT_SMALL);
+        opponentStackLabel.setColor(COLOR_OPPONENT);
         opponentStackLabel.setAlignment(Alignment.LMID);
-        opponentStackLabel.getPosition().inTL(0, 0);
-        opponentStackPanel.addUIElement(oppTooltip).inTL(0, 0);
-        panel.addComponent(opponentStackPanel).inTL(MARGIN, oppY);
+        panel.addComponent((UIComponentAPI) opponentStackLabel).inTL(MARGIN, 140f);
 
-        float playerY = PANEL_HEIGHT - 150f;
-        
-        playerStackPanel = panel.createCustomPanel(STACK_PANEL_WIDTH, STACK_PANEL_HEIGHT, null);
-        TooltipMakerAPI playerTooltip = playerStackPanel.createUIElement(STACK_PANEL_WIDTH, STACK_PANEL_HEIGHT, false);
-        playerStackLabel = playerTooltip.addPara("Player Stack: 0 | Player current bet: 0", COLOR_PLAYER, 0f);
+        playerStackLabel = settings.createLabel(Strings.format("poker_panel.player_stack_bet", 0, 0), Fonts.DEFAULT_SMALL);
+        playerStackLabel.setColor(COLOR_PLAYER);
         playerStackLabel.setAlignment(Alignment.LMID);
-        playerStackLabel.getPosition().inTL(0, 0);
-        playerStackPanel.addUIElement(playerTooltip).inTL(0, 0);
-        panel.addComponent(playerStackPanel).inTL(MARGIN, playerY);
+        panel.addComponent((UIComponentAPI) playerStackLabel).inTL(MARGIN, PANEL_HEIGHT - 150f);
     }
     
     /**
@@ -717,7 +625,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             if (playerStack != lastPlayerStack || playerBet != lastPlayerBet) {
                 lastPlayerStack = playerStack;
                 lastPlayerBet = playerBet;
-                lastPlayerStackText = String.format("Player Stack: %d | Player current bet: %d", playerStack, playerBet);
+                lastPlayerStackText = Strings.format("poker_panel.player_stack_bet", playerStack, playerBet);
             }
             playerStackLabel.setText(lastPlayerStackText);
         }
@@ -725,7 +633,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             if (opponentStack != lastOpponentStack || opponentBet != lastOpponentBet) {
                 lastOpponentStack = opponentStack;
                 lastOpponentBet = opponentBet;
-                lastOpponentStackText = String.format("Opponent Stack: %d | Opponent current bet: %d", opponentStack, opponentBet);
+                lastOpponentStackText = Strings.format("poker_panel.opponent_stack_bet", opponentStack, opponentBet);
             }
             opponentStackLabel.setText(lastOpponentStackText);
         }
@@ -738,19 +646,13 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createRoundLabel() {
         if (panel == null) return;
         
-        final float ROUND_PANEL_WIDTH = 600f;
-        final float ROUND_PANEL_HEIGHT = 30f;
-        
-        float x = (PANEL_WIDTH - ROUND_PANEL_WIDTH) / 2f;
+        float x = (PANEL_WIDTH - 600f) / 2f;
         float y = PANEL_HEIGHT * 0.40f;
         
-        roundPanel = panel.createCustomPanel(ROUND_PANEL_WIDTH, ROUND_PANEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = roundPanel.createUIElement(ROUND_PANEL_WIDTH, ROUND_PANEL_HEIGHT, false);
-        roundLabel = tooltip.addPara("Round Progress: Preflop | Current Pot: 0 | Big Blind (minimal bet): 50", new Color(150, 200, 255), 0f);
+        roundLabel = settings.createLabel(Strings.format("poker_panel.round_progress", Strings.get("poker_rounds.preflop"), 0, 50), Fonts.DEFAULT_SMALL);
+        roundLabel.setColor(new Color(150, 200, 255));
         roundLabel.setAlignment(Alignment.MID);
-        roundLabel.getPosition().inMid();
-        roundPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(roundPanel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) roundLabel).inTL(x, y);
     }
     
     /**
@@ -765,14 +667,14 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             lastPot = pot;
             
             String roundName = switch (round) {
-                case PREFLOP -> "Preflop";
-                case FLOP -> "Flop";
-                case TURN -> "Turn";
-                case RIVER -> "River";
-                case SHOWDOWN -> "Showdown";
+                case PREFLOP -> Strings.get("poker_rounds.preflop");
+                case FLOP -> Strings.get("poker_rounds.flop");
+                case TURN -> Strings.get("poker_rounds.turn");
+                case RIVER -> Strings.get("poker_rounds.river");
+                case SHOWDOWN -> Strings.get("poker_rounds.showdown");
             };
             
-            lastRoundText = String.format("Round Progress: %s | Current Pot: %d | Big Blind (minimal bet): %d", roundName, pot, bigBlind);
+            lastRoundText = Strings.format("poker_panel.round_progress", roundName, pot, bigBlind);
             
             Color roundColor = switch (round) {
                 case PREFLOP -> COLOR_ROUND_PREFLOP;
@@ -793,78 +695,59 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createWaitingLabel() {
         if (panel == null) return;
         
-        final float WAIT_PANEL_WIDTH = 160f;
-        final float WAIT_PANEL_HEIGHT = 30f;
+        float x = (PANEL_WIDTH - 160f) / 2f;
+        float y = PANEL_HEIGHT * 0.68f;
         
-        float x = (PANEL_WIDTH - WAIT_PANEL_WIDTH) / 2f;
-        float y = PANEL_HEIGHT * 0.68f; // Below pot display
-        
-        waitingPanel = panel.createCustomPanel(WAIT_PANEL_WIDTH, WAIT_PANEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = waitingPanel.createUIElement(WAIT_PANEL_WIDTH, WAIT_PANEL_HEIGHT, false);
-        waitingLabel = tooltip.addPara("Opponent thinking...", new Color(255, 200, 100), 0f);
+        waitingLabel = settings.createLabel(Strings.get("poker_panel.opponent_thinking"), Fonts.DEFAULT_SMALL);
+        waitingLabel.setColor(new Color(255, 200, 100));
         waitingLabel.setAlignment(Alignment.MID);
-        waitingLabel.getPosition().inMid();
-        waitingPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(waitingPanel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) waitingLabel).inTL(x, y);
+        waitingLabel.setOpacity(0f);
     }
     
     /**
      * Updates waiting indicator visibility.
      */
     protected void updateWaitingLabel(boolean waiting) {
-        if (waitingPanel != null) {
-            // Move off-screen if not waiting
-            waitingPanel.getPosition().setYAlignOffset(waiting ? 0 : -1000);
+        if (waitingLabel != null) {
+            waitingLabel.setOpacity(waiting ? 1f : 0f);
         }
     }
     
     /**
      * Creates opponent action display label - below opponent stack info.
-     * Opponent stack is at y=120, height=30, so action goes below that.
      */
     protected void createOpponentActionLabel() {
         if (panel == null) return;
         
-        final float ACTION_PANEL_WIDTH = 250f;
-        final float ACTION_PANEL_HEIGHT = 25f;
-        
-        opponentActionPanel = panel.createCustomPanel(ACTION_PANEL_WIDTH, ACTION_PANEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = opponentActionPanel.createUIElement(ACTION_PANEL_WIDTH, ACTION_PANEL_HEIGHT, false);
-        opponentActionLabel = tooltip.addPara("", COLOR_OPPONENT, 0f);
+        opponentActionLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        opponentActionLabel.setColor(COLOR_OPPONENT);
         opponentActionLabel.setAlignment(Alignment.LMID);
-        opponentActionLabel.getPosition().inTL(0, 0);
-        opponentActionPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(opponentActionPanel).inTL(-1000, -1000);
+        panel.addComponent((UIComponentAPI) opponentActionLabel).inTL(160, 200);
+        opponentActionLabel.setOpacity(0f);
     }
     
     /**
      * Creates player action display label - above player stack info.
-     * Player stack is at y=PANEL_HEIGHT-130, height=30, so action goes above that.
      */
     protected void createPlayerActionLabel() {
         if (panel == null) return;
         
-        final float ACTION_PANEL_WIDTH = 250f;
-        final float ACTION_PANEL_HEIGHT = 25f;
-        
-        playerActionPanel = panel.createCustomPanel(ACTION_PANEL_WIDTH, ACTION_PANEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = playerActionPanel.createUIElement(ACTION_PANEL_WIDTH, ACTION_PANEL_HEIGHT, false);
-        playerActionLabel = tooltip.addPara("", COLOR_PLAYER, 0f);
+        playerActionLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        playerActionLabel.setColor(COLOR_PLAYER);
         playerActionLabel.setAlignment(Alignment.LMID);
-        playerActionLabel.getPosition().inTL(0, 0);
-        playerActionPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(playerActionPanel).inTL(-1000, -1000);
+        panel.addComponent((UIComponentAPI) playerActionLabel).inTL(160, 480);
+        playerActionLabel.setOpacity(0f);
     }
     
     /**
      * Updates opponent action display.
-     * @param action The action text to display (e.g., "Opponent calls", "Opponent raises by 50")
      */
     public void showOpponentAction(String action) {
         lastOpponentAction = action;
-        if (opponentActionLabel != null && opponentActionPanel != null) {
+        if (opponentActionLabel != null) {
             opponentActionLabel.setText(action);
-            opponentActionPanel.getPosition().inTL(160, 200);
+            opponentActionLabel.setOpacity(1f);
         }
     }
     
@@ -872,20 +755,19 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * Hides opponent action display.
      */
     public void hideOpponentAction() {
-        if (opponentActionPanel != null) {
-            opponentActionPanel.getPosition().inTL(-1000, -1000);
+        if (opponentActionLabel != null) {
+            opponentActionLabel.setOpacity(0f);
         }
     }
     
     /**
      * Updates player action display.
-     * @param action The action text to display (e.g., "You call", "You raise by 50")
      */
     public void showPlayerAction(String action) {
         lastPlayerAction = action;
-        if (playerActionLabel != null && playerActionPanel != null) {
+        if (playerActionLabel != null) {
             playerActionLabel.setText(action);
-            playerActionPanel.getPosition().inTL(160, 480);
+            playerActionLabel.setOpacity(1f);
         }
     }
     
@@ -893,8 +775,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      * Hides player action display.
      */
     public void hidePlayerAction() {
-        if (playerActionPanel != null) {
-            playerActionPanel.getPosition().inTL(-1000, -1000);
+        if (playerActionLabel != null) {
+            playerActionLabel.setOpacity(0f);
         }
     }
     
@@ -911,29 +793,23 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createReturnMessageLabel() {
         if (panel == null) return;
         
-        final float MSG_WIDTH = 400f;
-        final float MSG_HEIGHT = 30f;
-        
-        float x = (PANEL_WIDTH - MSG_WIDTH) / 2f;
+        float x = (PANEL_WIDTH - 400f) / 2f;
         float y = PANEL_HEIGHT * 0.3f;
         
-        returnMessagePanel = panel.createCustomPanel(MSG_WIDTH, MSG_HEIGHT, null);
-        TooltipMakerAPI tooltip = returnMessagePanel.createUIElement(MSG_WIDTH, MSG_HEIGHT, false);
-        returnMessageLabel = tooltip.addPara("", new Color(200, 200, 100), 0f);
+        returnMessageLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        returnMessageLabel.setColor(new Color(200, 200, 100));
         returnMessageLabel.setAlignment(Alignment.MID);
-        returnMessageLabel.getPosition().inMid();
-        returnMessagePanel.addUIElement(tooltip).inTL(0, 0);
-        returnMessagePanel.getPosition().setYAlignOffset(-1000);
-        panel.addComponent(returnMessagePanel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) returnMessageLabel).inTL(x, y);
+        returnMessageLabel.setOpacity(0f);
     }
     
     /**
      * Shows a return from suspend message.
      */
     public void showReturnMessage(String message) {
-        if (returnMessageLabel != null && returnMessagePanel != null) {
+        if (returnMessageLabel != null) {
             returnMessageLabel.setText(message);
-            returnMessagePanel.getPosition().setYAlignOffset(0);
+            returnMessageLabel.setOpacity(1f);
         }
     }
 
@@ -944,47 +820,36 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createCardRankLabels() {
         if (panel == null) return;
         
-        final float LABEL_WIDTH = 50f;
-        final float LABEL_HEIGHT = 20f;
         Color yellowHighlight = new Color(1f, 0.85f, 0f);
         
-        // Create labels for player cards (2 cards)
         for (int i = 0; i < 2; i++) {
-            playerCardPanels[i] = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-            TooltipMakerAPI tooltip = playerCardPanels[i].createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-            playerCardRankLabels[i] = tooltip.addPara("??", Color.WHITE, 0f);
+            playerCardRankLabels[i] = settings.createLabel("??", Fonts.DEFAULT_SMALL);
+            playerCardRankLabels[i].setColor(Color.WHITE);
             playerCardRankLabels[i].setAlignment(Alignment.MID);
             playerCardRankLabels[i].setHighlightColor(yellowHighlight);
             playerCardRankLabels[i].setHighlight(0, 2);
-            playerCardRankLabels[i].getPosition().inMid();
-            playerCardPanels[i].addUIElement(tooltip).inTL(0, 0);
-            panel.addComponent(playerCardPanels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) playerCardRankLabels[i]).inTL(-1000, -1000);
+            playerCardRankLabels[i].setOpacity(0f);
         }
         
-        // Create labels for opponent cards (2 cards)
         for (int i = 0; i < 2; i++) {
-            opponentCardPanels[i] = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-            TooltipMakerAPI tooltip = opponentCardPanels[i].createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-            opponentCardRankLabels[i] = tooltip.addPara("??", Color.WHITE, 0f);
+            opponentCardRankLabels[i] = settings.createLabel("??", Fonts.DEFAULT_SMALL);
+            opponentCardRankLabels[i].setColor(Color.WHITE);
             opponentCardRankLabels[i].setAlignment(Alignment.MID);
             opponentCardRankLabels[i].setHighlightColor(yellowHighlight);
             opponentCardRankLabels[i].setHighlight(0, 2);
-            opponentCardRankLabels[i].getPosition().inMid();
-            opponentCardPanels[i].addUIElement(tooltip).inTL(0, 0);
-            panel.addComponent(opponentCardPanels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) opponentCardRankLabels[i]).inTL(-1000, -1000);
+            opponentCardRankLabels[i].setOpacity(0f);
         }
         
-        // Create labels for community cards (5 cards)
         for (int i = 0; i < 5; i++) {
-            communityCardPanels[i] = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-            TooltipMakerAPI tooltip = communityCardPanels[i].createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-            communityCardRankLabels[i] = tooltip.addPara("??", Color.WHITE, 0f);
+            communityCardRankLabels[i] = settings.createLabel("??", Fonts.DEFAULT_SMALL);
+            communityCardRankLabels[i].setColor(Color.WHITE);
             communityCardRankLabels[i].setAlignment(Alignment.MID);
             communityCardRankLabels[i].setHighlightColor(yellowHighlight);
             communityCardRankLabels[i].setHighlight(0, 2);
-            communityCardRankLabels[i].getPosition().inMid();
-            communityCardPanels[i].addUIElement(tooltip).inTL(0, 0);
-            panel.addComponent(communityCardPanels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) communityCardRankLabels[i]).inTL(-1000, -1000);
+            communityCardRankLabels[i].setOpacity(0f);
         }
     }
     
@@ -1048,7 +913,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
                     
                     float labelX = cardX + 10;
                     float labelY = panelHeight - playerCardBottomY - CARD_HEIGHT + 4;
-                    playerCardPanels[i].getPosition().inTL(labelX, labelY);
+                    playerCardRankLabels[i].getPosition().inTL(labelX, labelY);
+                    playerCardRankLabels[i].setOpacity(1f);
                 }
             }
         }
@@ -1073,13 +939,14 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
                     
                     float labelX = cardX + 10;
                     float labelY = panelHeight - opponentCardBottomY - CARD_HEIGHT + 4;
-                    opponentCardPanels[i].getPosition().inTL(labelX, labelY);
+                    opponentCardRankLabels[i].getPosition().inTL(labelX, labelY);
+                    opponentCardRankLabels[i].setOpacity(1f);
                 }
             }
         } else {
             for (int i = 0; i < 2; i++) {
-                if (opponentCardPanels[i] != null) {
-                    opponentCardPanels[i].getPosition().inTL(-1000, -1000);
+                if (opponentCardRankLabels[i] != null) {
+                    opponentCardRankLabels[i].setOpacity(0f);
                 }
                 lastOpponentCardRanks[i] = null;
             }
@@ -1106,20 +973,21 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
                     
                     float labelX = cardX + 10;
                     float labelY = panelHeight - commCardBottomY - CARD_HEIGHT + 4;
-                    communityCardPanels[i].getPosition().inTL(labelX, labelY);
+                    communityCardRankLabels[i].getPosition().inTL(labelX, labelY);
+                    communityCardRankLabels[i].setOpacity(1f);
                 }
             }
             
             for (int i = numCards; i < 5; i++) {
-                if (communityCardPanels[i] != null) {
-                    communityCardPanels[i].getPosition().inTL(-1000, -1000);
+                if (communityCardRankLabels[i] != null) {
+                    communityCardRankLabels[i].setOpacity(0f);
                 }
                 lastCommunityCardRanks[i] = null;
             }
         } else {
             for (int i = 0; i < 5; i++) {
-                if (communityCardPanels[i] != null) {
-                    communityCardPanels[i].getPosition().inTL(-1000, -1000);
+                if (communityCardRankLabels[i] != null) {
+                    communityCardRankLabels[i].setOpacity(0f);
                 }
                 lastCommunityCardRanks[i] = null;
             }
@@ -1127,24 +995,16 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     }
 
     /**
-     * Creates the result display labels for showdown - showing hand details.
-     * Layout: [Player Hand] / [Opponent Hand] on first lines
-     *         [Result Text] on next line
+     * Creates the result display label for showdown - showing hand details.
      */
     protected void createResultLabel() {
         if (panel == null) return;
         
-        final float RESULT_PANEL_WIDTH = 450f;
-        final float RESULT_PANEL_HEIGHT = 30f;
-        
-        // Result label (winner + pot)
-        resultPanel = panel.createCustomPanel(RESULT_PANEL_WIDTH, RESULT_PANEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = resultPanel.createUIElement(RESULT_PANEL_WIDTH, RESULT_PANEL_HEIGHT, false);
-        resultLabel = tooltip.addPara("", Color.WHITE, 0f);
+        resultLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        resultLabel.setColor(Color.WHITE);
         resultLabel.setAlignment(Alignment.MID);
-        resultLabel.getPosition().inTL(0, 5);
-        resultPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(resultPanel).inTL(-1000, -1000);
+        panel.addComponent((UIComponentAPI) resultLabel).inTL(PANEL_WIDTH / 2f - 225f, PANEL_HEIGHT * 0.32f);
+        resultLabel.setOpacity(0f);
     }
     
     /**
@@ -1154,7 +1014,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         if (resultLabel == null || state == null) return;
         
         if (state.round != PokerGame.Round.SHOWDOWN) {
-            if (resultPanel != null) resultPanel.getPosition().inTL(-1000, -1000);
+            resultLabel.setOpacity(0f);
             resultCached = false;
             cachedPlayerScore = null;
             cachedOpponentScore = null;
@@ -1164,7 +1024,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         if (resultCached && cachedResultText != null) {
             resultLabel.setText(cachedResultText);
             resultLabel.setColor(cachedResultColor);
-            resultPanel.getPosition().inTL(PANEL_WIDTH / 2f - 225f, PANEL_HEIGHT * 0.32f);
+            resultLabel.setOpacity(1f);
             return;
         }
         
@@ -1174,10 +1034,10 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         if (state.folder != null) {
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
-                resultText = "You folded - Opponent wins " + potWon + " Stargems";
+                resultText = Strings.format("poker_panel.you_folded_win", potWon);
                 resultColor = COLOR_OPPONENT;
             } else {
-                resultText = "Opponent folded - You win " + potWon + " Stargems!";
+                resultText = Strings.format("poker_panel.opponent_folded_win", potWon);
                 resultColor = COLOR_PLAYER;
             }
             hideOpponentAction();
@@ -1194,13 +1054,13 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             
             int cmp = cachedPlayerScore.compareTo(cachedOpponentScore);
             if (cmp > 0) {
-                resultText = "YOU WIN " + potWon + " Stargems!";
+                resultText = Strings.format("poker_panel.you_win_stargems", potWon);
                 resultColor = Color.GREEN;
             } else if (cmp < 0) {
-                resultText = "Opponent wins " + potWon + " Stargems";
+                resultText = Strings.format("poker_panel.opponent_wins_stargems", potWon);
                 resultColor = COLOR_OPPONENT;
             } else {
-                resultText = "Split pot! +" + (potWon / 2) + " Stargems each";
+                resultText = Strings.format("poker_panel.split_pot_each", potWon / 2);
                 resultColor = Color.YELLOW;
             }
         }
@@ -1210,8 +1070,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         if (playerBust || opponentBust) {
             String bustMessage = playerBust ? 
-                " You went BUST! Click 'Leave' to exit." : 
-                " Opponent went BUST! Click 'Leave' to exit.";
+                Strings.get("poker_panel.you_bust_leave") : 
+                Strings.get("poker_panel.opponent_bust_leave");
             resultText += bustMessage;
         }
         
@@ -1221,7 +1081,7 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         resultLabel.setText(resultText);
         resultLabel.setColor(resultColor);
-        resultPanel.getPosition().inTL(PANEL_WIDTH / 2f - 225f, PANEL_HEIGHT * 0.32f);
+        resultLabel.setOpacity(1f);
     }
     
     /**
@@ -1241,39 +1101,39 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
 
         return switch (score.rank)
         {
-            case HIGH_CARD -> highCard + " high";
-            case PAIR -> "Pair of " + highCard + "s";
+            case HIGH_CARD -> Strings.format("poker_hand_desc.high_card", highCard);
+            case PAIR -> Strings.format("poker_hand_desc.pair_of", highCard);
             case TWO_PAIR ->
             {
                 if (score.tieBreakers.size() >= 2)
                 {
                     String firstPair = getRankName(score.tieBreakers.get(0));
                     String secondPair = getRankName(score.tieBreakers.get(1));
-                    yield "Two Pair - " + firstPair + "s and " + secondPair + "s";
+                    yield Strings.format("poker_hand_desc.two_pair_and", firstPair, secondPair);
                 }
-                yield "Two Pair";
+                yield Strings.get("poker_hand_desc.two_pair");
             }
-            case THREE_OF_A_KIND -> "Three " + highCard + "s";
-            case STRAIGHT -> "Straight - " + highCard + " high";
-            case FLUSH -> "Flush - " + highCard + " high";
+            case THREE_OF_A_KIND -> Strings.format("poker_hand_desc.three", highCard);
+            case STRAIGHT -> Strings.format("poker_hand_desc.straight_high", highCard);
+            case FLUSH -> Strings.format("poker_hand_desc.flush_high", highCard);
             case FULL_HOUSE ->
             {
                 if (score.tieBreakers.size() >= 2)
                 {
                     String trips = getRankName(score.tieBreakers.get(0));
                     String pair = getRankName(score.tieBreakers.get(1));
-                    yield "Full House - " + trips + "s full of " + pair + "s";
+                    yield Strings.format("poker_hand_desc.full_house_full", trips, pair);
                 }
-                yield "Full House";
+                yield Strings.get("poker_hand_desc.full_house");
             }
-            case FOUR_OF_A_KIND -> "Four " + highCard + "s";
+            case FOUR_OF_A_KIND -> Strings.format("poker_hand_desc.four", highCard);
             case STRAIGHT_FLUSH ->
             {
                 if (highCard.equals("Ace"))
                 {
-                    yield "Royal Flush!";
+                    yield Strings.get("poker_hand_desc.royal_flush");
                 }
-                yield "Straight Flush - " + highCard + " high";
+                yield Strings.format("poker_hand_desc.straight_flush_high", highCard);
             }
         };
     }
@@ -1285,15 +1145,15 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         if (rank == null) return "Unknown";
         return switch (rank)
         {
-            case HIGH_CARD -> "High Card";
-            case PAIR -> "Pair";
-            case TWO_PAIR -> "Two Pair";
-            case THREE_OF_A_KIND -> "Three of a Kind";
-            case STRAIGHT -> "Straight";
-            case FLUSH -> "Flush";
-            case FULL_HOUSE -> "Full House";
-            case FOUR_OF_A_KIND -> "Four of a Kind";
-            case STRAIGHT_FLUSH -> "Straight Flush";
+            case HIGH_CARD -> Strings.get("poker_hand_rank.high_card");
+            case PAIR -> Strings.get("poker_hand_rank.pair");
+            case TWO_PAIR -> Strings.get("poker_hand_rank.two_pair");
+            case THREE_OF_A_KIND -> Strings.get("poker_hand_rank.three_of_a_kind");
+            case STRAIGHT -> Strings.get("poker_hand_rank.straight");
+            case FLUSH -> Strings.get("poker_hand_rank.flush");
+            case FULL_HOUSE -> Strings.get("poker_hand_rank.full_house");
+            case FOUR_OF_A_KIND -> Strings.get("poker_hand_rank.four_of_a_kind");
+            case STRAIGHT_FLUSH -> Strings.get("poker_hand_rank.straight_flush");
         };
     }
     
@@ -1303,10 +1163,10 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected String getRankName(int rankValue) {
         return switch (rankValue)
         {
-            case 14 -> "Ace";
-            case 13 -> "King";
-            case 12 -> "Queen";
-            case 11 -> "Jack";
+            case 14 -> Strings.get("poker_ranks.ace");
+            case 13 -> Strings.get("poker_ranks.king");
+            case 12 -> Strings.get("poker_ranks.queen");
+            case 11 -> Strings.get("poker_ranks.jack");
             case 10 -> "10";
             case 9 -> "9";
             case 8 -> "8";
@@ -1322,7 +1182,6 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
 
     /**
      * Creates the "Next Hand" button for after showdown - below community cards, right of result label.
-     * Layout: [Result Text] [Next Hand Button] - horizontally arranged below community cards.
      */
     protected void createNextHandButton() {
         if (panel == null) return;
@@ -1332,34 +1191,27 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         
         nextHandPanel = panel.createCustomPanel(BUTTON_W, BUTTON_H, null);
         TooltipMakerAPI tooltip = nextHandPanel.createUIElement(BUTTON_W, BUTTON_H, false);
-        nextHandButton = tooltip.addButton("Next Hand", "poker_next_hand", new Color(0, 0, 0), new Color(255, 200, 0), BUTTON_W, BUTTON_H, 0f);
-        nextHandButton.setCustomData("poker_next_hand");
-        nextHandButton.getPosition().inTL(0, 0);
+        tooltip.setActionListenerDelegate(this);
+        ButtonAPI btn = tooltip.addButton(Strings.get("poker_panel.next_hand_btn"), POKER_NEXT_HAND, BUTTON_W, BUTTON_H, 0f);
+        btn.setQuickMode(true);
+        btn.getPosition().inTL(0, 0);
         nextHandPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(nextHandPanel).inTL(-1000, -1000);
+        panel.addComponent(nextHandPanel).inTL(PANEL_WIDTH / 2f + 200f, PANEL_HEIGHT / 2f + CARD_HEIGHT / 2f + 70f);
+        nextHandPanel.setOpacity(0f);
     }
     
     /**
      * Updates the "Next Hand" button visibility.
-     * Always shows at showdown - either to start next hand or to end the game.
      */
     protected void updateNextHandButton(PokerGame.PokerState state) {
         if (nextHandPanel == null) return;
         
         boolean atShowdown = state.round == PokerGame.Round.SHOWDOWN;
-        boolean canContinue = state.playerStack >= state.bigBlind && 
-                              state.opponentStack >= state.bigBlind;
-        
+
         if (atShowdown) {
-            // Always show button at showdown - label changes based on whether game can continue
-            if (canContinue) {
-                nextHandButton.setText("Next Hand");
-            } else {
-                nextHandButton.setText("Leave");
-            }
-            nextHandPanel.getPosition().inTL(PANEL_WIDTH / 2f + 200f, PANEL_HEIGHT / 2f + CARD_HEIGHT / 2f + 70f);
+            nextHandPanel.setOpacity(1f);
         } else {
-            nextHandPanel.getPosition().inTL(-1000, -1000);
+            nextHandPanel.setOpacity(0f);
         }
     }
     
@@ -1984,24 +1836,16 @@ public void updateGameState(PokerGame game) {
     // ============================================================================
     
     /**
-     * Processes input events for button clicks and keyboard shortcuts.
-     * INPUT PRIORITY:
-     * 1. Escape key - dismiss dialog
-     * 2. Button clicks - check each button's isChecked()
-     * 3. Keyboard shortcuts (F, C, R) for quick actions
+     * Processes input events for keyboard shortcuts.
+     * Button clicks are handled via ActionListenerDelegate.
      */
     public void processInput(List<InputEventAPI> events) {
-        // Don't skip if position is null - buttons should still work
-        // The panel UI system handles button positioning independently
-        
         for (InputEventAPI event : events) {
             if (event.isConsumed()) continue;
             
-            // Handle keyboard shortcuts
             if (event.isKeyDownEvent()) {
                 int key = event.getEventValue();
                 
-                // Escape - dismiss dialog (dev mode or as fallback)
                 if (key == Keyboard.KEY_ESCAPE) {
                     event.consume();
                     if (callbacks != null) {
@@ -2010,21 +1854,18 @@ public void updateGameState(PokerGame game) {
                     return;
                 }
                 
-                // F - Fold
-                if (key == Keyboard.KEY_F && foldButton != null) {
+                if (key == Keyboard.KEY_F) {
                     event.consume();
                     handleFoldClick();
                     return;
                 }
                 
-                // C - Check/Call
-                if (key == Keyboard.KEY_C && checkCallButton != null) {
+                if (key == Keyboard.KEY_C) {
                     event.consume();
                     handleCheckCallClick();
                     return;
                 }
                 
-                // R - Raise (opens raise menu or does default raise)
                 if (key == Keyboard.KEY_R) {
                     event.consume();
                     handleRaiseClick();
@@ -2032,81 +1873,54 @@ public void updateGameState(PokerGame game) {
                 }
             }
         }
-        
-        // Handle button clicks - ALWAYS check, even if events list is empty
-        // Buttons maintain their own checked state based on mouse interaction
-        checkButtonClicks();
     }
     
-    /**
-     * Checks all buttons for click state and triggers appropriate actions.
-     * Called every frame from processInput().
-     */
-    protected void checkButtonClicks() {
-        // Fold button
-        if (foldButton != null && foldButton.isChecked()) {
-            foldButton.setChecked(false);
+    @Override
+    public void actionPerformed(Object input, Object source) {
+        Object data = null;
+        if (source instanceof ButtonAPI btn) {
+            data = btn.getCustomData();
+        }
+        processAction(data);
+        updateButtonVisibility();
+    }
+    
+    protected void processAction(Object data) {
+        if (data == null) return;
+        
+        String strData = data instanceof String ? (String) data : null;
+        
+        if (POKER_FOLD.equals(data)) {
             handleFoldClick();
             return;
         }
-        
-        // Check/Call button
-        if (checkCallButton != null && checkCallButton.isChecked()) {
-            checkCallButton.setChecked(false);
+        if (POKER_CHECK_CALL.equals(data)) {
             handleCheckCallClick();
             return;
         }
-        
-        // Raise option buttons (direct raise amounts)
-        for (ButtonAPI btn : raiseOptionButtons) {
-            if (btn.isChecked()) {
-                btn.setChecked(false);
-                // Extract raise amount from button ID
-                String id = (String) btn.getCustomData();
-                if (id != null && id.startsWith("poker_raise_")) {
-                    try {
-                        int amount = Integer.parseInt(id.substring("poker_raise_".length()));
-                        handleRaiseAmountClick(amount);
-                    } catch (NumberFormatException e) {
-                        Global.getLogger(PokerPanelUI.class).warn("Invalid raise button ID: " + id);
-                    }
-                }
-                return;
-            }
-        }
-        
-        // Flip Table button
-        if (flipTableButton != null && flipTableButton.isChecked()) {
-            flipTableButton.setChecked(false);
-            handleFlipTableClick();
+        if (POKER_NEXT_HAND.equals(data)) {
+            handleNextHandClick();
             return;
         }
-        
-        // Suspend button
-        if (suspendButton != null && suspendButton.isChecked()) {
-            suspendButton.setChecked(false);
+        if (POKER_SUSPEND.equals(data)) {
             handleSuspendClick();
             return;
         }
-        
-        // How to Play button
-        if (howToPlayButton != null && howToPlayButton.isChecked()) {
-            howToPlayButton.setChecked(false);
+        if (POKER_HOW_TO_PLAY.equals(data)) {
             handleHowToPlayClick();
             return;
         }
-        
-        // Back button
-        if (backButton != null && backButton.isChecked()) {
-            backButton.setChecked(false);
-            handleBackClick();
+        if (POKER_FLIP_TABLE.equals(data)) {
+            handleFlipTableClick();
             return;
         }
-        
-        // Next Hand button
-        if (nextHandButton != null && nextHandButton.isChecked()) {
-            nextHandButton.setChecked(false);
-            handleNextHandClick();
+        if (strData != null && strData.startsWith(POKER_RAISE_PREFIX)) {
+            try {
+                int amount = Integer.parseInt(strData.substring(POKER_RAISE_PREFIX.length()));
+                handleRaiseAmountClick(amount);
+            } catch (NumberFormatException e) {
+                Global.getLogger(PokerPanelUI.class).warn("Invalid raise button ID: " + strData);
+            }
         }
     }
     
@@ -2115,7 +1929,7 @@ public void updateGameState(PokerGame game) {
     // ============================================================================
     
     protected void handleFoldClick() {
-        showPlayerAction("You fold");
+        showPlayerAction(Strings.get("poker_actions.you_fold"));
         if (actionCallback != null) {
             actionCallback.onPlayerAction(PokerGame.Action.FOLD, 0);
         }
@@ -2126,12 +1940,12 @@ public void updateGameState(PokerGame game) {
         int callAmount = state.opponentBet - state.playerBet;
         
         if (callAmount > 0) {
-            showPlayerAction("You call " + callAmount);
+            showPlayerAction(Strings.format("poker_actions.you_call", callAmount));
             if (actionCallback != null) {
                 actionCallback.onPlayerAction(PokerGame.Action.CALL, 0);
             }
         } else {
-            showPlayerAction("You check");
+            showPlayerAction(Strings.get("poker_actions.you_check"));
             if (actionCallback != null) {
                 actionCallback.onPlayerAction(PokerGame.Action.CHECK, 0);
             }
@@ -2147,7 +1961,7 @@ public void updateGameState(PokerGame game) {
     }
     
     protected void handleRaiseAmountClick(int amount) {
-        showPlayerAction("You raise to " + amount);
+        showPlayerAction(Strings.format("poker_actions.you_raise_to", amount));
         if (actionCallback != null) {
             actionCallback.onPlayerAction(PokerGame.Action.RAISE, amount);
         }
@@ -2197,4 +2011,5 @@ public void updateGameState(PokerGame game) {
             actionCallback.onFlipTable();
         }
     }
-}
+    
+    }

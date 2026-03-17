@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 1.2.2
+- Merged WolframSegler's PR (version checker support, arena UI fixes, readme, and lots of behind-the-scene improvements). If you see less bugs and better performance, it's thanks to them!
+- Added arena battle log animation and improved poker UI after learning from the above. If you get new bugs and lagging, yeah it's me adding more vibe coded crap.
+- Externalized all UI strings to allow easier translation.
+- Adjusted poker game stack size and default BB values to better match each other.
+- More code cleanup.
+
+## Version 1.2.1
+- Fixed arena overdraft and added error handling for insufficient funds.
+- Fixed arena odds to maintain proper house edge.
+- Fixed poker pause softlock and days tracking.
+- Fixed poker currency not properly added back to player wallet.
+- Resized gacha ship UP pool and separated it from arena ship pool.
+- Improved arena HP bar display and round display.
+- Code cleanup.
+
 ## Version 1.2.0
 - Fixed incorrect Poker bet amount display for both players
 - Fixed Arena round number not updating when using "Skip to End"

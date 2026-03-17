@@ -7,6 +7,7 @@ import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.PokerDialogDelegate;
 import data.scripts.casino.PokerGame;
 import data.scripts.casino.PokerGame.PokerGameLogic;
+import data.scripts.casino.Strings;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -69,7 +70,7 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
         handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
         handlers.put("suspend_abandon_leave", option -> abandonSuspendedGame());
         handlers.put("suspend_abandon_cancel", option -> {
-            main.textPanel.addPara("You sit back down. The game continues.", Color.CYAN);
+            main.textPanel.addPara(Strings.get("poker_suspend.sit_back_down"), Color.CYAN);
             showPokerVisualPanel();
         });
         handlers.put("back_menu", option -> {
@@ -125,7 +126,7 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
             String gameType = mem.getString("$ipc_suspended_game_type");
             if ("Poker".equals(gameType)) {
                 main.setState(CasinoInteraction.State.POKER);
-                main.textPanel.addPara("Resuming your suspended poker game...", Color.YELLOW);
+                main.textPanel.addPara(Strings.get("poker.resuming"), Color.YELLOW);
                 restoreSuspendedGame();
                 return;
             }
@@ -136,48 +137,51 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
             float elapsedDays = Global.getSector().getClock().getElapsedDaysSince(cooldownStart);
             if (elapsedDays < COOLDOWN_DAYS) {
                 float daysRemaining = COOLDOWN_DAYS - elapsedDays;
-                main.textPanel.addPara("The IPC Dealer eyes you coldly.", Color.RED);
-                main.textPanel.addPara("'You left the table early last time. The IPC Credit Facility does not tolerate table-hoppers.'", Color.YELLOW);
-                main.textPanel.addPara("'You may return to play poker in " + String.format("%.1f", daysRemaining) + " days.'", Color.GRAY);
-                main.options.addOption("Back", "back_menu");
+                main.textPanel.addPara(Strings.get("poker.dealer_eyes_coldly"), Color.RED);
+                main.textPanel.addPara(Strings.get("poker.left_early_warning"), Color.YELLOW);
+                main.textPanel.addPara(Strings.format("poker.return_after_days", daysRemaining), Color.GRAY);
+                main.options.addOption(Strings.get("common.back"), "back_menu");
                 return;
             } else {
                 mem.unset(POKER_COOLDOWN_KEY);
             }
         }
 
-        main.textPanel.addPara("The IPC Dealer prepares to deal. How big of a stack would you like to bring to the table?", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("poker.choose_stack"), Color.YELLOW);
 
         displayFinancialInfo();
 
         int currentBalance = CasinoVIPManager.getBalance();
         int availableCredit = CasinoVIPManager.getAvailableCredit();
         int[] stackSizes = CasinoConfig.POKER_STACK_SIZES;
-        String[] stackLabels = {"Small", "Medium", "Large", "Huge"};
+        String[] stackLabels = {
+            Strings.get("poker.stack_small"),
+            Strings.get("poker.stack_medium"),
+            Strings.get("poker.stack_large"),
+            Strings.get("poker.stack_huge")
+        };
 
         for (int i = 0; i < stackSizes.length && i < stackLabels.length; i++) {
-            // Allow option if player has enough balance OR enough available credit (for overdraft)
             if (currentBalance >= stackSizes[i] || availableCredit >= stackSizes[i]) {
-                main.options.addOption(stackLabels[i] + " Stack (" + stackSizes[i] + " Stargems)", "poker_stack_" + stackSizes[i]);
+                main.options.addOption(Strings.format("poker.stack_label", stackLabels[i], stackSizes[i]), "poker_stack_" + stackSizes[i]);
             }
         }
 
         int minRequiredGems = CasinoConfig.POKER_BIG_BLIND;
         int minStackSize = CasinoConfig.POKER_STACK_SIZES.length > 0 ? CasinoConfig.POKER_STACK_SIZES[0] : 1000;
 
-        // Check if player has any credit available at all
         if (availableCredit <= 0) {
-            main.textPanel.addPara("Your credit facility is exhausted. You cannot afford even the minimum stack size of " + minStackSize + " Stargems.", Color.RED);
-            main.textPanel.addPara("Please visit Stargem Top-up to purchase more gems.", Color.YELLOW);
+            main.textPanel.addPara(Strings.format("poker.credit_exhausted", minStackSize), Color.RED);
+            main.textPanel.addPara(Strings.get("poker.please_topup"), Color.YELLOW);
         } else if (availableCredit < minStackSize) {
-            main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for the minimum stack size of " + minStackSize + " Stargems.", Color.RED);
-            main.textPanel.addPara("Please visit Stargem Top-up to purchase more gems.", Color.YELLOW);
+            main.textPanel.addPara(Strings.format("poker.insufficient_credit_stack", availableCredit, minStackSize), Color.RED);
+            main.textPanel.addPara(Strings.get("poker.please_topup"), Color.YELLOW);
         } else if (currentBalance < minRequiredGems && availableCredit >= minRequiredGems) {
-            main.textPanel.addPara("Your Stargem balance is below the minimum. Choose a fixed stack size to use overdraft.", Color.YELLOW);
+            main.textPanel.addPara(Strings.get("poker.balance_below_minimum"), Color.YELLOW);
         }
 
-        main.options.addOption("How to Play Poker", "how_to_poker");
-        main.options.addOption("Back", "back_menu");
+        main.options.addOption(Strings.get("poker.how_to_play"), "how_to_poker");
+        main.options.addOption(Strings.get("common.back"), "back_menu");
         main.setState(CasinoInteraction.State.POKER);
     }
 
@@ -187,20 +191,19 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
         int availableCredit = CasinoVIPManager.getAvailableCredit();
         int daysRemaining = CasinoVIPManager.getDaysRemaining();
         
-        main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("financial_status.header"), Color.CYAN);
         
-        // Show balance with color coding
         Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
-        main.textPanel.addPara("Balance: " + currentBalance + " Stargems", balanceColor);
+        main.textPanel.addPara(Strings.format("financial_status.balance", currentBalance), balanceColor);
         
-        main.textPanel.addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
-        main.textPanel.addPara("Available Credit: " + availableCredit, Color.YELLOW);
+        main.textPanel.addPara(Strings.format("financial_status.credit_ceiling", creditCeiling), Color.GRAY);
+        main.textPanel.addPara(Strings.format("financial_status.available_credit", availableCredit), Color.YELLOW);
         
         if (daysRemaining > 0) {
-            main.textPanel.addPara("VIP: " + daysRemaining + " days", Color.CYAN);
+            main.textPanel.addPara(Strings.format("financial_status.vip_days", daysRemaining), Color.CYAN);
         }
         
-        main.textPanel.addPara("------------------------", Color.CYAN);
+        main.textPanel.addPara(Strings.get("financial_status.divider"), Color.CYAN);
     }
 
     public void setupGame() {
@@ -222,10 +225,9 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
                 return;
             }
             
-            // VIP player - check if they have enough available credit
             if (availableCredit < stackSize) {
-                main.textPanel.addPara("Not enough Stargems or available credit! You have " + playerWallet + " Stargems and " + availableCredit + " available credit, but requested " + stackSize + ".", Color.RED);
-                showPokerConfirm(); // Return to the confirmation screen
+                main.textPanel.addPara(Strings.format("poker.not_enough_credit", playerWallet, availableCredit, stackSize), Color.RED);
+                showPokerConfirm();
                 return;
             }
             
@@ -243,21 +245,21 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
     
     private void showOverdraftConfirmation(int stackSize, int overdraftAmount) {
         main.options.clearOptions();
-        main.textPanel.addPara("OVERDRAFT CONFIRMATION REQUIRED", Color.RED);
+        main.textPanel.addPara(Strings.get("poker.overdraft_title"), Color.RED);
         main.textPanel.addPara("");
-        main.textPanel.addPara("Your current balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
-        main.textPanel.addPara("Requested stack size: " + stackSize + " Stargems", Color.WHITE);
+        main.textPanel.addPara(Strings.format("poker.overdraft_current_balance", CasinoVIPManager.getBalance()), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("poker.overdraft_requested", stackSize), Color.WHITE);
         main.textPanel.addPara("");
-        main.textPanel.addPara("OVERDRAFT DETAILS:", Color.CYAN);
-        main.textPanel.addPara("Overdraft amount: " + overdraftAmount + " Stargems", Color.RED);
-        main.textPanel.addPara("Interest rate: " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% per day", Color.YELLOW);
-        main.textPanel.addPara("Your balance will become: " + (CasinoVIPManager.getBalance() - stackSize) + " Stargems", Color.GRAY);
+        main.textPanel.addPara(Strings.get("poker.overdraft_details"), Color.CYAN);
+        main.textPanel.addPara(Strings.format("poker.overdraft_amount", overdraftAmount), Color.RED);
+        main.textPanel.addPara(Strings.format("poker.overdraft_interest", (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100)), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("poker.overdraft_new_balance", CasinoVIPManager.getBalance() - stackSize), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("WARNING: Negative balances accrue daily interest. Ensure you can repay this debt promptly!", Color.RED);
+        main.textPanel.addPara(Strings.get("poker.overdraft_warning"), Color.RED);
         main.textPanel.addPara("");
         
-        main.options.addOption("Confirm Overdraft and Start Game", "confirm_overdraft");
-        main.options.addOption("Cancel - Choose Different Stack", "cancel_overdraft");
+        main.options.addOption(Strings.get("poker.confirm_overdraft_btn"), "confirm_overdraft");
+        main.options.addOption(Strings.get("poker.cancel_overdraft_btn"), "cancel_overdraft");
     }
     
     private void processOverdraftConfirmation() {
@@ -266,11 +268,10 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
             return;
         }
         
-        main.textPanel.addPara("IPC Credit Alert: Overdraft of " + pendingOverdraftAmount + " Stargems authorized.", Color.YELLOW);
+        main.textPanel.addPara(Strings.format("poker.overdraft_authorized", pendingOverdraftAmount), Color.YELLOW);
         
         startGameWithStack(pendingStackSize);
         
-        // Clear pending values
         pendingStackSize = 0;
         pendingOverdraftAmount = 0;
     }
@@ -278,7 +279,7 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
     private void cancelOverdraft() {
         pendingStackSize = 0;
         pendingOverdraftAmount = 0;
-        main.textPanel.addPara("Overdraft cancelled.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("poker.overdraft_cancelled"), Color.GRAY);
         showPokerConfirm();
     }
     
@@ -296,25 +297,25 @@ private void startGameWithStack(int stackSize) {
     
     private void showVIPPromotionForPoker(int stackSize) {
         main.getOptions().clearOptions();
-        main.textPanel.addPara("INSUFFICIENT STARGEMS", Color.RED);
+        main.textPanel.addPara(Strings.get("poker.insufficient_title"), Color.RED);
         main.textPanel.addPara("");
-        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
-        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
-        main.textPanel.addPara("Required for " + stackSize + " stack: " + stackSize + " Stargems", Color.GRAY);
+        main.textPanel.addPara(Strings.get("poker.insufficient_msg"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("poker.current_balance", CasinoVIPManager.getBalance()), Color.GRAY);
+        main.textPanel.addPara(Strings.format("poker.required_for_stack", stackSize, stackSize), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
-        main.textPanel.addPara("Overdraft protection is exclusively available to VIP Pass subscribers.", Color.WHITE);
+        main.textPanel.addPara(Strings.get("vip_promo.credit_facility_title"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("vip_promo.overdraft_vip_only"), Color.WHITE);
         main.textPanel.addPara("");
-        main.textPanel.addPara("VIP PASS BENEFITS:", Color.GREEN);
-        main.textPanel.addPara("- Access to IPC Credit Facility (overdraft protection)", Color.GRAY);
-        main.textPanel.addPara("- " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily reward", Color.GRAY);
-        main.textPanel.addPara("- Reduced debt interest rate (" + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily)", Color.GRAY);
-        main.textPanel.addPara("- Increased credit ceiling per purchase", Color.GRAY);
+        main.textPanel.addPara(Strings.get("poker.vip_benefits_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("poker.benefit_overdraft"), Color.GRAY);
+        main.textPanel.addPara(Strings.format("poker.benefit_daily", CasinoConfig.VIP_DAILY_REWARD), Color.GRAY);
+        main.textPanel.addPara(Strings.format("poker.benefit_interest", (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100)), Color.GRAY);
+        main.textPanel.addPara(Strings.get("poker.benefit_ceiling"), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("Purchase a VIP Pass from Financial Services to unlock overdraft protection!", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("poker.purchase_vip_prompt"), Color.YELLOW);
 
-        main.getOptions().addOption("Go to Stargem Top-up", "topup_menu");
-        main.getOptions().addOption("Back", "back_menu");
+        main.getOptions().addOption(Strings.get("poker.go_topup"), "topup_menu");
+        main.getOptions().addOption(Strings.get("common.back"), "back_menu");
     }
 
 private String formatBB(int amount, int bigBlind) {
@@ -395,7 +396,7 @@ private String formatBB(int amount, int bigBlind) {
             if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
                 MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
                 mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
-                main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
+                main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_note_early"), Color.YELLOW);
             }
         }
     }
@@ -403,7 +404,7 @@ private String formatBB(int amount, int bigBlind) {
     private void processPlayerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        pendingPlayerAction = "You fold";
+        pendingPlayerAction = Strings.get("poker_actions.you_fold");
         PokerGame.PokerState state = pokerGame.getState();
         if (state.folder != null) {
             state.lastPotWon = state.pot;
@@ -420,7 +421,7 @@ private String formatBB(int amount, int bigBlind) {
     private void processPlayerCheck() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
-        pendingPlayerAction = "You check";
+        pendingPlayerAction = Strings.get("poker_actions.you_check");
         processOpponentTurn();
         showPokerVisualPanel();
     }
@@ -430,7 +431,7 @@ private String formatBB(int amount, int bigBlind) {
         PokerGame.PokerState state = pokerGame.getState();
         int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
         pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
-        pendingPlayerAction = "You call " + callAmount;
+        pendingPlayerAction = Strings.format("poker_actions.you_call", callAmount);
         processOpponentTurn();
         showPokerVisualPanel();
     }
@@ -438,7 +439,7 @@ private String formatBB(int amount, int bigBlind) {
     private void processPlayerRaise(int raiseAmount) {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
-        pendingPlayerAction = "You raise to " + raiseAmount;
+        pendingPlayerAction = Strings.format("poker_actions.you_raise_to", raiseAmount);
         processOpponentTurn();
         showPokerVisualPanel();
     }
@@ -457,10 +458,10 @@ private String formatBB(int amount, int bigBlind) {
             pokerGame.processOpponentAction(response);
             
             pendingOpponentAction = switch (response.action) {
-                case CALL -> "Opponent calls";
-                case RAISE -> "Opponent raises by " + response.raiseAmount;
-                case CHECK -> "Opponent checks";
-                case FOLD -> "Opponent folds";
+                case CALL -> Strings.get("poker_actions.opponent_calls");
+                case RAISE -> Strings.format("poker_actions.opponent_raises_by", response.raiseAmount);
+                case CHECK -> Strings.get("poker_actions.opponent_checks");
+                case FOLD -> Strings.get("poker_actions.opponent_folds");
             };
             
             state = pokerGame.getState();
@@ -519,53 +520,49 @@ private String formatBB(int amount, int bigBlind) {
 
         main.getOptions().clearOptions();
         main.getTextPanel().addPara("------------------------------------------------");
-        main.getTextPanel().addPara("Pot: %s Stargems (%s BB) | Big Blind: %s", Color.GREEN, 
-            String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
+        main.getTextPanel().addPara(Strings.format("poker_ui.pot_bb", String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind)), Color.GREEN);
         main.getTextPanel().highlightInLastPara(
             String.valueOf(state.pot), formatBB(state.pot, bigBlind), String.valueOf(bigBlind));
         main.getTextPanel().setHighlightColorsInLastPara(Color.GREEN, Color.GREEN, Color.GREEN);
         
-        main.getTextPanel().addPara("Your Stack: %s Stargems (%s BB)", Color.CYAN,
-            String.valueOf(state.playerStack), formatBB(state.playerStack, bigBlind));
+        main.getTextPanel().addPara(Strings.format("poker_ui.your_stack_bb", String.valueOf(state.playerStack), formatBB(state.playerStack, bigBlind)), Color.CYAN);
         
-        main.getTextPanel().addPara("Opponent Stack: %s Stargems (%s BB)", Color.ORANGE,
-            String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind));
+        main.getTextPanel().addPara(Strings.format("poker_ui.opponent_stack_bb", String.valueOf(state.opponentStack), formatBB(state.opponentStack, bigBlind)), Color.ORANGE);
         
-        displayColoredCardsOnOneLine(state.playerHand, "Your Hand", Color.CYAN);
+        displayColoredCardsOnOneLine(state.playerHand, Strings.get("poker_ui.your_hand"), Color.CYAN);
         if (!state.communityCards.isEmpty()) {
-            displayColoredCardsOnOneLine(state.communityCards, "Community", Color.YELLOW);
+            displayColoredCardsOnOneLine(state.communityCards, Strings.get("poker_ui.community"), Color.YELLOW);
         }
         
         int callAmount = state.opponentBet - state.playerBet;
         if (callAmount > 0) {
             if (state.playerStack >= callAmount) {
-                main.getOptions().addOption("Call (" + callAmount + ")", "poker_call");
+                main.getOptions().addOption(Strings.format("poker_ui.call", callAmount), "poker_call");
             } else if (state.playerStack > 0) {
-                main.getOptions().addOption("Call All-In (" + state.playerStack + " Stargems)", "poker_call");
+                main.getOptions().addOption(Strings.format("poker_ui.call_allin", state.playerStack), "poker_call");
             } else {
-                main.getOptions().addOption("Call (0 Stargems)", "poker_call");
+                main.getOptions().addOption(Strings.get("poker_ui.call_zero"), "poker_call");
             }
-            main.getOptions().addOption("Fold", "poker_fold");
+            main.getOptions().addOption(Strings.get("poker_ui.fold"), "poker_fold");
         } else {
-            main.getOptions().addOption("Check", "poker_check");
+            main.getOptions().addOption(Strings.get("poker_ui.check"), "poker_check");
         }
         
         if (state.playerStack > 0 && state.opponentBet - state.playerBet < state.playerStack && !state.opponentDeclaredAllIn) {
-            main.getOptions().addOption("Raise", "poker_raise_menu");
+            main.getOptions().addOption(Strings.get("poker_ui.raise"), "poker_raise_menu");
         }
         
-        main.getOptions().addOption("How to Play Poker", "how_to_poker");
-        main.getOptions().addOption("Tell Them to Wait (Suspend)", "poker_suspend");
-        main.getOptions().addOption("Flip Table and Leave", "poker_abandon_confirm");
+        main.getOptions().addOption(Strings.get("poker.how_to_play"), "how_to_poker");
+        main.getOptions().addOption(Strings.get("poker_ui.suspend"), "poker_suspend");
+        main.getOptions().addOption(Strings.get("poker_ui.flip_table"), "poker_abandon_confirm");
     }
 
 private void startNextHand() {
         if (pokerGame != null) {
             PokerGame.PokerState state = pokerGame.getState();
             if (state.playerStack <= 0 || state.opponentStack <= 0) {
-                 // Game over logic if someone is bust
-                 main.textPanel.addPara("One of the players is out of chips. Starting new game...", Color.YELLOW);
-                 setupGame(state.playerStack > 0 ? state.playerStack : 1000); // Simplistic restart
+                 main.textPanel.addPara(Strings.get("poker_ui.chips_out_new_game"), Color.YELLOW);
+                 setupGame(state.playerStack > 0 ? state.playerStack : 1000);
                  return;
             }
             pokerGame.startNewHand();
@@ -579,21 +576,21 @@ private void startNextHand() {
         PokerGame.PokerState state = pokerGame.getState();
         int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
         pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
-        main.getTextPanel().addPara("You call " + callAmount + " Stargems.", Color.CYAN);
+        main.getTextPanel().addPara(Strings.format("poker_actions.you_call_stargems", callAmount), Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerCheck() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
-        main.getTextPanel().addPara("You check.", Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("poker_actions.you_check_dot"), Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerFold() {
         if (pokerGame == null) return;
         pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-        main.getTextPanel().addPara("You fold.", Color.GRAY);
+        main.getTextPanel().addPara(Strings.get("poker_actions.you_fold_dot"), Color.GRAY);
         updateGameState();
     }
     
@@ -618,17 +615,16 @@ private void startNextHand() {
         if (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
              PokerGame.SimplePokerAI.AIResponse response = pokerGame.getOpponentAction();
              
-             // Log opponent action
-             switch(response.action) {
-                 case CALL: 
-                     main.getTextPanel().addPara("Opponent calls.", Color.YELLOW); break;
-                 case RAISE: 
-                     main.getTextPanel().addPara("Opponent raises by " + response.raiseAmount + ".", Color.YELLOW); break;
-                 case CHECK: 
-                     main.getTextPanel().addPara("Opponent checks.", Color.YELLOW); break;
-                 case FOLD: 
-                     main.getTextPanel().addPara("Opponent folds.", Color.CYAN); break;
-             }
+switch(response.action) {
+                  case CALL: 
+                      main.getTextPanel().addPara(Strings.get("poker_actions.opponent_calls_dot"), Color.YELLOW); break;
+                  case RAISE: 
+                      main.getTextPanel().addPara(Strings.format("poker_actions.opponent_raises_dot", response.raiseAmount), Color.YELLOW); break;
+                  case CHECK: 
+                      main.getTextPanel().addPara(Strings.get("poker_actions.opponent_checks_dot"), Color.YELLOW); break;
+                  case FOLD: 
+                      main.getTextPanel().addPara(Strings.get("poker_actions.opponent_folds_dot"), Color.CYAN); break;
+              }
              
              // Track if AI is folding to a player bet (for anti-gullibility)
              if (response.action == PokerGame.SimplePokerAI.Action.FOLD) {
@@ -660,7 +656,6 @@ private void startNextHand() {
         int bigBlind = state.bigBlind;
         int potSize = state.pot;
         
-        // Helper to format bet option with value and BB
         java.util.function.BiConsumer<Integer, String> addBetOption = (amount, label) -> {
             if (amount > 0 && amount <= playerStackAvailable) {
                 float bbAmount = bigBlind > 0 ? (float)amount / bigBlind : 0;
@@ -669,34 +664,29 @@ private void startNextHand() {
             }
         };
         
-        // 1. BB (minimum raise)
-        addBetOption.accept(bigBlind, "Big Blind");
+        addBetOption.accept(bigBlind, Strings.get("poker_ui.raise_bb"));
 
-        // 2. Half Pot
         int halfPot = potSize / 2;
         if (halfPot > bigBlind) {
-            addBetOption.accept(halfPot, "Half Pot");
+            addBetOption.accept(halfPot, Strings.get("poker_ui.raise_half_pot"));
         }
 
-        // 3. Pot
         if (potSize > halfPot) {
-            addBetOption.accept(potSize, "Pot");
+            addBetOption.accept(potSize, Strings.get("poker_ui.raise_pot"));
         }
         
-        // 4. 2x Pot
         int twoXPot = potSize * 2;
         if (twoXPot > potSize && twoXPot <= playerStackAvailable) {
-            addBetOption.accept(twoXPot, "2x Pot");
+            addBetOption.accept(twoXPot, Strings.get("poker_ui.raise_2x_pot"));
         }
         
-        // 6. All-in (always show if player has chips)
         if (playerStackAvailable > 0) {
             float allInBB = bigBlind > 0 ? (float)playerStackAvailable / bigBlind : 0;
-            String allInText = "All-In (" + playerStackAvailable + " / " + String.format("%.1f", allInBB) + " BB)";
+            String allInText = Strings.format("poker_ui.raise_allin", playerStackAvailable, allInBB);
             main.getOptions().addOption(allInText, "poker_raise_" + playerStackAvailable);
         }
         
-        main.getOptions().addOption("Back", "poker_back_action");
+        main.getOptions().addOption(Strings.get("poker_ui.back"), "poker_back_action");
     }
 
     private void performRaise(int amt) {
@@ -704,7 +694,7 @@ private void startNextHand() {
         PokerGame.PokerState state = pokerGame.getState();
         int totalBet = state.playerBet + amt;
         pokerGame.processPlayerAction(PokerGame.Action.RAISE, amt);
-        main.getTextPanel().addPara("You raise to " + totalBet + " Stargems.", Color.CYAN);
+        main.getTextPanel().addPara(Strings.format("poker_actions.you_raise_stargems", totalBet), Color.CYAN);
         updateGameState();
     }
     
@@ -753,11 +743,11 @@ private void startNextHand() {
         mem.set("$ipc_poker_hands_played", handsPlayedThisSession);
         mem.set("$ipc_poker_suspend_time", Global.getSector().getClock().getTimestamp());
 
-        main.getTextPanel().addPara("You stand up abruptly. 'Hold that thought! I'll be right back!'", Color.YELLOW);
-        main.getTextPanel().addPara("The IPC Dealer raises an eyebrow but nods slowly. 'The cards will stay as they are.'", Color.CYAN);
-        main.getTextPanel().addPara("'Don't be long. We have other customers waiting.'", Color.GRAY);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.stand_up"), Color.YELLOW);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_eyebrow"), Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.dont_be_long"), Color.GRAY);
         main.getOptions().clearOptions();
-        main.getOptions().addOption("Leave", "poker_leave_now");
+        main.getOptions().addOption(Strings.get("poker_suspend.leave"), "poker_leave_now");
     }
 
     private void showAbandonConfirm() {
@@ -769,17 +759,17 @@ private void startNextHand() {
         int stackValue = state.playerStack;
         
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("FLIP TABLE AND LEAVE?", Color.RED);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.flip_table_title"), Color.RED);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You are about to flip the table and storm out.", Color.YELLOW);
-        main.getTextPanel().addPara("Your stack of " + stackValue + " Stargems will be returned to your balance.", Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.flip_table_msg"), Color.YELLOW);
+        main.getTextPanel().addPara(Strings.format("poker_suspend.stack_returned", stackValue), Color.CYAN);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("WARNING: If you leave early (less than " + MIN_HANDS_BEFORE_LEAVE + " hands played), you will receive a 1-day cooldown before playing again.", Color.ORANGE);
+        main.getTextPanel().addPara(Strings.format("poker_suspend.early_leave_warning", MIN_HANDS_BEFORE_LEAVE), Color.ORANGE);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("Consider using 'Tell Them to Wait (Suspend)' instead to pause the game without penalty.", Color.GRAY);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.consider_suspend"), Color.GRAY);
         
-        main.getOptions().addOption("Yes, Flip Table", "poker_abandon_confirm_leave");
-        main.getOptions().addOption("Go Back to Game", "poker_abandon_cancel");
+        main.getOptions().addOption(Strings.get("poker_suspend.yes_flip_table"), "poker_abandon_confirm_leave");
+        main.getOptions().addOption(Strings.get("poker_suspend.go_back_game"), "poker_abandon_cancel");
     }
 
     private void showSuspendAbandonConfirm() {
@@ -791,17 +781,17 @@ private void startNextHand() {
         int stackValue = state.playerStack;
         
         main.getOptions().clearOptions();
-        main.getTextPanel().addPara("ABANDON SUSPENDED GAME?", Color.RED);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.abandon_title"), Color.RED);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You are about to abandon the suspended poker game.", Color.YELLOW);
-        main.getTextPanel().addPara("Your stack of " + stackValue + " Stargems will be returned to your balance.", Color.CYAN);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.abandon_msg"), Color.YELLOW);
+        main.getTextPanel().addPara(Strings.format("poker_suspend.stack_returned", stackValue), Color.CYAN);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("WARNING: If you leave early (less than " + MIN_HANDS_BEFORE_LEAVE + " hands played), you will receive a 1-day cooldown before playing again.", Color.ORANGE);
+        main.getTextPanel().addPara(Strings.format("poker_suspend.early_leave_warning", MIN_HANDS_BEFORE_LEAVE), Color.ORANGE);
         main.getTextPanel().addPara("");
-        main.getTextPanel().addPara("You could also return later to resume the suspended game.", Color.GRAY);
+        main.getTextPanel().addPara(Strings.get("poker_suspend.could_return"), Color.GRAY);
         
-        main.getOptions().addOption("Yes, Abandon Game", "suspend_abandon_leave");
-        main.getOptions().addOption("Go Back to Table", "suspend_abandon_cancel");
+        main.getOptions().addOption(Strings.get("poker_suspend.yes_abandon"), "suspend_abandon_leave");
+        main.getOptions().addOption(Strings.get("poker_suspend.go_back_table"), "suspend_abandon_cancel");
     }
 
     public void restoreSuspendedGame() {
@@ -892,17 +882,17 @@ private void startNextHand() {
             long suspendTime = mem.getLong("$ipc_poker_suspend_time");
             float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
 
-            main.getTextPanel().addPara("The IPC Dealer stares at you with dead eyes.", Color.CYAN);
+            main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_stares"), Color.CYAN);
             if (daysAway >= 30) {
-                main.getTextPanel().addPara("'You've been gone for " + String.format("%.1f", daysAway) + " days.' The dealer gestures to a cobweb-covered chair. 'We've been standing perfectly still, not breathing, not blinking. The other players have started to fossilize.'", Color.YELLOW);
+                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_30_days", daysAway), Color.YELLOW);
             } else if (daysAway >= 7) {
-                main.getTextPanel().addPara("'Welcome back after " + String.format("%.1f", daysAway) + " days.' The dealer cracks their neck audibly. 'We've been practicing our statue impressions. I think I've forgotten how to sit down.'", Color.YELLOW);
+                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_7_days", daysAway), Color.YELLOW);
             } else if (daysAway >= 1) {
-                main.getTextPanel().addPara("'Ah, you've returned.' The dealer cracks their knuckles. 'Only " + String.format("%.1f", daysAway) + " days. We've been holding our breath this whole time. Lightheaded? Very.'", Color.YELLOW);
+                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_1_day", daysAway), Color.YELLOW);
             } else {
-                main.getTextPanel().addPara("'Back already? It's only been " + String.format("%.1f", daysAway * 24) + " hours.' The dealer looks almost disappointed. 'We were just getting comfortable with the silence.'", Color.YELLOW);
+                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_hours", daysAway * 24), Color.YELLOW);
             }
-            main.getTextPanel().addPara("'The cards haven't moved. Let's finish this...'", Color.GRAY);
+            main.getTextPanel().addPara(Strings.get("poker_suspend.cards_havent_moved"), Color.GRAY);
 
             mem.unset("$ipc_suspended_game_type");
 
@@ -950,12 +940,10 @@ private void startNextHand() {
         // Check if someone folded - if so, no showdown, just award the pot
         if (state.folder != null) {
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
-                // Player folded - opponent wins
-                main.getTextPanel().addPara("You fold. The IPC Dealer scoops the pot of " + state.pot + " Stargems.", Color.GRAY);
+                main.getTextPanel().addPara(Strings.format("poker_result.you_fold_pot", state.pot), Color.GRAY);
                 state.opponentStack += state.pot;
             } else {
-                // Opponent folded - player wins
-                main.getTextPanel().addPara("The IPC Dealer folds. You scoop the pot of " + state.pot + " Stargems!", Color.CYAN);
+                main.getTextPanel().addPara(Strings.format("poker_result.dealer_fold_pot", state.pot), Color.CYAN);
                 state.playerStack += state.pot;
             }
             state.pot = 0;
@@ -963,20 +951,17 @@ private void startNextHand() {
             return;
         }
 
-        // Showdown - reveal hands and compare
-        // Display community cards first so players can see the complete board
-        main.getTextPanel().addPara("Community Cards: ");
+        main.getTextPanel().addPara(Strings.get("poker_result.community_cards"));
         displayColoredCards(state.communityCards);
         
-        main.getTextPanel().addPara("Opponent reveals: ");
+        main.getTextPanel().addPara(Strings.get("poker_result.opponent_reveals"));
         displayColoredCards(state.opponentHand);
 
-        // Handle case where hand ranks might be null (shouldn't happen at showdown, but just in case)
         if (state.playerHandRank != null && state.opponentHandRank != null) {
-            main.getTextPanel().addPara("Your Best: " + state.playerHandRank.name());
-            main.getTextPanel().addPara("Opponent Best: " + state.opponentHandRank.name());
+            main.getTextPanel().addPara(Strings.format("poker_result.your_best", state.playerHandRank.name()));
+            main.getTextPanel().addPara(Strings.format("poker_result.opponent_best", state.opponentHandRank.name()));
         } else {
-            main.getTextPanel().addPara("Hand ended before showdown.", Color.GRAY);
+            main.getTextPanel().addPara(Strings.get("poker_result.hand_ended_early"), Color.GRAY);
         }
 
         // We need detailed comparison (tie breakers) which PokerGame.evaluate() does.
@@ -996,32 +981,32 @@ private void startNextHand() {
         pokerGame.getAI().trackPlayerShowdown(playerWasBluffing);
 
         if (cmp > 0) {
-            main.getTextPanel().addPara("VICTORY! You take the pot.", Color.CYAN);
-            state.playerStack += state.pot; // Award pot to player stack
-            main.getTextPanel().addPara("You won " + state.pot + " Stargems!", Color.GREEN);
+            main.getTextPanel().addPara(Strings.get("poker_result.victory"), Color.CYAN);
+            state.playerStack += state.pot;
+            main.getTextPanel().addPara(Strings.format("poker_result.won_stargems", state.pot), Color.GREEN);
             state.pot = 0;
-            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
-            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
+            main.getTextPanel().addPara(Strings.format("poker_result.your_stack", state.playerStack), Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("poker_result.opponent_stack", state.opponentStack), Color.ORANGE);
             endHand();
         } else if (cmp < 0) {
-            main.getTextPanel().addPara("DEFEAT. The IPC Dealer wins.", Color.RED);
-            state.opponentStack += state.pot; // Award pot to opponent
-            main.getTextPanel().addPara("Dealer won " + state.pot + " Stargems.", Color.RED);
+            main.getTextPanel().addPara(Strings.get("poker_result.defeat"), Color.RED);
+            state.opponentStack += state.pot;
+            main.getTextPanel().addPara(Strings.format("poker_result.dealer_won", state.pot), Color.RED);
             state.pot = 0;
-            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
-            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
+            main.getTextPanel().addPara(Strings.format("poker_result.your_stack", state.playerStack), Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("poker_result.opponent_stack", state.opponentStack), Color.ORANGE);
             endHand();
         } else {
-            main.getTextPanel().addPara("SPLIT POT. It's a draw.", Color.YELLOW);
+            main.getTextPanel().addPara(Strings.get("poker_result.split_pot"), Color.YELLOW);
             int halfPot = state.pot / 2;
             int remainder = state.pot % 2;
-            state.playerStack += halfPot + remainder; // Player gets remainder if odd
+            state.playerStack += halfPot + remainder;
             state.opponentStack += halfPot;
-            main.getTextPanel().addPara("You receive " + (halfPot + remainder) + " Stargems.", Color.CYAN);
-            main.getTextPanel().addPara("Opponent receives " + halfPot + " Stargems.", Color.ORANGE);
+            main.getTextPanel().addPara(Strings.format("poker_result.you_receive", halfPot + remainder), Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("poker_result.opponent_receives", halfPot), Color.ORANGE);
             state.pot = 0;
-            main.getTextPanel().addPara("Your Stack: " + state.playerStack + " Stargems", Color.CYAN);
-            main.getTextPanel().addPara("Opponent Stack: " + state.opponentStack + " Stargems", Color.ORANGE);
+            main.getTextPanel().addPara(Strings.format("poker_result.your_stack", state.playerStack), Color.CYAN);
+            main.getTextPanel().addPara(Strings.format("poker_result.opponent_stack", state.opponentStack), Color.ORANGE);
             endHand();
         }
     }
@@ -1094,18 +1079,17 @@ private void startNextHand() {
         if (pokerGame != null && pokerGame.getState().playerStack > 0) {
             int stackToReturn = pokerGame.getState().playerStack;
             CasinoVIPManager.addToBalance(stackToReturn);
-            main.getTextPanel().addPara("You flip the table with a loud crash!", Color.RED);
-            main.getTextPanel().addPara("A nearby bystander mutters under their breath: \"Tsk, Typical Gachy Impact player.\"", Color.GRAY);
-            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and storm out.", Color.GREEN);
-            main.getTextPanel().addPara("Your new balance: " + CasinoVIPManager.getBalance() + " Stargems", Color.YELLOW);
+            main.getTextPanel().addPara(Strings.get("poker_result.flip_table_crash"), Color.RED);
+            main.getTextPanel().addPara(Strings.get("poker_result.typical_player"), Color.GRAY);
+            main.getTextPanel().addPara(Strings.format("poker_result.cash_out_storm", stackToReturn), Color.GREEN);
+            main.getTextPanel().addPara(Strings.format("poker_result.new_balance", CasinoVIPManager.getBalance()), Color.YELLOW);
             pokerGame.getState().playerStack = 0;
         }
 
-        // Set cooldown if player left early (played less than minimum required hands)
         if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
             mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
-            main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
+            main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_note_early"), Color.YELLOW);
         }
 
         handsPlayedThisSession = 0;
@@ -1128,14 +1112,14 @@ private void startNextHand() {
         if (pokerGame != null && pokerGame.getState().playerStack > 0) {
             int stackToReturn = pokerGame.getState().playerStack;
             CasinoVIPManager.addToBalance(stackToReturn);
-            main.getTextPanel().addPara("You cash out " + stackToReturn + " Stargems and leave the table.", Color.GREEN);
+            main.getTextPanel().addPara(Strings.format("poker_suspend.cash_out_leave", stackToReturn), Color.GREEN);
             pokerGame.getState().playerStack = 0;
         }
 
         if (handsPlayedThisSession < MIN_HANDS_BEFORE_LEAVE) {
             MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
             mem.set(POKER_COOLDOWN_KEY, Global.getSector().getClock().getTimestamp());
-            main.getTextPanel().addPara("The IPC Dealer makes a note in their ledger. 'Leaving so soon? The IPC Credit Facility remembers early departures.'", Color.YELLOW);
+            main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_note_early"), Color.YELLOW);
         }
 
         handsPlayedThisSession = 0;
@@ -1156,25 +1140,25 @@ private void endHand() {
         // The win message is already displayed there with the correct amount
 
         if (state.playerStack < CasinoConfig.POKER_BIG_BLIND) {
-            main.getTextPanel().addPara("You're out of chips! Game over.", Color.RED);
+            main.getTextPanel().addPara(Strings.get("poker_result.out_of_chips"), Color.RED);
             returnStacks();
             clearSuspendedGameMemory();
             pokerGame = null;
             handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
-            main.getOptions().addOption("Leave Table", "back_menu");
+            main.getOptions().addOption(Strings.get("poker_result.leave_table"), "back_menu");
         } else if (state.opponentStack < CasinoConfig.POKER_BIG_BLIND) {
-            main.getTextPanel().addPara("Opponent is out of chips! You win!", Color.GREEN);
+            main.getTextPanel().addPara(Strings.get("poker_result.opponent_out"), Color.GREEN);
             returnStacks();
             clearSuspendedGameMemory();
             pokerGame = null;
             handsPlayedThisSession = 0;
             main.getOptions().clearOptions();
-            main.getOptions().addOption("Leave Table", "back_menu");
+            main.getOptions().addOption(Strings.get("poker_result.leave_table"), "back_menu");
         } else {
             main.getOptions().clearOptions();
-            main.getOptions().addOption("Next Hand", "next_hand");
-            main.getOptions().addOption("Leave Table", "back_menu");
+            main.getOptions().addOption(Strings.get("poker_result.next_hand"), "next_hand");
+            main.getOptions().addOption(Strings.get("poker_result.leave_table"), "back_menu");
         }
     }
     
@@ -1195,7 +1179,7 @@ private void endHand() {
         switch (action) {
             case FOLD -> {
                 pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
-                delegate.setLastPlayerAction("You fold");
+                delegate.setLastPlayerAction(Strings.get("poker_actions.you_fold"));
                 if (state.folder != null) {
                     state.lastPotWon = state.pot;
                     if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
@@ -1208,16 +1192,16 @@ private void endHand() {
             }
             case CHECK -> {
                 pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
-                delegate.setLastPlayerAction("You check");
+                delegate.setLastPlayerAction(Strings.get("poker_actions.you_check"));
             }
             case CALL -> {
                 int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
                 pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
-                delegate.setLastPlayerAction("You call " + callAmount);
+                delegate.setLastPlayerAction(Strings.format("poker_actions.you_call", callAmount));
             }
             case RAISE -> {
                 pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
-                delegate.setLastPlayerAction("You raise to " + raiseAmount);
+                delegate.setLastPlayerAction(Strings.format("poker_actions.you_raise_to", raiseAmount));
             }
         }
         
@@ -1261,10 +1245,10 @@ private void endHand() {
      */
     private String formatOpponentActionText(PokerGame.SimplePokerAI.AIResponse response) {
         return switch (response.action) {
-            case CALL -> "Opponent calls";
-            case RAISE -> "Opponent raises by " + response.raiseAmount;
-            case CHECK -> "Opponent checks";
-            case FOLD -> "Opponent folds";
+            case CALL -> Strings.get("poker_actions.opponent_calls");
+            case RAISE -> Strings.format("poker_actions.opponent_raises_by", response.raiseAmount);
+            case CHECK -> Strings.get("poker_actions.opponent_checks");
+            case FOLD -> Strings.get("poker_actions.opponent_folds");
         };
     }
     

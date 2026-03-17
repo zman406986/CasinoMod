@@ -9,6 +9,7 @@ import data.scripts.casino.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.GachaAnimation;
 import data.scripts.casino.GachaAnimationDialogDelegate;
+import data.scripts.casino.Strings;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,18 +76,18 @@ public class GachaHandler {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
         int daysRemaining = CasinoVIPManager.getDaysRemaining();
 
-        main.textPanel.addPara("--- FINANCIAL STATUS ---", Color.CYAN);
+        main.textPanel.addPara(Strings.get("financial_status.header"), Color.CYAN);
 
         Color balanceColor = currentBalance >= 0 ? Color.GREEN : Color.RED;
-        main.textPanel.addPara("Balance: " + currentBalance + " Stargems", balanceColor);
-        main.textPanel.addPara("Credit Ceiling: " + creditCeiling, Color.GRAY);
-        main.textPanel.addPara("Available Credit: " + availableCredit, Color.YELLOW);
+        main.textPanel.addPara(Strings.format("financial_status.balance", currentBalance), balanceColor);
+        main.textPanel.addPara(Strings.format("financial_status.credit_ceiling", creditCeiling), Color.GRAY);
+        main.textPanel.addPara(Strings.format("financial_status.available_credit", availableCredit), Color.YELLOW);
 
         if (daysRemaining > 0) {
-            main.textPanel.addPara("VIP: " + daysRemaining + " days", Color.CYAN);
+            main.textPanel.addPara(Strings.format("financial_status.vip_days", daysRemaining), Color.CYAN);
         }
 
-        main.textPanel.addPara("------------------------", Color.CYAN);
+        main.textPanel.addPara(Strings.get("financial_status.divider"), Color.CYAN);
     }
 
     public void handle(String option) {
@@ -120,14 +121,14 @@ public class GachaHandler {
     }
 
     private void showEmptyPullResult() {
-        main.textPanel.addPara("Gacha Results:", Color.CYAN);
-        main.textPanel.addPara("No ships obtained from your pull.", Color.GRAY);
-        main.options.addOption("Pull Again", OPTION_GACHA_MENU);
-        main.options.addOption("Back to Main Menu", OPTION_BACK_MENU);
+        main.textPanel.addPara(Strings.get("gacha.result_header"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("gacha.no_results"), Color.GRAY);
+        main.options.addOption(Strings.get("gacha.pull_again"), OPTION_GACHA_MENU);
+        main.options.addOption(Strings.get("gacha.back_to_main"), OPTION_BACK_MENU);
     }
 
     private void showStandardGachaMenu() {
-        main.textPanel.addPara("Tachy-Impact Protocol", Color.CYAN);
+        main.textPanel.addPara(Strings.get("gacha.title"), Color.CYAN);
 
         CasinoGachaManager manager = new CasinoGachaManager();
         manager.checkRotation();
@@ -136,19 +137,19 @@ public class GachaHandler {
         if (data.featuredCapital != null) {
             ShipHullSpecAPI capSpec = Global.getSettings().getHullSpec(data.featuredCapital);
             String capName = capSpec != null ? capSpec.getHullName() : data.featuredCapital;
-            main.textPanel.addPara("FEATURED 5*: " + capName, Color.ORANGE);
+            main.textPanel.addPara(Strings.format("gacha.featured_5star", capName), Color.ORANGE);
         }
 
-        main.textPanel.addPara("Pity Status:", Color.GRAY);
-        main.textPanel.addPara("- 5* Pity: " + data.pity5 + "/" + CasinoConfig.PITY_HARD_5);
-        main.textPanel.addPara("- 4* Pity: " + data.pity4 + "/" + CasinoConfig.PITY_HARD_4);
+        main.textPanel.addPara(Strings.get("gacha.pity_status"), Color.GRAY);
+        main.textPanel.addPara(Strings.format("gacha.pity_5star", data.pity5, CasinoConfig.PITY_HARD_5));
+        main.textPanel.addPara(Strings.format("gacha.pity_4star", data.pity4, CasinoConfig.PITY_HARD_4));
 
         displayFinancialInfo();
         addPullOptions();
 
-        main.options.addOption("View Ship Pool", OPTION_AUTO_CONVERT);
-        main.options.addOption("Gacha Handbook", OPTION_HOW_TO_GACHA);
-        main.options.addOption("Back", OPTION_BACK_MENU);
+        main.options.addOption(Strings.get("gacha.view_pool"), OPTION_AUTO_CONVERT);
+        main.options.addOption(Strings.get("gacha.handbook"), OPTION_HOW_TO_GACHA);
+        main.options.addOption(Strings.get("common.back"), OPTION_BACK_MENU);
         main.setState(CasinoInteraction.State.GACHA);
     }
 
@@ -156,22 +157,22 @@ public class GachaHandler {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
 
         if (availableCredit <= 0) {
-            main.textPanel.addPara("Your credit facility is exhausted. You cannot afford even a single pull.", Color.RED);
-            main.textPanel.addPara("Please visit Stargem Top-up to purchase more gems.", Color.YELLOW);
+            main.textPanel.addPara(Strings.get("gacha.credit_exhausted"), Color.RED);
+            main.textPanel.addPara(Strings.get("gacha.please_topup"), Color.YELLOW);
             return;
         }
 
         if (availableCredit < CasinoConfig.GACHA_COST) {
-            main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for a single pull (" + CasinoConfig.GACHA_COST + " Stargems).", Color.RED);
-            main.textPanel.addPara("Please visit Stargem Top-up to purchase more gems.", Color.YELLOW);
+            main.textPanel.addPara(Strings.format("gacha.insufficient_credit", availableCredit, CasinoConfig.GACHA_COST), Color.RED);
+            main.textPanel.addPara(Strings.get("gacha.please_topup"), Color.YELLOW);
             return;
         }
 
         if (canAffordTransaction(CasinoConfig.GACHA_COST)) {
-            main.options.addOption("Pull 1x (" + CasinoConfig.GACHA_COST + " Gems)", OPTION_PULL_1);
+            main.options.addOption(Strings.format("gacha.pull_1x", CasinoConfig.GACHA_COST), OPTION_PULL_1);
         }
         if (canAffordTransaction(CasinoConfig.GACHA_COST * 10)) {
-            main.options.addOption("Pull 10x (" + (CasinoConfig.GACHA_COST * 10) + " Gems)", OPTION_PULL_10);
+            main.options.addOption(Strings.format("gacha.pull_10x", CasinoConfig.GACHA_COST * 10), OPTION_PULL_10);
         }
     }
 
@@ -182,27 +183,27 @@ public class GachaHandler {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
 
         if (currentBalance >= cost) {
-            main.textPanel.addPara("Confirm initiating Warp Sequence " + times + "x for " + cost + " Stargems?", Color.YELLOW);
-            main.options.addOption("Confirm Warp", PREFIX_CONFIRM_PULL + times);
-            main.options.addOption("Cancel", OPTION_GACHA_MENU);
+            main.textPanel.addPara(Strings.format("gacha.confirm_warp", times, cost), Color.YELLOW);
+            main.options.addOption(Strings.get("gacha.confirm_warp_btn"), PREFIX_CONFIRM_PULL + times);
+            main.options.addOption(Strings.get("common.cancel"), OPTION_GACHA_MENU);
             return;
         }
 
         if (availableCredit <= 0) {
-            main.textPanel.addPara("Your credit facility is exhausted. You cannot afford this pull.", Color.RED);
-            main.textPanel.addPara("Please visit Stargem Top-up to purchase more gems.", Color.YELLOW);
-            main.options.addOption("Back", OPTION_GACHA_MENU);
+            main.textPanel.addPara(Strings.get("gacha_overdraft.credit_exhausted"), Color.RED);
+            main.textPanel.addPara(Strings.get("gacha.please_topup"), Color.YELLOW);
+            main.options.addOption(Strings.get("common.back"), OPTION_GACHA_MENU);
             return;
         }
 
         if (availableCredit < cost) {
             int maxAffordablePulls = availableCredit / CasinoConfig.GACHA_COST;
-            main.textPanel.addPara("Your available credit (" + availableCredit + " Stargems) is insufficient for " + times + "x pull (" + cost + " Stargems).", Color.RED);
+            main.textPanel.addPara(Strings.format("gacha.insufficient_credit", availableCredit + " Stargems") + " insufficient for " + times + "x pull (" + cost + " Stargems).", Color.RED);
             if (maxAffordablePulls > 0) {
-                main.textPanel.addPara("You can afford up to " + maxAffordablePulls + " pull(s) with your current credit.", Color.YELLOW);
+                main.textPanel.addPara(Strings.format("gacha.can_afford", maxAffordablePulls), Color.YELLOW);
             }
-            main.textPanel.addPara("Please select a smaller pull amount or visit Stargem Top-up.", Color.YELLOW);
-            main.options.addOption("Back", OPTION_GACHA_MENU);
+            main.textPanel.addPara(Strings.get("gacha.select_smaller"), Color.YELLOW);
+            main.options.addOption(Strings.get("common.back"), OPTION_GACHA_MENU);
             return;
         }
 
@@ -218,64 +219,64 @@ public class GachaHandler {
             return;
         }
 
-        main.textPanel.addPara("IPC CREDIT ALERT", Color.ORANGE);
-        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
-        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
-        main.textPanel.addPara("Transaction Cost: " + cost + " Stargems", Color.GRAY);
-        main.textPanel.addPara("Required Overdraft: " + overdraftAmount + " Stargems", Color.RED);
+        main.textPanel.addPara(Strings.get("gacha_overdraft.alert_title"), Color.ORANGE);
+        main.textPanel.addPara(Strings.get("gacha_overdraft.insufficient_balance"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("gacha_overdraft.current_balance", CasinoVIPManager.getBalance()), Color.GRAY);
+        main.textPanel.addPara(Strings.format("gacha_overdraft.transaction_cost", cost), Color.GRAY);
+        main.textPanel.addPara(Strings.format("gacha_overdraft.required_overdraft", overdraftAmount), Color.RED);
         main.textPanel.addPara("");
-        main.textPanel.addPara("The IPC extends credit facilities to valued customers. Your balance will go negative.", Color.CYAN);
-        main.textPanel.addPara("Note: Negative balances accrue " + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily interest. The Corporate Reconciliation Team may contact you regarding payment.", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("gacha_overdraft.credit_explanation"), Color.CYAN);
+        main.textPanel.addPara(Strings.format("gacha_overdraft.interest_warning", CasinoConfig.VIP_DAILY_INTEREST_RATE * 100), Color.YELLOW);
 
-        main.options.addOption("Authorize Overdraft", PREFIX_CONFIRM_PULL + times);
-        main.options.addOption("What is IPC Credit?", OPTION_EXPLAIN_IPC_CREDIT);
-        main.options.addOption("Cancel", OPTION_GACHA_MENU);
+        main.options.addOption(Strings.get("gacha_overdraft.authorize_btn"), PREFIX_CONFIRM_PULL + times);
+        main.options.addOption(Strings.get("gacha_overdraft.what_is_ipc"), OPTION_EXPLAIN_IPC_CREDIT);
+        main.options.addOption(Strings.get("common.cancel"), OPTION_GACHA_MENU);
     }
 
     private void showVIPPromotionForOverdraft(int cost) {
-        main.textPanel.addPara("INSUFFICIENT STARGEMS", Color.RED);
+        main.textPanel.addPara(Strings.get("vip_promo.insufficient_title"), Color.RED);
         main.textPanel.addPara("");
-        main.textPanel.addPara("Your Stargem balance is insufficient for this transaction.", Color.YELLOW);
-        main.textPanel.addPara("Current Balance: " + CasinoVIPManager.getBalance(), Color.GRAY);
-        main.textPanel.addPara("Transaction Cost: " + cost + " Stargems", Color.GRAY);
+        main.textPanel.addPara(Strings.get("vip_promo.insufficient_msg"), Color.YELLOW);
+        main.textPanel.addPara(Strings.format("vip_promo.current_balance", CasinoVIPManager.getBalance()), Color.GRAY);
+        main.textPanel.addPara(Strings.format("vip_promo.required", "", cost), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
-        main.textPanel.addPara("Overdraft protection is exclusively available to VIP Pass subscribers.", Color.WHITE);
+        main.textPanel.addPara(Strings.get("vip_promo.credit_facility_title"), Color.CYAN);
+        main.textPanel.addPara(Strings.get("vip_promo.overdraft_vip_only"), Color.WHITE);
         main.textPanel.addPara("");
-        main.textPanel.addPara("VIP PASS BENEFITS:", Color.GREEN);
-        main.textPanel.addPara("- Access to IPC Credit Facility (overdraft protection)", Color.GRAY);
-        main.textPanel.addPara("- " + CasinoConfig.VIP_DAILY_REWARD + " Stargems daily reward", Color.GRAY);
-        main.textPanel.addPara("- Reduced debt interest rate (" + (int)(CasinoConfig.VIP_DAILY_INTEREST_RATE * 100) + "% daily)", Color.GRAY);
-        main.textPanel.addPara("- Increased credit ceiling per purchase", Color.GRAY);
+        main.textPanel.addPara(Strings.get("vip_promo.benefits_title"), Color.GREEN);
+        main.textPanel.addPara(Strings.get("vip_promo.benefit_1"), Color.GRAY);
+        main.textPanel.addPara(Strings.format("vip_promo.benefit_2", CasinoConfig.VIP_DAILY_REWARD), Color.GRAY);
+        main.textPanel.addPara(Strings.format("vip_promo.benefit_3", CasinoConfig.VIP_DAILY_INTEREST_RATE * 100), Color.GRAY);
+        main.textPanel.addPara(Strings.get("vip_promo.benefit_4"), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("Purchase a VIP Pass from Financial Services to unlock overdraft protection!", Color.YELLOW);
+        main.textPanel.addPara(Strings.get("vip_promo.purchase_prompt"), Color.YELLOW);
 
-        main.options.addOption("Go to Stargem Top-up", "topup_menu");
-        main.options.addOption("Cancel", OPTION_GACHA_MENU);
+        main.options.addOption(Strings.get("vip_promo.go_topup"), "topup_menu");
+        main.options.addOption(Strings.get("common.cancel"), OPTION_GACHA_MENU);
     }
 
     private void showIPCCreditExplanation() {
         main.options.clearOptions();
 
-        main.textPanel.addPara("IPC CREDIT FACILITY", Color.CYAN);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.title"), Color.CYAN);
         main.textPanel.addPara("");
-        main.textPanel.addPara("The IPC provides flexible credit options for valued customers experiencing temporary liquidity constraints.", Color.WHITE);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.description"), Color.WHITE);
         main.textPanel.addPara("");
-        main.textPanel.addPara("HOW IT WORKS:", Color.YELLOW);
-        main.textPanel.addPara("- Your account has a credit ceiling based on your VIP status and purchase history.", Color.GRAY);
-        main.textPanel.addPara("- You may spend beyond your current balance up to this ceiling.", Color.GRAY);
-        main.textPanel.addPara("- Your balance becomes negative when using credit.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.how_works"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.how_works_1"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.how_works_2"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.how_works_3"), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("INTEREST & COLLECTIONS:", Color.YELLOW);
-        main.textPanel.addPara("- Negative balances accrue daily interest.", Color.GRAY);
-        main.textPanel.addPara("- Continued delinquency may prompt Corporate Reconciliation Team intervention.", Color.GRAY);
-        main.textPanel.addPara("- Earn Stargems through gameplay or purchase packages to restore positive balance.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.interest_collections"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.interest_1"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.interest_2"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.interest_3"), Color.GRAY);
         main.textPanel.addPara("");
-        main.textPanel.addPara("INCREASING YOUR CREDIT CEILING:", Color.YELLOW);
-        main.textPanel.addPara("- Purchase VIP Passes for permanent ceiling increases.", Color.GRAY);
-        main.textPanel.addPara("- Regular top-ups and purchases demonstrate creditworthiness.", Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.increasing_ceiling"), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.increase_1"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha_ipc_credit.increase_2"), Color.GRAY);
 
-        main.options.addOption("Back", OPTION_GACHA_MENU);
+        main.options.addOption(Strings.get("common.back"), OPTION_GACHA_MENU);
     }
 
     private void performGachaPull(int times) {
@@ -288,8 +289,8 @@ public class GachaHandler {
         int availableCredit = CasinoVIPManager.getAvailableCredit();
 
         if (availableCredit < cost) {
-            main.textPanel.addPara("IPC CREDIT DENIED: Transaction exceeds your credit ceiling.", Color.RED);
-            main.textPanel.addPara("Please contact Financial Services to increase your credit limit.", Color.YELLOW);
+            main.textPanel.addPara(Strings.get("gacha.credit_denied"), Color.RED);
+            main.textPanel.addPara(Strings.get("gacha.contact_financial"), Color.YELLOW);
             showGachaMenu();
             return;
         }
@@ -297,7 +298,7 @@ public class GachaHandler {
         CasinoVIPManager.addToBalance(-cost);
 
         CasinoGachaManager manager = new CasinoGachaManager();
-        main.textPanel.addPara("Initiating Warp Sequence...", Color.CYAN);
+        main.textPanel.addPara(Strings.get("gacha.initiating"), Color.CYAN);
 
         List<FleetMemberAPI> obtainedShips = new ArrayList<>();
         List<String> pullResults = new ArrayList<>();
@@ -351,9 +352,9 @@ public class GachaHandler {
 
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {
         main.getDialog().showFleetMemberPickerDialog(
-            "Select ships you want to convert to Stargems:",
-            "Convert",
-            "Cancel",
+            Strings.get("gacha.select_convert"),
+            Strings.get("gacha.convert"),
+            Strings.get("common.cancel"),
             8,
             7,
             80,
@@ -377,7 +378,8 @@ public class GachaHandler {
                         if (selectedHullIds.contains(ship.getHullId())) {
                             int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
                             CasinoVIPManager.addToBalance(val);
-                            main.textPanel.addPara("Converted " + (ship.getShipName() != null ? ship.getShipName() : "Unknown Ship") + " to " + val + " Stargems.", Color.GREEN);
+                            String shipName = ship.getShipName() != null ? ship.getShipName() : "Unknown Ship";
+                            main.textPanel.addPara(Strings.format("gacha.converted", shipName, val), Color.GREEN);
                         } else {
                             Global.getSector().getPlayerFleet().getFleetData().addFleetMember(ship);
                         }
@@ -399,18 +401,18 @@ public class GachaHandler {
 
     private void showPostPullOptions() {
         main.options.clearOptions();
-        main.options.addOption("Pull Again", OPTION_GACHA_MENU);
-        main.options.addOption("Back to Main Menu", OPTION_BACK_MENU);
+        main.options.addOption(Strings.get("gacha.pull_again"), OPTION_GACHA_MENU);
+        main.options.addOption(Strings.get("gacha.back_to_main"), OPTION_BACK_MENU);
     }
 
     private void openAutoConvertPicker() {
         CasinoGachaManager manager = new CasinoGachaManager();
         List<FleetMemberAPI> potentialDrops = manager.getPotentialDrops();
 
-        main.textPanel.addPara("Current Ship Pool (" + potentialDrops.size() + " ships):", Color.CYAN);
-        main.textPanel.addPara("These are the ships currently available in the gacha pool.", Color.GRAY);
+        main.textPanel.addPara(Strings.format("gacha.current_pool", potentialDrops.size()), Color.CYAN);
+        main.textPanel.addPara(Strings.get("gacha.pool_desc"), Color.GRAY);
 
-        main.getDialog().showFleetMemberPickerDialog("View Ship Pool:", "OK", "Close", 8, 7, 80, false, false, potentialDrops,
+        main.getDialog().showFleetMemberPickerDialog(Strings.get("gacha.pool_title"), Strings.get("common.ok"), Strings.get("common.close"), 8, 7, 80, false, false, potentialDrops,
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
                      showGachaMenu();

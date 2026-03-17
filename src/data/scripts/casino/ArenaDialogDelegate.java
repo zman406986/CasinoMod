@@ -33,7 +33,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     protected List<String> battleLog;
     
     protected boolean pendingLeave = false;
-    protected boolean pendingReturnToLobby = false;
     protected boolean pendingNextGame = false;
     protected boolean pendingWatchNext = false;
     protected boolean pendingSkipToEnd = false;
@@ -44,19 +43,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     
     protected int winnerIndex = -1;
     protected int totalReward = 0;
-    
-    public ArenaDialogDelegate(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog,
-            InteractionDialogAPI dialog,
-            Map<String, MemoryAPI> memoryMap,
-            Runnable onDismissCallback) {
-        this(combatants, currentRound, totalBet, bets, battleLog, dialog, memoryMap, onDismissCallback, null);
-    }
-    
+
     public ArenaDialogDelegate(
             List<SpiralAbyssArena.SpiralGladiator> combatants,
             int currentRound,
@@ -139,18 +126,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             }
             
             @Override
-            public void onReturnToLobby() {
-                if (handler != null) {
-                    handler.startNewArenaMatchInPlace(ArenaDialogDelegate.this);
-                } else {
-                    pendingReturnToLobby = true;
-                    if (callbacks != null) {
-                        callbacks.dismissDialog();
-                    }
-                }
-            }
-            
-            @Override
             public void onNextGame() {
                 if (handler != null) {
                     handler.startNewArenaMatchInPlace(ArenaDialogDelegate.this);
@@ -196,7 +171,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         callbacks.getPanelFader().setDurationOut(0.5f);
         
         if (arenaPanel != null) {
-            arenaPanel.init(panel, callbacks, dialog);
+            arenaPanel.init(panel, callbacks);
             
             // Initialize state (follows same pattern as PokerDialogDelegate)
             arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
@@ -312,10 +287,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         return pendingLeave;
     }
     
-    public boolean getPendingReturnToLobby() {
-        return pendingReturnToLobby;
-    }
-    
     public boolean getPendingNextGame() {
         return pendingNextGame;
     }
@@ -346,7 +317,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
     
     public void clearPendingActions() {
         pendingLeave = false;
-        pendingReturnToLobby = false;
         pendingNextGame = false;
         pendingWatchNext = false;
         pendingSkipToEnd = false;

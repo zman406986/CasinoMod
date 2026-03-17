@@ -10,7 +10,6 @@ import org.lwjgl.input.Keyboard;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
-import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.ui.ButtonAPI;
@@ -23,7 +22,6 @@ import com.fs.starfarer.api.util.Pair;
 
 public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
-    protected InteractionDialogAPI dialog;
     protected DialogCallbacks callbacks;
     protected CustomPanelAPI panel;
     protected PositionAPI p;
@@ -199,10 +197,9 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         spinnerFader.fadeIn();
     }
 
-    public void init(CustomPanelAPI panel, DialogCallbacks callbacks, InteractionDialogAPI dialog) {
+    public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         this.panel = panel;
         this.callbacks = callbacks;
-        this.dialog = dialog;
 
         try {
             backgroundSprite = Global.getSettings().getSprite("graphics/campaign/map/screenFlash2.png");
@@ -222,7 +219,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         TooltipMakerAPI tooltip = buttonPanel.createUIElement(CLOSE_BUTTON_W, CLOSE_BUTTON_H, false);
 
         // Add the skip button
-        closeButton = tooltip.addButton("Skip", "skip", CLOSE_BUTTON_W, CLOSE_BUTTON_H, 0f);
+        closeButton = tooltip.addButton(Strings.get("gacha_animation.skip"), "skip", CLOSE_BUTTON_W, CLOSE_BUTTON_H, 0f);
         closeButton.getPosition().inTL(0f, 0f);
 
         buttonPanel.addUIElement(tooltip).inTL(0f, 0f);

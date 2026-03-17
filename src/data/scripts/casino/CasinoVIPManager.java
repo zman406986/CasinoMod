@@ -150,11 +150,11 @@ public class CasinoVIPManager implements EveryFrameScript {
                 int currentDebt = -currentBalance;
                 int maxDebt = getMaxDebt();
                 
-                if (currentDebt >= maxDebt) {
-                    Global.getSector().getCampaignUI().addMessage(
-                        "Debt has reached maximum limit. Interest accrual paused.",
-                        Color.ORANGE
-                    );
+if (currentDebt >= maxDebt) {
+                     Global.getSector().getCampaignUI().addMessage(
+                         Strings.get("notifications.debt_max_limit"),
+                         Color.ORANGE
+                     );
                 } else {
                     float interestRate = hasVIP ? CasinoConfig.VIP_DAILY_INTEREST_RATE : CasinoConfig.NORMAL_DAILY_INTEREST_RATE;
                     interestAmount = (int) (currentDebt * interestRate);
@@ -221,16 +221,13 @@ public class CasinoVIPManager implements EveryFrameScript {
             float debtPercent = (float) currentDebt / creditCeiling * 100f;
             
             Global.getSector().getCampaignUI().addMessage(
-                "MONTHLY DEBT NOTICE: Your debt of " + currentDebt + " Stargems continues to accrue " +
-                (int)(CasinoConfig.NORMAL_DAILY_INTEREST_RATE * 100) + "% daily interest. " +
-                "Consider purchasing a VIP pass for a reduced rate.",
+                Strings.format("notifications.monthly_debt_notice", currentDebt, CasinoConfig.NORMAL_DAILY_INTEREST_RATE * 100),
                 Color.YELLOW
             );
             
             if (debtPercent >= 80f) {
                 Global.getSector().getCampaignUI().addMessage(
-                    "WARNING: Your debt is at " + (int)debtPercent + "% of your credit ceiling! " +
-                    "Corporate Reconciliation Teams may be dispatched soon!",
+                    Strings.format("notifications.critical_debt_warning", debtPercent),
                     Color.RED
                 );
             }
@@ -333,23 +330,20 @@ public class CasinoVIPManager implements EveryFrameScript {
         
         int newBalance = getBalance();
         
-        // Interest
         if (interestAmount > 0) {
             Global.getSector().getCampaignUI().addMessage(
-                "-" + interestAmount + " interest",
+                Strings.format("notifications.interest", interestAmount),
                 Color.RED
             );
         }
         
-        // Current balance (always negative in this case)
         Global.getSector().getCampaignUI().addMessage(
-            "Balance: " + newBalance + " Stargems",
+            Strings.format("notifications.balance_vip", newBalance, 0),
             Color.RED
         );
         
-        // Warning about debt collector
         Global.getSector().getCampaignUI().addMessage(
-            "WARNING: Debt collectors may be dispatched!",
+            Strings.get("notifications.debt_collector_warning"),
             Color.ORANGE
         );
     }
