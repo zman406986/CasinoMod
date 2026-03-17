@@ -2,11 +2,14 @@ package data.scripts.casino;
 
 import java.awt.Color;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import com.fs.starfarer.api.Global;
+import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
@@ -16,17 +19,35 @@ import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.ui.Alignment;
 import com.fs.starfarer.api.ui.ButtonAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
+import com.fs.starfarer.api.ui.Fonts;
 import com.fs.starfarer.api.ui.LabelAPI;
 import com.fs.starfarer.api.ui.PositionAPI;
 import com.fs.starfarer.api.ui.TooltipMakerAPI;
+import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
+import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 
+import data.scripts.casino.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 import data.scripts.casino.interaction.ArenaHandler.BetValidationResult;
 
 import static data.scripts.casino.interaction.ArenaHandler.validateBet;
 
-public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
+public class ArenaPanelUI extends BaseCustomUIPanelPlugin
+    implements ActionListenerDelegate
+{
+    private static final SettingsAPI settings = Global.getSettings();
+
+    private static final String ARENA_LEAVE_DATA = "arena_leave";
+    private static final String ARENA_SELECT_DATA = "arena_champ_data";
+    private static final String ARENA_BET_DATA = "arena_bet_data";
+    private static final String ARENA_BET_CANCEL = "arena_bet_cancel";
+    private static final String NEXT_ROUND_DATA = "arena_watch_next";
+    private static final String NEXT_GAME_DATA = "arena_next_game";
+    private static final String ARENA_SKIP_DATA = "arena_skip";
+    private static final String ARENA_ADD_BET_DATA = "arena_add_bet";
+    private static final String ARENA_SUSPEND_DATA = "arena_suspend";
+    private static final String ARENA_START_BATTLE_DATA = "arena_start_battle";
 
     protected static class ParsedLogEntry {
         String type;
@@ -43,7 +64,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             this.isCrit = false;
         }
         
-        void parse(List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parse(List<SpiralGladiator> combatants) {
             if (rawEntry == null || rawEntry.isEmpty()) {
                 type = "";
                 return;
@@ -80,23 +101,20 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        void parseAttackLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parseAttackLine(String line, List<SpiralGladiator> combatants) {
             if (combatants == null) return;
             
-            // Find positions of each ship name in the line to determine attacker (first) vs target (second)
             int firstPos = Integer.MAX_VALUE;
             int secondPos = Integer.MAX_VALUE;
-            SpiralAbyssArena.SpiralGladiator firstShip = null;
-            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            SpiralGladiator firstShip = null;
+            SpiralGladiator secondShip = null;
             
-            for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
+            for (SpiralGladiator ship : combatants) {
                 int pos = line.indexOf(ship.shortName);
                 if (pos >= 0) {
                     if (pos < firstPos) {
-                        // Shift current first to second
                         secondPos = firstPos;
                         secondShip = firstShip;
-                        // Set new first
                         firstPos = pos;
                         firstShip = ship;
                     } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
@@ -113,8 +131,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 targetHullId = secondShip.hullId;
             }
             
-            java.util.regex.Pattern dmgPattern = java.util.regex.Pattern.compile("(\\d+)");
-            java.util.regex.Matcher matcher = dmgPattern.matcher(line);
+            final Pattern dmgPattern = Pattern.compile("(\\d+)");
+            final Matcher matcher = dmgPattern.matcher(line);
             if (matcher.find()) {
                 try {
                     damage = Integer.parseInt(matcher.group(1));
@@ -124,23 +142,20 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        void parseKillLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parseKillLine(String line, List<SpiralGladiator> combatants) {
             if (combatants == null) return;
             
-            // Find positions of each ship name in the line to determine attacker (first) vs target (second)
             int firstPos = Integer.MAX_VALUE;
             int secondPos = Integer.MAX_VALUE;
-            SpiralAbyssArena.SpiralGladiator firstShip = null;
-            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            SpiralGladiator firstShip = null;
+            SpiralGladiator secondShip = null;
             
-            for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
+            for (SpiralGladiator ship : combatants) {
                 int pos = line.indexOf(ship.shortName);
                 if (pos >= 0) {
                     if (pos < firstPos) {
-                        // Shift current first to second
                         secondPos = firstPos;
                         secondShip = firstShip;
-                        // Set new first
                         firstPos = pos;
                         firstShip = ship;
                     } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
@@ -158,24 +173,20 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        void parseMissLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parseMissLine(String line, List<SpiralGladiator> combatants) {
             if (combatants == null) return;
             
-            // For miss lines: target appears first in text, attacker appears second
-            // Example: "$target:'Too slow!' ($attacker missed)"
             int firstPos = Integer.MAX_VALUE;
             int secondPos = Integer.MAX_VALUE;
-            SpiralAbyssArena.SpiralGladiator firstShip = null;
-            SpiralAbyssArena.SpiralGladiator secondShip = null;
+            SpiralGladiator firstShip = null;
+            SpiralGladiator secondShip = null;
             
-            for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
+            for (SpiralGladiator ship : combatants) {
                 int pos = line.indexOf(ship.shortName);
                 if (pos >= 0) {
                     if (pos < firstPos) {
-                        // Shift current first to second
                         secondPos = firstPos;
                         secondShip = firstShip;
-                        // Set new first
                         firstPos = pos;
                         firstShip = ship;
                     } else if (pos < secondPos && !ship.hullId.equals(firstShip.hullId)) {
@@ -194,20 +205,20 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        void parseEventLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parseEventLine(String line, List<SpiralGladiator> combatants) {
             description = line;
             
             if (combatants == null) return;
             
-            for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
+            for (SpiralGladiator ship : combatants) {
                 if (line.contains(ship.shortName)) {
                     attackerHullId = ship.hullId;
                     break;
                 }
             }
             
-            java.util.regex.Pattern dmgPattern = java.util.regex.Pattern.compile("\\(-?(\\d+)");
-            java.util.regex.Matcher matcher = dmgPattern.matcher(line);
+            final Pattern dmgPattern = Pattern.compile("\\(-?(\\d+)");
+            final Matcher matcher = dmgPattern.matcher(line);
             if (matcher.find()) {
                 try {
                     damage = Integer.parseInt(matcher.group(1));
@@ -217,18 +228,18 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        void parseEventHitLine(String line, List<SpiralAbyssArena.SpiralGladiator> combatants) {
+        void parseEventHitLine(String line, List<SpiralGladiator> combatants) {
             if (combatants == null) return;
             
-            for (SpiralAbyssArena.SpiralGladiator ship : combatants) {
+            for (SpiralGladiator ship : combatants) {
                 if (line.contains(ship.shortName)) {
                     attackerHullId = ship.hullId;
                     break;
                 }
             }
             
-            java.util.regex.Pattern dmgPattern = java.util.regex.Pattern.compile("(\\d+)");
-            java.util.regex.Matcher matcher = dmgPattern.matcher(line);
+            final Pattern dmgPattern = Pattern.compile("(\\d+)");
+            final Matcher matcher = dmgPattern.matcher(line);
             if (matcher.find()) {
                 try {
                     damage = Integer.parseInt(matcher.group(1));
@@ -238,19 +249,18 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             }
         }
         
-        boolean shouldSkipDeadAttacker() {
+        boolean shouldSkipDeadAttacker(Map<String, Boolean> deadStatusMap) {
             return false;
         }
     }
 
-    protected InteractionDialogAPI dialog;
     protected DialogCallbacks callbacks;
     protected CustomPanelAPI panel;
     protected PositionAPI p;
     
     protected ArenaActionCallback actionCallback;
     
-    protected List<SpiralAbyssArena.SpiralGladiator> combatants;
+    protected List<SpiralGladiator> combatants;
     protected int currentRound;
     protected int totalBet;
     protected List<BetInfo> bets;
@@ -263,8 +273,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected RewardBreakdown rewardBreakdown;
     protected boolean readyToClose = false;
     
-    protected boolean buttonsCreated = false;
-    
     protected static final float PANEL_WIDTH = 1000f;
     protected static final float PANEL_HEIGHT = 700f;
     
@@ -276,14 +284,15 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected static final float BOX_SPACING = 3f;
     protected static final float ENTRY_SPACING = 10f;
     
+    protected static final float MARGIN = 20f;
+    
     protected static final float CHAMP_BUTTON_WIDTH = 100f;
     protected static final float CHAMP_BUTTON_HEIGHT = 25f;
+    protected static final float CHAMP_BUTTON_X = BOX_WIDTH + MARGIN + 15f;
     
     protected static final float BUTTON_WIDTH = 120f;
     protected static final float BUTTON_HEIGHT = 35f;
     protected static final float BUTTON_SPACING = 10f;
-    
-    protected static final float MARGIN = 20f;
     
     protected static final float leftX = SHIP_COLUMN_WIDTH + MARGIN;
     protected static final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
@@ -299,6 +308,17 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
     protected static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
     protected static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
+    protected static final Color NET_POSITIVE_COLOR = new Color(50, 255, 100);
+    protected static final Color NET_NEGATIVE_COLOR = new Color(255, 100, 50);
+    protected static final Color KILL_COLOR = new Color(255, 150, 50);
+    
+    protected static final Color BATTLE_HIT_COLOR_CRIT = new Color(255, 100, 100);
+    protected static final Color BATTLE_HIT_COLOR = new Color(255, 255, 100);
+    protected static final Color BATTLE_MISS_COLOR = new Color(150, 150, 150);
+    protected static final Color BATTLE_EVENT_COLOR = new Color(100, 200, 255);
+    protected static final Color BATTLE_EVENT_HIT_COLOR = new Color(255, 200, 50);
+    protected static final Color BATTLE_ROUND_COLOR = new Color(180, 180, 200);
+    protected static final Color DISABLED_BTN_COLOR = new Color(255, 200, 0);
     
     protected static final Color COLOR_BG_DARK = new Color(15, 15, 20);
     protected static final Color COLOR_SIDEBAR = new Color(25, 25, 35);
@@ -323,7 +343,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         return isAffixPositive(affix) ? AFFIX_POSITIVE_COLOR : AFFIX_NEGATIVE_COLOR;
     }
     
-    protected void applyShipNameHighlighting(LabelAPI label, SpiralAbyssArena.SpiralGladiator ship) {
+    protected void applyShipNameHighlighting(LabelAPI label, SpiralGladiator ship) {
         if (label == null || ship == null) return;
         
         String prefix = ship.prefix != null ? ship.prefix : "";
@@ -355,24 +375,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     }
     
     protected LabelAPI roundLabel;
-    protected CustomPanelAPI roundPanel;
-    
     protected LabelAPI betLabel;
-    protected CustomPanelAPI betPanel;
     
     protected LabelAPI[] shipNameLabels = new LabelAPI[5];
-    protected CustomPanelAPI[] shipNamePanels = new CustomPanelAPI[5];
-    
     protected LabelAPI[] shipHpLabels = new LabelAPI[5];
-    protected CustomPanelAPI[] shipHpPanels = new CustomPanelAPI[5];
-    
     protected LabelAPI[] shipOddsLabels = new LabelAPI[5];
-    protected CustomPanelAPI[] shipOddsPanels = new CustomPanelAPI[5];
-    
-    protected CustomPanelAPI battleLogPanel;
     
     protected LabelAPI[] battleLogTextLabels = new LabelAPI[12];
-    protected CustomPanelAPI[] battleLogTextPanels = new CustomPanelAPI[12];
     
     protected static final float LOG_SPRITE_SIZE = 28f;
     protected static final float LOG_LINE_HEIGHT = 32f;
@@ -380,23 +389,11 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected static final float LOG_LEFT_MARGIN = 5f;
     
     protected LabelAPI resultLabel;
-    protected CustomPanelAPI resultPanel;
     
     protected static final int MAX_REWARD_LINES = 25;
     protected LabelAPI[] rewardBreakdownLabels = new LabelAPI[MAX_REWARD_LINES];
-    protected CustomPanelAPI[] rewardBreakdownPanels = new CustomPanelAPI[MAX_REWARD_LINES];
     
-    protected LabelAPI instructionLabel;
-    protected CustomPanelAPI instructionPanel;
-    
-    protected ButtonAPI watchNextButton;
-    protected ButtonAPI nextGameButton;
-    protected ButtonAPI skipToEndButton;
-    protected ButtonAPI addBetButton;
-    protected ButtonAPI suspendButton;
-    protected ButtonAPI leaveButton;
-    protected ButtonAPI returnToLobbyButton;
-    protected ButtonAPI startBattleButton;
+protected LabelAPI instructionLabel;
 
     protected CustomPanelAPI watchNextPanel;
     protected CustomPanelAPI nextGamePanel;
@@ -404,13 +401,10 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected CustomPanelAPI addBetPanel;
     protected CustomPanelAPI suspendPanel;
     protected CustomPanelAPI leaveButtonPanel;
-    protected CustomPanelAPI returnToLobbyPanel;
     protected CustomPanelAPI startBattlePanel;
     
-    protected List<ButtonAPI> championSelectButtons = new ArrayList<>();
-    protected List<ButtonAPI> betAmountButtons = new ArrayList<>();
-    protected List<CustomPanelAPI> championSelectPanels = new ArrayList<>();
-    protected List<CustomPanelAPI> betAmountPanels = new ArrayList<>();
+    protected final List<CustomPanelAPI> championSelectPanels = new ArrayList<>();
+    protected final List<CustomPanelAPI> betAmountPanels = new ArrayList<>();
     
     protected static final int[] BET_AMOUNTS = {100, 500, 1000, 2000, 5000};
     
@@ -431,14 +425,8 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected String currentOverdraftMessage = "";
     
     protected LabelAPI balanceLabel;
-    protected CustomPanelAPI balancePanel;
-    
     protected LabelAPI messageLabel;
-    protected CustomPanelAPI messagePanel;
     
-    protected ButtonAPI confirmOverdraftButton;
-    protected ButtonAPI cancelOverdraftButton;
-    protected ButtonAPI dismissErrorButton;
     protected CustomPanelAPI confirmOverdraftPanel;
     protected CustomPanelAPI cancelOverdraftPanel;
     protected CustomPanelAPI dismissErrorPanel;
@@ -467,7 +455,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         if (bets == null || combatants == null || shipIndex < 0 || shipIndex >= combatants.size()) {
             return 0;
         }
-        SpiralAbyssArena.SpiralGladiator ship = combatants.get(shipIndex);
+        SpiralGladiator ship = combatants.get(shipIndex);
         int total = 0;
         for (BetInfo b : bets) {
             if (b.ship == ship) {
@@ -523,7 +511,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     }
     
     public ArenaPanelUI(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
+            List<SpiralGladiator> combatants,
             int currentRound,
             int totalBet,
             List<BetInfo> bets,
@@ -571,13 +559,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks, InteractionDialogAPI dialog) {
         this.panel = panel;
         this.callbacks = callbacks;
-        this.dialog = dialog;
         
         callbacks.getPanelFader().setDurationOut(0.5f);
         
         cacheOdds();
         createUIElements();
         updateLabels();
+        updateButtonVisibility();
     }
     
     public void positionChanged(PositionAPI position) {
@@ -597,359 +585,278 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         createResultLabel();
         createRewardBreakdownLabels();
         createAllButtonsOnce();
-        
-        buttonsCreated = true;
     }
     
     protected void createBattleLogPanel() {
         if (panel == null) return;
         
-        // Move battle log to center column, below round/total bet
-        float logPanelX = SHIP_COLUMN_WIDTH + MARGIN;
-        float logPanelY = MARGIN + 40f;
-        float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
-        float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
+        final float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
+        final float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
         
         logX = LOG_LEFT_MARGIN;
         logY = LOG_LINE_HEIGHT;
         logW = logPanelW - LOG_LEFT_MARGIN * 2;
         logH = logPanelH - LOG_LINE_HEIGHT;
         
-        battleLogPanel = panel.createCustomPanel(logPanelW, logPanelH, null);
-        panel.addComponent(battleLogPanel).inTL(logPanelX, logPanelY);
-        
-        float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 30f;
-        float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP - 30f;
+        final float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 30f;
+        final float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP - 30f;
+        final float lblW = Math.max(textWidthTwoSprites, textWidthOneSprite);
         
         for (int i = 0; i < 12; i++) {
-            battleLogTextPanels[i] = panel.createCustomPanel(Math.max(textWidthTwoSprites, textWidthOneSprite), LOG_LINE_HEIGHT, null);
-            TooltipMakerAPI tooltip = battleLogTextPanels[i].createUIElement(Math.max(textWidthTwoSprites, textWidthOneSprite), LOG_LINE_HEIGHT, false);
-            battleLogTextLabels[i] = tooltip.addPara("", Color.WHITE, 0f);
-            battleLogTextLabels[i].setAlignment(Alignment.MID);
-            battleLogTextLabels[i].getPosition().inTL(0, 0);
-            battleLogTextPanels[i].addUIElement(tooltip).inTL(0, 0);
-            panel.addComponent(battleLogTextPanels[i]).inTL(-1000f, -1000f);
+            final LabelAPI logLbl = settings.createLabel("", Fonts.DEFAULT_SMALL);
+            battleLogTextLabels[i] = logLbl;
+            logLbl.setColor(Color.WHITE);
+            logLbl.setAlignment(Alignment.MID);
+            panel.addComponent((UIComponentAPI) logLbl).inTL(0f, 0f)
+                .setSize(lblW, LOG_LINE_HEIGHT);
         }
     }
     
     protected void createAllButtonsOnce() {
         if (panel == null) return;
         
-        float champButtonX = BOX_WIDTH + MARGIN + 15f;
-        float startY = MARGIN + 10f;
+        final float startY = MARGIN + 10f;
         final float NAME_HEIGHT = 16f;
         final float HP_HEIGHT = 11f;
         final float ODDS_HEIGHT = 30f;
-        float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
+        final float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
         
         for (int i = 0; i < 5; i++) {
-            float shipY = startY + i * totalItemHeight;
-            float buttonY = shipY + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
+            final float shipY = startY + i * totalItemHeight;
+            final float buttonY = shipY + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
             
-            CustomPanelAPI champPanel = panel.createCustomPanel(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, null);
-            TooltipMakerAPI champTooltip = champPanel.createUIElement(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, false);
-            ButtonAPI btn = champTooltip.addButton("Select", "arena_champ_" + i, CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f);
-            btn.setCustomData(i);
+            final CustomPanelAPI champPanel = panel.createCustomPanel(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, null);
+            final TooltipMakerAPI champTooltip = champPanel.createUIElement(CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, false);
+            champTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = champTooltip.addButton("Select", ARENA_SELECT_DATA + i, CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
             btn.getPosition().inTL(0, 0);
             champPanel.addUIElement(champTooltip).inTL(0, 0);
-            panel.addComponent(champPanel).inTL(champButtonX, buttonY);
-            champPanel.getPosition().inTL(-1000f, -1000f);
+            panel.addComponent(champPanel).inTL(CHAMP_BUTTON_X, buttonY);
+            champPanel.setOpacity(0f);
             championSelectPanels.add(champPanel);
-            championSelectButtons.add(btn);
         }
         
-        {
-            float cancelY = startY + 5 * totalItemHeight;
-            CustomPanelAPI champCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-            TooltipMakerAPI champCancelTooltip = champCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-            ButtonAPI champCancelBtn = champCancelTooltip.addButton("Cancel", "arena_champ_cancel", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-            champCancelBtn.setCustomData(-1);
-            champCancelBtn.getPosition().inTL(0, 0);
-            champCancelPanel.addUIElement(champCancelTooltip).inTL(0, 0);
-            panel.addComponent(champCancelPanel).inTL(champButtonX, cancelY);
-            champCancelPanel.getPosition().inTL(-1000f, -1000f);
-            championSelectPanels.add(champCancelPanel);
-            championSelectButtons.add(champCancelBtn);
-        }
-        
-        CustomPanelAPI betCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI betCancelTooltip = betCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        ButtonAPI betCancelBtn = betCancelTooltip.addButton("Cancel", "arena_bet_cancel", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        betCancelBtn.setCustomData(-1);
-        betCancelBtn.getPosition().inTL(0, 0);
+        final CustomPanelAPI betCancelPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+        final TooltipMakerAPI betCancelTooltip = betCancelPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+        betCancelTooltip.setActionListenerDelegate(this);
+        betCancelTooltip.addButton("Cancel", ARENA_BET_CANCEL, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         betCancelPanel.addUIElement(betCancelTooltip).inTL(0, 0);
         panel.addComponent(betCancelPanel).inTL(leftX, bottomY);
-        betCancelPanel.getPosition().inTL(-1000f, -1000f);
+        betCancelPanel.setOpacity(0f);
         betAmountPanels.add(betCancelPanel);
-        betAmountButtons.add(betCancelBtn);
         
         for (int i = 0; i < BET_AMOUNTS.length; i++) {
-            int amt = BET_AMOUNTS[i];
-            float btnX = leftX + (i + 1) * (BUTTON_WIDTH + BUTTON_SPACING);
+            final int amt = BET_AMOUNTS[i];
+            final float btnX = leftX + i * (BUTTON_WIDTH + BUTTON_SPACING);
             
-            CustomPanelAPI betBtnPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-            TooltipMakerAPI betTooltip = betBtnPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-            ButtonAPI btn = betTooltip.addButton(amt + " SG", "arena_bet_" + amt, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-            btn.setCustomData(amt);
-            btn.getPosition().inTL(0, 0);
-            betBtnPanel.addUIElement(betTooltip).inTL(0, 0);
-            panel.addComponent(betBtnPanel).inTL(btnX, bottomY);
-            betBtnPanel.getPosition().inTL(-1000f, -1000f);
+            final CustomPanelAPI betBtnPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI betTooltip = betBtnPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            betTooltip.setActionListenerDelegate(this);
+            betTooltip.addButton(amt + " SG", ARENA_BET_DATA + amt, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            betBtnPanel.addUIElement(betTooltip);
+            panel.addComponent(betBtnPanel).inTL(btnX, bottomY - BUTTON_HEIGHT - BUTTON_SPACING);
+            betBtnPanel.setOpacity(0f);
             betAmountPanels.add(betBtnPanel);
-            betAmountButtons.add(btn);
+        }
+
+        { // Leave Button
+            leaveButtonPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI leaveTooltip = leaveButtonPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            leaveTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = leaveTooltip.addButton("Leave", ARENA_LEAVE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            leaveButtonPanel.addUIElement(leaveTooltip).inTL(0, 0);
+            panel.addComponent(leaveButtonPanel).inTL(leftX, bottomY);
+            leaveButtonPanel.setOpacity(0f);
         }
         
-        returnToLobbyPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI returnTooltip = returnToLobbyPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        returnToLobbyButton = returnTooltip.addButton("Return to Lobby", "arena_return_lobby", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        returnToLobbyButton.getPosition().inTL(0, 0);
-        returnToLobbyPanel.addUIElement(returnTooltip).inTL(0, 0);
-        panel.addComponent(returnToLobbyPanel).inTL(leftX, bottomY);
-        returnToLobbyPanel.getPosition().inTL(-1000f, -1000f);
+        { // Suspend Button
+            suspendPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI suspendTooltip = suspendPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            suspendTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = suspendTooltip.addButton("Suspend", ARENA_SUSPEND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            suspendPanel.addUIElement(suspendTooltip).inTL(0, 0);
+            panel.addComponent(suspendPanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            suspendPanel.setOpacity(0f);
+        }
         
-        leaveButtonPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI leaveTooltip = leaveButtonPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        leaveButton = leaveTooltip.addButton("Leave", "arena_leave", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        leaveButton.getPosition().inTL(0, 0);
-        leaveButtonPanel.addUIElement(leaveTooltip).inTL(0, 0);
-        panel.addComponent(leaveButtonPanel).inTL(leftX, bottomY);
-        leaveButtonPanel.getPosition().inTL(-1000f, -1000f);
+        { // Add Bet Button
+            addBetPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI addBetTooltip = addBetPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            addBetTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = addBetTooltip.addButton("Add Bet", ARENA_ADD_BET_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            addBetPanel.addUIElement(addBetTooltip).inTL(0, 0);
+            panel.addComponent(addBetPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
+            addBetPanel.setOpacity(0f);
+        }
         
-        suspendPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI suspendTooltip = suspendPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        suspendButton = suspendTooltip.addButton("Suspend", "arena_suspend", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        suspendButton.getPosition().inTL(0, 0);
-        suspendPanel.addUIElement(suspendTooltip).inTL(0, 0);
-        panel.addComponent(suspendPanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        suspendPanel.getPosition().inTL(-1000f, -1000f);
-        
-        addBetPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI addBetTooltip = addBetPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        addBetButton = addBetTooltip.addButton("Add Bet", "arena_add_bet", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        addBetButton.getPosition().inTL(0, 0);
-        addBetPanel.addUIElement(addBetTooltip).inTL(0, 0);
-        panel.addComponent(addBetPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
-        addBetPanel.getPosition().inTL(-1000f, -1000f);
-        
-        skipToEndPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI skipTooltip = skipToEndPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        skipToEndButton = skipTooltip.addButton("Skip to End", "arena_skip", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        skipToEndButton.getPosition().inTL(0, 0);
-        skipToEndPanel.addUIElement(skipTooltip).inTL(0, 0);
-        panel.addComponent(skipToEndPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
-        skipToEndPanel.getPosition().inTL(-1000f, -1000f);
+        { // Skip to End Button
+            skipToEndPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI skipTooltip = skipToEndPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            skipTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = skipTooltip.addButton("Skip to End", ARENA_SKIP_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            skipToEndPanel.addUIElement(skipTooltip).inTL(0, 0);
+            panel.addComponent(skipToEndPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
+            skipToEndPanel.setOpacity(0f);
+        }
 
-        watchNextPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI watchTooltip = watchNextPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        watchNextButton = watchTooltip.addButton("Next Round", "arena_watch_next", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        watchNextButton.getPosition().inTL(0, 0);
-        watchNextPanel.addUIElement(watchTooltip).inTL(0, 0);
-        panel.addComponent(watchNextPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
-        watchNextPanel.getPosition().inTL(-1000f, -1000f);
+        { // Watch Next Button
+            watchNextPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI watchTooltip = watchNextPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            watchTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = watchTooltip.addButton("Next Round", NEXT_ROUND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            watchNextPanel.addUIElement(watchTooltip).inTL(0, 0);
+            panel.addComponent(watchNextPanel).inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
+            watchNextPanel.setOpacity(0f);
+        }
         
-        nextGamePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI nextGameTooltip = nextGamePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        nextGameButton = nextGameTooltip.addButton("Next Game", "arena_next_game", new Color(0, 0, 0), new Color(255, 200, 0), BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        nextGameButton.getPosition().inTL(0, 0);
-        nextGamePanel.addUIElement(nextGameTooltip).inTL(0, 0);
-        panel.addComponent(nextGamePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        nextGamePanel.getPosition().inTL(-1000f, -1000f);
+        { // Next Game Button
+            nextGamePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI nextGameTooltip = nextGamePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            nextGameTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = nextGameTooltip.addButton("Next Game", NEXT_GAME_DATA, Color.BLACK, DISABLED_BTN_COLOR, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            nextGamePanel.addUIElement(nextGameTooltip).inTL(0, 0);
+            panel.addComponent(nextGamePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            nextGamePanel.setOpacity(0f);
+        }
+
+        { // Start Battle Button
+            startBattlePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI startTooltip = startBattlePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            startTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = startTooltip.addButton("Start Battle", ARENA_START_BATTLE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            startBattlePanel.addUIElement(startTooltip).inTL(0, 0);
+            panel.addComponent(startBattlePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
+            startBattlePanel.setOpacity(0f);
+        }
         
-        startBattlePanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI startTooltip = startBattlePanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        startBattleButton = startTooltip.addButton("Start Battle", "arena_start_battle", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        startBattleButton.getPosition().inTL(0, 0);
-        startBattlePanel.addUIElement(startTooltip).inTL(0, 0);
-        panel.addComponent(startBattlePanel).inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-        startBattlePanel.getPosition().inTL(-1000f, -1000f);
+        { // Confirm Overdraft Button
+            confirmOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI confirmTooltip = confirmOverdraftPanel.createUIElement(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, false);
+            confirmTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = confirmTooltip.addButton("Confirm Overdraft", "arena_confirm_overdraft", BUTTON_WIDTH + 30f, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            confirmOverdraftPanel.addUIElement(confirmTooltip).inTL(0, 0);
+            panel.addComponent(confirmOverdraftPanel).inTL(leftX, bottomY);
+            confirmOverdraftPanel.setOpacity(0f);
+        }
         
-        confirmOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, null);
-        TooltipMakerAPI confirmTooltip = confirmOverdraftPanel.createUIElement(BUTTON_WIDTH + 30f, BUTTON_HEIGHT, false);
-        confirmOverdraftButton = confirmTooltip.addButton("Confirm Overdraft", "arena_confirm_overdraft", BUTTON_WIDTH + 30f, BUTTON_HEIGHT, 0f);
-        confirmOverdraftButton.getPosition().inTL(0, 0);
-        confirmOverdraftPanel.addUIElement(confirmTooltip).inTL(0, 0);
-        panel.addComponent(confirmOverdraftPanel).inTL(leftX, bottomY);
-        confirmOverdraftPanel.getPosition().inTL(-1000f, -1000f);
+        { // Cancel Overdraft Button
+            cancelOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI cancelTooltip = cancelOverdraftPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            cancelTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = cancelTooltip.addButton("Cancel", "arena_cancel_overdraft", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            cancelOverdraftPanel.addUIElement(cancelTooltip).inTL(0, 0);
+            panel.addComponent(cancelOverdraftPanel).inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
+            cancelOverdraftPanel.setOpacity(0f);
+        }
         
-        cancelOverdraftPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI cancelTooltip = cancelOverdraftPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        cancelOverdraftButton = cancelTooltip.addButton("Cancel", "arena_cancel_overdraft", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        cancelOverdraftButton.getPosition().inTL(0, 0);
-        cancelOverdraftPanel.addUIElement(cancelTooltip).inTL(0, 0);
-        panel.addComponent(cancelOverdraftPanel).inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
-        cancelOverdraftPanel.getPosition().inTL(-1000f, -1000f);
-        
-        dismissErrorPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
-        TooltipMakerAPI dismissTooltip = dismissErrorPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
-        dismissErrorButton = dismissTooltip.addButton("OK", "arena_dismiss_error", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
-        dismissErrorButton.getPosition().inTL(0, 0);
-        dismissErrorPanel.addUIElement(dismissTooltip).inTL(0, 0);
-        panel.addComponent(dismissErrorPanel).inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
-        dismissErrorPanel.getPosition().inTL(-1000f, -1000f);
+        { // Dismiss Error Button
+            dismissErrorPanel = panel.createCustomPanel(BUTTON_WIDTH, BUTTON_HEIGHT, null);
+            final TooltipMakerAPI dismissTooltip = dismissErrorPanel.createUIElement(BUTTON_WIDTH, BUTTON_HEIGHT, false);
+            dismissTooltip.setActionListenerDelegate(this);
+            final ButtonAPI btn = dismissTooltip.addButton("OK", "arena_dismiss_error", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            btn.setQuickMode(true);
+            dismissErrorPanel.addUIElement(dismissTooltip).inTL(0, 0);
+            panel.addComponent(dismissErrorPanel).inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
+            dismissErrorPanel.setOpacity(0f);
+        }
     }
     
     protected void updateButtonVisibility() {
-        boolean showChampionSelect = (currentRound == 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) ||
-                                      (currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage);
-        boolean showChampionAsBet = currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !showingOverdraftConfirmation && !showingErrorMessage;
-        boolean showBetAmounts = showingBetAmounts && selectedChampionIndex >= 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage;
-        
-        float champButtonX = BOX_WIDTH + MARGIN + 15f;
-        float startY = MARGIN + 10f;
-        final float NAME_HEIGHT = 16f;
-        final float HP_HEIGHT = 11f;
-        final float ODDS_HEIGHT = 30f;
-        float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
+        final boolean showChampionSelect =
+            (currentRound == 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) ||
+            (currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage);
+        final boolean showChampionAsBet = currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !showingOverdraftConfirmation && !showingErrorMessage;
+        final boolean showBetAmounts = showingBetAmounts && selectedChampionIndex >= 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage;
         
         for (int i = 0; i < championSelectPanels.size(); i++) {
-            CustomPanelAPI p = championSelectPanels.get(i);
-            if (p != null) {
-                if (i < 5) {
-                    boolean canBetMore = canBetMoreOnShip(i);
-                    if ((showChampionSelect || showChampionAsBet) && canBetMore) {
-                        float btnY = startY + i * totalItemHeight + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
-                        p.getPosition().inTL(champButtonX, btnY);
-                    } else {
-                        p.getPosition().inTL(-1000f, -1000f);
-                    }
-                } else {
-                    if (showChampionSelect) {
-                        p.getPosition().inTL(leftX, bottomY);
-                    } else {
-                        p.getPosition().inTL(-1000f, -1000f);
-                    }
-                }
+            final CustomPanelAPI p = championSelectPanels.get(i);
+            if (p == null) continue;
+
+            if (i < 5) {
+                final boolean btnVis = (showChampionSelect || showChampionAsBet) && canBetMoreOnShip(i);
+                p.setOpacity(btnVis ? 1f : 0f);
+            } else {
+                p.setOpacity(showChampionSelect ? 1f : 0f);
             }
         }
-        
-        float betRowY = bottomY - BUTTON_HEIGHT - BUTTON_SPACING;
         
         for (int i = 0; i < betAmountPanels.size(); i++) {
-            CustomPanelAPI p = betAmountPanels.get(i);
-            if (p != null) {
-                if (showBetAmounts) {
-                    float btnX;
-                    float btnY;
-                    if (i == 0) {
-                        btnX = leftX;
-                        btnY = bottomY;
-                        p.getPosition().inTL(btnX, btnY);
-                    } else {
-                        int betAmount = BET_AMOUNTS[i - 1];
-                        int currentBetOnShip = getTotalBetOnShip(selectedChampionIndex);
-                        if (currentBetOnShip + betAmount > CasinoConfig.ARENA_MAX_BET_PER_CHAMPION) {
-                            p.getPosition().inTL(-1000f, -1000f);
-                        } else {
-                            btnX = leftX + (i - 1) * (BUTTON_WIDTH + BUTTON_SPACING);
-                            btnY = betRowY;
-                            p.getPosition().inTL(btnX, btnY);
-                        }
-                    }
+            final CustomPanelAPI p = betAmountPanels.get(i);
+            if (p == null) continue;
+
+            if (showBetAmounts) {
+                if (i == 0) {
+                    p.setOpacity(1f);
                 } else {
-                    p.getPosition().inTL(-1000f, -1000f);
+                    final int betAmount = BET_AMOUNTS[i - 1];
+                    final int currentBetOnShip = getTotalBetOnShip(selectedChampionIndex);
+                    p.setOpacity(currentBetOnShip + betAmount > CasinoConfig.ARENA_MAX_BET_PER_CHAMPION ? 0f : 1f);
                 }
+            } else {
+                p.setOpacity(0f);
             }
-        }
-        
-        if (returnToLobbyPanel != null) {
-            returnToLobbyPanel.getPosition().inTL(-1000f, -1000f);
         }
         
         if (leaveButtonPanel != null) {
+            leaveButtonPanel.setOpacity(0f);
+
             if (showingOverdraftConfirmation || showingErrorMessage) {
-                leaveButtonPanel.getPosition().inTL(-1000f, -1000f);
+                leaveButtonPanel.setOpacity(0f);
             } else if (battleEnded) {
-                leaveButtonPanel.getPosition().inTL(leftX, bottomY);
-            } else if (!showBetAmounts && !showChampionSelect) {
-                leaveButtonPanel.getPosition().inTL(leftX, bottomY);
-            } else if (showChampionSelect) {
-                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else if (showBetAmounts) {
-                leaveButtonPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else {
-                leaveButtonPanel.getPosition().inTL(-1000f, -1000f);
+                leaveButtonPanel.setOpacity(1f);
+            } else if (!showBetAmounts && !showChampionSelect || showChampionSelect || totalBet < 1 && !showBetAmounts) {
+                leaveButtonPanel.setOpacity(1f);
             }
         }
         
         if (suspendPanel != null) {
-            if (!battleEnded && currentRound > 0 && !showingBetAmounts && !showingOverdraftConfirmation && !showingErrorMessage) {
-                suspendPanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else {
-                suspendPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            suspendPanel.setOpacity(!battleEnded && currentRound > 0 && !showingBetAmounts && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
         }
         
         if (addBetPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
-                addBetPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
-            } else {
-                addBetPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            addBetPanel.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
         }
         
         if (skipToEndPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
-                skipToEndPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
-            } else {
-                skipToEndPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            skipToEndPanel.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
         }
         
         if (watchNextPanel != null) {
-            if (currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) {
-                watchNextPanel.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
-            } else {
-                watchNextPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            watchNextPanel.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
         }
         
         if (nextGamePanel != null) {
-            if (battleEnded) {
-                nextGamePanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else {
-                nextGamePanel.getPosition().inTL(-1000f, -1000f);
-            }
+            nextGamePanel.setOpacity(battleEnded ? 1f : 0f);
         }
         
         if (startBattlePanel != null) {
-            if (currentRound == 0 && !showingBetAmounts && totalBet > 0 && !showingOverdraftConfirmation && !showingErrorMessage) {
-                startBattlePanel.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
-            } else {
-                startBattlePanel.getPosition().inTL(-1000f, -1000f);
-            }
+            startBattlePanel.setOpacity(currentRound == 0 && !showingBetAmounts && totalBet > 0 && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
         }
         
         if (confirmOverdraftPanel != null) {
-            if (showingOverdraftConfirmation) {
-                confirmOverdraftPanel.getPosition().inTL(leftX, bottomY);
-            } else {
-                confirmOverdraftPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            confirmOverdraftPanel.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
         }
         
         if (cancelOverdraftPanel != null) {
-            if (showingOverdraftConfirmation) {
-                cancelOverdraftPanel.getPosition().inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
-            } else {
-                cancelOverdraftPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            cancelOverdraftPanel.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
         }
         
         if (dismissErrorPanel != null) {
-            if (showingErrorMessage) {
-                dismissErrorPanel.getPosition().inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
-            } else {
-                dismissErrorPanel.getPosition().inTL(-1000f, -1000f);
-            }
+            dismissErrorPanel.setOpacity(showingErrorMessage ? 1f : 0f);
         }
         
-        if (messagePanel != null) {
-            if (showingOverdraftConfirmation || showingErrorMessage) {
-                float y = bottomY - 50f - BUTTON_HEIGHT - BUTTON_SPACING * 2;
-                messagePanel.getPosition().inTL((PANEL_WIDTH - 400f) / 2f, y);
-            } else {
-                messagePanel.getPosition().inTL(-1000f, -1000f);
-            }
+        if (messageLabel != null) {
+            messageLabel.setOpacity(showingOverdraftConfirmation || showingErrorMessage ? 1f : 0f);
         }
     }
     
@@ -959,15 +866,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float LABEL_WIDTH = 150f;
         final float LABEL_HEIGHT = 30f;
         
-        float x = SHIP_COLUMN_WIDTH + MARGIN;
+        final float x = SHIP_COLUMN_WIDTH + MARGIN;
 
-        roundPanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = roundPanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        roundLabel = tooltip.addPara("Round: 0", Color.CYAN, 0f);
+        roundLabel = settings.createLabel("Round: 0", Fonts.DEFAULT_SMALL);
+        roundLabel.setColor(Color.CYAN);
         roundLabel.setAlignment(Alignment.LMID);
-        roundLabel.getPosition().inTL(0, 0);
-        roundPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(roundPanel).inTL(x, MARGIN);
+        panel.addComponent((UIComponentAPI) roundLabel).inTL(x, MARGIN)
+            .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
     protected void createBetLabel() {
@@ -976,15 +881,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float LABEL_WIDTH = 200f;
         final float LABEL_HEIGHT = 30f;
         
-        float x = SHIP_COLUMN_WIDTH + MARGIN + 160f;
+        final float x = SHIP_COLUMN_WIDTH + MARGIN + 160f;
 
-        betPanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = betPanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        betLabel = tooltip.addPara("Total Bet: 0", Color.YELLOW, 0f);
+        betLabel = settings.createLabel("Total Bet: 0", Fonts.DEFAULT_SMALL);
+        betLabel.setColor(Color.YELLOW);
         betLabel.setAlignment(Alignment.LMID);
-        betLabel.getPosition().inTL(0, 0);
-        betPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(betPanel).inTL(x, MARGIN);
+        panel.addComponent((UIComponentAPI) betLabel).inTL(x, MARGIN)
+            .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
     protected void createInstructionLabel() {
@@ -993,15 +896,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float LABEL_WIDTH = 250f;
         final float LABEL_HEIGHT = 30f;
         
-        float x = SHIP_COLUMN_WIDTH + MARGIN + 360f;
+        final float x = SHIP_COLUMN_WIDTH + MARGIN + 360f;
 
-        instructionPanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = instructionPanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        instructionLabel = tooltip.addPara("Select a champion to bet on:", Color.WHITE, 0f);
+        instructionLabel = settings.createLabel("Select a champion to bet on:", Fonts.DEFAULT_SMALL);
+        instructionLabel.setColor(Color.WHITE);
         instructionLabel.setAlignment(Alignment.LMID);
-        instructionLabel.getPosition().inTL(0, 0);
-        instructionPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(instructionPanel).inTL(x, MARGIN);
+        panel.addComponent((UIComponentAPI) instructionLabel).inTL(x, MARGIN)
+            .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
     protected void createBalanceLabel() {
@@ -1010,16 +911,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float LABEL_WIDTH = 280f;
         final float LABEL_HEIGHT = 20f;
         
-        float x = SHIP_COLUMN_WIDTH + MARGIN;
-        float y = MARGIN + 18f;
+        final float x = SHIP_COLUMN_WIDTH + MARGIN;
+        final float y = MARGIN + 18f;
 
-        balancePanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = balancePanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        balanceLabel = tooltip.addPara("", Color.WHITE, 0f);
+        balanceLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         balanceLabel.setAlignment(Alignment.LMID);
-        balanceLabel.getPosition().inTL(0, 0);
-        balancePanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(balancePanel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) balanceLabel).inTL(x, y)
+            .setSize(LABEL_WIDTH, LABEL_HEIGHT);
         
         updateBalanceLabel();
     }
@@ -1030,17 +928,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float LABEL_WIDTH = 400f;
         final float LABEL_HEIGHT = 50f;
         
-        float x = (PANEL_WIDTH - LABEL_WIDTH) / 2f;
-        float y = bottomY - LABEL_HEIGHT - BUTTON_HEIGHT - BUTTON_SPACING * 2;
+        final float x = (PANEL_WIDTH - LABEL_WIDTH) / 2f;
+        final float y = bottomY - LABEL_HEIGHT - BUTTON_HEIGHT - BUTTON_SPACING * 2;
 
-        messagePanel = panel.createCustomPanel(LABEL_WIDTH, LABEL_HEIGHT, null);
-        TooltipMakerAPI tooltip = messagePanel.createUIElement(LABEL_WIDTH, LABEL_HEIGHT, false);
-        messageLabel = tooltip.addPara("", Color.WHITE, 0f);
+        messageLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         messageLabel.setAlignment(Alignment.MID);
-        messageLabel.getPosition().inMid();
-        messagePanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(messagePanel).inTL(x, y);
-        messagePanel.getPosition().inTL(-1000f, -1000f);
+        panel.addComponent((UIComponentAPI) messageLabel).inTL(x, y)
+            .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
     protected void updateBalanceLabel() {
@@ -1076,37 +970,32 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float RESULT_WIDTH = 200f;
         final float RESULT_HEIGHT = 50f;
         
-        float x = PANEL_WIDTH - RESULT_WIDTH - MARGIN;
-        float y = bottomY - RESULT_HEIGHT - BUTTON_SPACING;
+        final float x = PANEL_WIDTH - RESULT_WIDTH - MARGIN;
+        final float y = bottomY - RESULT_HEIGHT - BUTTON_SPACING;
         
-        resultPanel = panel.createCustomPanel(RESULT_WIDTH, RESULT_HEIGHT, null);
-        TooltipMakerAPI tooltip = resultPanel.createUIElement(RESULT_WIDTH, RESULT_HEIGHT, false);
-        resultLabel = tooltip.addPara("", Color.YELLOW, 0f);
+        resultLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        resultLabel.setColor(Color.YELLOW);
         resultLabel.setAlignment(Alignment.MID);
-        resultLabel.getPosition().inMid();
-        resultPanel.addUIElement(tooltip).inTL(0, 0);
-        panel.addComponent(resultPanel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) resultLabel).inTL(x, y)
+            .setSize(RESULT_WIDTH, RESULT_HEIGHT);
     }
     
     protected void createRewardBreakdownLabels() {
         if (panel == null) return;
         
-        float breakdownX = SHIP_COLUMN_WIDTH + MARGIN + CENTER_COLUMN_WIDTH - MARGIN;
-        float breakdownY = MARGIN + 40f;
-        float breakdownW = PANEL_WIDTH - breakdownX - MARGIN;
-        float lineHeight = 28f;
-        float spacing = 2f;
+        final float breakdownX = SHIP_COLUMN_WIDTH + MARGIN + CENTER_COLUMN_WIDTH - MARGIN;
+        final float breakdownY = MARGIN + 40f;
+        final float breakdownW = PANEL_WIDTH - breakdownX - MARGIN;
+        final float lineHeight = 28f;
+        final float spacing = 2f;
         
         for (int i = 0; i < MAX_REWARD_LINES; i++) {
-            float y = breakdownY + i * (lineHeight + spacing);
+            final float y = breakdownY + i * (lineHeight + spacing);
             
-            rewardBreakdownPanels[i] = panel.createCustomPanel(breakdownW, lineHeight, null);
-            TooltipMakerAPI tooltip = rewardBreakdownPanels[i].createUIElement(breakdownW, lineHeight, false);
-            rewardBreakdownLabels[i] = tooltip.addPara("", Color.WHITE, 0f);
+            rewardBreakdownLabels[i] = settings.createLabel("", Fonts.DEFAULT_SMALL);
             rewardBreakdownLabels[i].setAlignment(Alignment.LMID);
-            rewardBreakdownLabels[i].getPosition().inTL(0, 0);
-            rewardBreakdownPanels[i].addUIElement(tooltip).inTL(0, 0);
-            panel.addComponent(rewardBreakdownPanels[i]).inTL(breakdownX, y);
+            panel.addComponent((UIComponentAPI) rewardBreakdownLabels[i]).inTL(breakdownX, y)
+                .setSize(breakdownW, lineHeight);
         }
     }
     
@@ -1118,46 +1007,48 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         final float HP_WIDTH = SHIP_COLUMN_WIDTH - MARGIN * 2 - 5f;
         final float HP_HEIGHT = 11f;
         final float ODDS_WIDTH = (SHIP_COLUMN_WIDTH - MARGIN * 2) * 2;
-        final float ODDS_HEIGHT = 30f; // Increased from 13f to accommodate wrapped text
+        final float ODDS_HEIGHT = 30f;
         
-        float startY = MARGIN + 10f;
-        float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
+        final float startY = MARGIN + 10f;
+        final float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
         
         for (int i = 0; i < combatants.size() && i < 5; i++) {
-            SpiralAbyssArena.SpiralGladiator ship = combatants.get(i);
-            float shipY = startY + i * totalItemHeight;
+            final SpiralGladiator ship = combatants.get(i);
+            final float shipY = startY + i * totalItemHeight;
 
-            shipNamePanels[i] = panel.createCustomPanel(NAME_WIDTH, NAME_HEIGHT, null);
-            TooltipMakerAPI nameTooltip = shipNamePanels[i].createUIElement(NAME_WIDTH, NAME_HEIGHT, false);
-            String fullName = ship.prefix + " " + ship.hullName + " " + ship.affix;
-            shipNameLabels[i] = nameTooltip.addPara(fullName, Color.WHITE, 0f);
-            shipNameLabels[i].setAlignment(Alignment.LMID);
-            shipNameLabels[i].getPosition().inTL(0, 0);
-            shipNamePanels[i].addUIElement(nameTooltip).inTL(0, 0);
-            panel.addComponent(shipNamePanels[i]).inTL(MARGIN, shipY + BOX_HEIGHT + 2f);
+            final String fullName = ship.prefix + " " + ship.hullName + " " + ship.affix;
+            final LabelAPI nameLbl = settings.createLabel(fullName, Fonts.DEFAULT_SMALL);
+            shipNameLabels[i] = nameLbl;
+            nameLbl.setColor(Color.WHITE);
+            nameLbl.setAlignment(Alignment.LMID);
+            nameLbl.getPosition().setSize(NAME_WIDTH, NAME_HEIGHT).inTL(0f, 0f);
+            panel.addComponent((UIComponentAPI) nameLbl).inTL(MARGIN, shipY + BOX_HEIGHT + 2f);
             applyShipNameHighlighting(shipNameLabels[i], ship);
 
-            shipHpPanels[i] = panel.createCustomPanel(HP_WIDTH, HP_HEIGHT, null);
-            TooltipMakerAPI hpTooltip = shipHpPanels[i].createUIElement(HP_WIDTH, HP_HEIGHT, false);
-            shipHpLabels[i] = hpTooltip.addPara(ship.hp + "/" + ship.maxHp + " HP", COLOR_HEALTHY, 0f);
-            shipHpLabels[i].setAlignment(Alignment.LMID);
-            shipHpLabels[i].getPosition().inTL(0, 0);
-            shipHpPanels[i].addUIElement(hpTooltip).inTL(0, 0);
-            panel.addComponent(shipHpPanels[i]).inTL(MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + 4f);
+            final LabelAPI hpLbl = settings.createLabel(
+                ship.hp + "/" + ship.maxHp + " HP", Fonts.DEFAULT_SMALL
+            );
+            shipHpLabels[i] = hpLbl;
+            hpLbl.setColor(COLOR_HEALTHY);
+            hpLbl.setAlignment(Alignment.LMID);
+            hpLbl.getPosition().setSize(HP_WIDTH, HP_HEIGHT).inTL(0, 0);
+            panel.addComponent((UIComponentAPI) hpLbl).inTL(MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + 4f);
             
-            float displayOdds = oddsCached && i < cachedOdds.length ? cachedOdds[i] : ship.getCurrentOdds(currentRound);
-            shipOddsPanels[i] = panel.createCustomPanel(ODDS_WIDTH, ODDS_HEIGHT, null);
-            TooltipMakerAPI oddsTooltip = shipOddsPanels[i].createUIElement(ODDS_WIDTH, ODDS_HEIGHT, false);
-            oddsTooltip.setTextWidthOverride(ODDS_WIDTH - 10f); // Enable text wrapping within panel width
-            shipOddsLabels[i] = oddsTooltip.addPara(String.format("Odds: %.2fx", displayOdds), Color.YELLOW, 0f);
-            shipOddsLabels[i].setAlignment(Alignment.LMID);
-            shipOddsLabels[i].getPosition().inTL(0, 0);
-            shipOddsPanels[i].addUIElement(oddsTooltip).inTL(0, 0);
-            panel.addComponent(shipOddsPanels[i]).inTL(MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + HP_HEIGHT + 6f);
+            final float displayOdds = oddsCached && i < cachedOdds.length ? 
+                cachedOdds[i] : ship.getCurrentOdds(currentRound);
+            final LabelAPI oddsLbl = settings.createLabel(
+                String.format("Odds: %.2fx", displayOdds), Fonts.DEFAULT_SMALL
+            );
+            shipOddsLabels[i] = oddsLbl;
+            oddsLbl.setColor(Color.YELLOW);
+            oddsLbl.setAlignment(Alignment.LMID);
+            oddsLbl.getPosition().setSize(ODDS_WIDTH - 10f, ODDS_HEIGHT).inTL(0f, 0f);
+            panel.addComponent((UIComponentAPI) oddsLbl).inTL(
+                MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + HP_HEIGHT + 6f
+            );
         }
-        
-        buttonsCreated = true;
     }
+
     
     public void renderBelow(float alphaMult) {
         float x, y, w, h;
@@ -1218,7 +1109,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
         
         for (int i = 0; i < combatants.size(); i++) {
-            SpiralAbyssArena.SpiralGladiator ship = combatants.get(i);
+            SpiralGladiator ship = combatants.get(i);
             float shipY = startY + i * totalItemHeight;
             float shipX = MARGIN;
             
@@ -1351,13 +1242,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex < 0) {
                 newInstructionText = "Select a champion to add bet on:";
             } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex >= 0) {
-                SpiralAbyssArena.SpiralGladiator selected = combatants.get(selectedChampionIndex);
+                SpiralGladiator selected = combatants.get(selectedChampionIndex);
                 newInstructionText = "Adding bet on: " + selected.hullName + " - Select amount:";
             } else if (currentRound > 0) {
                 newInstructionText = null;
                 hideInstruction = true;
             } else if (showingBetAmounts && selectedChampionIndex >= 0) {
-                SpiralAbyssArena.SpiralGladiator selected = combatants.get(selectedChampionIndex);
+                SpiralGladiator selected = combatants.get(selectedChampionIndex);
                 newInstructionText = "Betting on: " + selected.hullName + " - Select amount:";
             } else {
                 newInstructionText = "Select a champion to bet on:";
@@ -1372,25 +1263,17 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         if (combatants != null) {
             for (int i = 0; i < combatants.size() && i < 5; i++) {
-                SpiralAbyssArena.SpiralGladiator ship = combatants.get(i);
+                SpiralGladiator ship = combatants.get(i);
                 
-                // Calculate positions
-                final float NAME_HEIGHT = 16f;
-                final float HP_HEIGHT = 11f;
-                final float ODDS_HEIGHT = 30f;
-                float startY = MARGIN + 10f;
-                float totalItemHeight = BOX_HEIGHT + BOX_SPACING + NAME_HEIGHT + HP_HEIGHT + ODDS_HEIGHT + ENTRY_SPACING;
-                float shipY = startY + i * totalItemHeight;
-                
-                // Show panels if they were hidden
-                if (shipNamePanels[i] != null) {
-                    shipNamePanels[i].getPosition().inTL(MARGIN, shipY + BOX_HEIGHT + 2f);
+                // Show labels
+                if (shipNameLabels[i] != null) {
+                    shipNameLabels[i].setOpacity(1f);
                 }
-                if (shipHpPanels[i] != null) {
-                    shipHpPanels[i].getPosition().inTL(MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + 4f);
+                if (shipHpLabels[i] != null) {
+                    shipHpLabels[i].setOpacity(1f);
                 }
-                if (shipOddsPanels[i] != null) {
-                    shipOddsPanels[i].getPosition().inTL(MARGIN + 5f, shipY + BOX_HEIGHT + NAME_HEIGHT + HP_HEIGHT + 6f);
+                if (shipOddsLabels[i] != null) {
+                    shipOddsLabels[i].setOpacity(1f);
                 }
                 
                 // Update ship name if ship changed
@@ -1477,14 +1360,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             
             // Hide labels for ships that no longer exist (e.g., fewer ships in new match)
             for (int i = combatants.size(); i < 5; i++) {
-                if (shipNamePanels[i] != null) {
-                    shipNamePanels[i].getPosition().inTL(-1000f, -1000f);
+                if (shipNameLabels[i] != null) {
+                    shipNameLabels[i].setOpacity(0f);
                 }
-                if (shipHpPanels[i] != null) {
-                    shipHpPanels[i].getPosition().inTL(-1000f, -1000f);
+                if (shipHpLabels[i] != null) {
+                    shipHpLabels[i].setOpacity(0f);
                 }
-                if (shipOddsPanels[i] != null) {
-                    shipOddsPanels[i].getPosition().inTL(-1000f, -1000f);
+                if (shipOddsLabels[i] != null) {
+                    shipOddsLabels[i].setOpacity(0f);
                 }
             }
             
@@ -1499,7 +1382,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
                 resultLabel.setText("");
             } else {
                 if (winnerIndex >= 0 && winnerIndex < Objects.requireNonNull(combatants).size()) {
-                    SpiralAbyssArena.SpiralGladiator winner = combatants.get(winnerIndex);
+                    SpiralGladiator winner = combatants.get(winnerIndex);
                     resultLabel.setText("WINNER: " + winner.hullName + "!\nReward: " + totalReward + " Stargems");
                     resultLabel.setColor(Color.GREEN);
                 } else {
@@ -1523,25 +1406,18 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         if (rewardBreakdownLabels[0] == null) return;
         
-        Color headerColor = new Color(100, 200, 255);
-        Color winColor = new Color(50, 255, 50);
-        Color consolationColor = new Color(255, 200, 50);
-        Color netPositiveColor = new Color(50, 255, 100);
-        Color netNegativeColor = new Color(255, 100, 50);
-        Color killColor = new Color(255, 150, 50);
-        
         int lineIndex = 0;
         
         if (winnerIndex >= 0 && winnerIndex < combatants.size() && lineIndex < MAX_REWARD_LINES) {
-            SpiralAbyssArena.SpiralGladiator winner = combatants.get(winnerIndex);
+            SpiralGladiator winner = combatants.get(winnerIndex);
             rewardBreakdownLabels[lineIndex].setText("WINNER: " + winner.hullName + "!");
-            rewardBreakdownLabels[lineIndex].setColor(winColor);
+            rewardBreakdownLabels[lineIndex].setColor(PREFIX_POSITIVE_COLOR);
             lineIndex++;
         }
         
         if (lineIndex < MAX_REWARD_LINES) {
             rewardBreakdownLabels[lineIndex].setText("--- Reward Breakdown ---");
-            rewardBreakdownLabels[lineIndex].setColor(headerColor);
+            rewardBreakdownLabels[lineIndex].setColor(BATTLE_EVENT_COLOR);
             lineIndex++;
         }
         
@@ -1553,13 +1429,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         if (rewardBreakdown.winReward > 0 && lineIndex < MAX_REWARD_LINES) {
             rewardBreakdownLabels[lineIndex].setText("Win Reward: +" + rewardBreakdown.winReward + " SG");
-            rewardBreakdownLabels[lineIndex].setColor(winColor);
+            rewardBreakdownLabels[lineIndex].setColor(PREFIX_POSITIVE_COLOR);
             lineIndex++;
         }
         
         if (rewardBreakdown.consolationReward > 0 && lineIndex < MAX_REWARD_LINES) {
             rewardBreakdownLabels[lineIndex].setText("Consolation: +" + rewardBreakdown.consolationReward + " SG");
-            rewardBreakdownLabels[lineIndex].setColor(consolationColor);
+            rewardBreakdownLabels[lineIndex].setColor(BATTLE_EVENT_HIT_COLOR);
             lineIndex++;
         }
         
@@ -1571,7 +1447,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         if (totalKills > 0 && lineIndex < MAX_REWARD_LINES) {
             float killBonusPct = totalKills * CasinoConfig.ARENA_KILL_BONUS_PER_KILL * 100;
             rewardBreakdownLabels[lineIndex].setText("Kill Bonus: " + totalKills + " kills (+" + (int)killBonusPct + "%)");
-            rewardBreakdownLabels[lineIndex].setColor(killColor);
+            rewardBreakdownLabels[lineIndex].setColor(KILL_COLOR);
             lineIndex++;
         }
         
@@ -1579,7 +1455,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             if (shipInfo.betAmount <= 0) continue;
             if (lineIndex >= MAX_REWARD_LINES) break;
 
-            Color statusColor = shipInfo.isWinner ? winColor : Color.RED;
+            Color statusColor = shipInfo.isWinner ? PREFIX_POSITIVE_COLOR : Color.RED;
             String posStr = getPositionString(shipInfo.finalPosition);
             float killBonusPct = shipInfo.kills * CasinoConfig.ARENA_KILL_BONUS_PER_KILL * 100;
             
@@ -1591,7 +1467,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
             
             if (shipInfo.reward > 0 && lineIndex < MAX_REWARD_LINES) {
                 String rewardLine = String.format("  -> Reward: +%d SG", shipInfo.reward);
-                Color rewardColor = shipInfo.isWinner ? winColor : consolationColor;
+                Color rewardColor = shipInfo.isWinner ? PREFIX_POSITIVE_COLOR : BATTLE_EVENT_HIT_COLOR;
                 rewardBreakdownLabels[lineIndex].setText(rewardLine);
                 rewardBreakdownLabels[lineIndex].setColor(rewardColor);
                 lineIndex++;
@@ -1600,7 +1476,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         
         if (lineIndex < MAX_REWARD_LINES) {
             int net = rewardBreakdown.netResult;
-            Color netColor = net >= 0 ? netPositiveColor : netNegativeColor;
+            Color netColor = net >= 0 ? NET_POSITIVE_COLOR : NET_NEGATIVE_COLOR;
             String netStr = net >= 0 ? "+" + net : String.valueOf(net);
             rewardBreakdownLabels[lineIndex].setText("NET: " + netStr + " SG");
             rewardBreakdownLabels[lineIndex].setColor(netColor);
@@ -1610,7 +1486,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
     protected void updateHullIdDeadStatus() {
         hullIdDeadStatus.clear();
         if (combatants != null) {
-            for (SpiralAbyssArena.SpiralGladiator g : combatants) {
+            for (SpiralGladiator g : combatants) {
                 hullIdDeadStatus.put(g.hullId, g.isDead);
             }
         }
@@ -1633,13 +1509,13 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin {
         }
     }
     
-    protected List<ParsedLogEntry> getFilteredEntries() {
+protected List<ParsedLogEntry> getFilteredEntries() {
         updateHullIdDeadStatus();
         updateCachedParsedEntries();
         
-List<ParsedLogEntry> filtered = new ArrayList<>();
+        final List<ParsedLogEntry> filtered = new ArrayList<>();
         for (ParsedLogEntry entry : cachedParsedEntries) {
-            if (entry.shouldSkipDeadAttacker()) {
+            if (entry.shouldSkipDeadAttacker(hullIdDeadStatus)) {
                 continue;
             }
             if (entry.type.equals("STATUS") || entry.type.isEmpty()) {
@@ -1682,78 +1558,77 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
             Color labelColor = Color.WHITE;
             float textX = textStartX_twoSprites;
 
-            switch (entry.type)
-            {
-                case "HIT" ->
-                {
+            switch (entry.type) {
+                case "HIT" -> {
                     labelText = shortenDamageText(entry.rawEntry);
-                    labelColor = entry.isCrit ? new Color(255, 100, 100) : new Color(255, 255, 100);
+                    labelColor = entry.isCrit ? BATTLE_HIT_COLOR_CRIT : BATTLE_HIT_COLOR;
+                    textX = textStartX_twoSprites;
 
                     drawBattleLogSpriteWithDead(entry.attackerHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                     drawBattleLogSpriteWithDead(entry.targetHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 }
-                case "MISS" ->
-                {
+                case "MISS" -> {
                     labelText = shortenDamageText(entry.rawEntry);
-                    labelColor = new Color(150, 150, 150);
+                    labelColor = BATTLE_MISS_COLOR;
+                    textX = textStartX_twoSprites;
 
                     drawBattleLogSpriteWithDead(entry.targetHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                     drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 }
-                case "KILL" ->
-                {
+                case "KILL" -> {
                     String killText = entry.rawEntry;
-                    if (killText.startsWith("[KILL] "))
-                    {
+                    if (killText.startsWith("[KILL] ")) {
                         killText = killText.substring(7);
                     }
                     labelText = shortenDamageText(killText);
-                    labelColor = new Color(255, 50, 50);
+                    labelColor = PREFIX_NEGATIVE_COLOR;
+                    textX = textStartX_twoSprites;
 
                     drawBattleLogSpriteWithDead(entry.attackerHullId, leftSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                     drawBattleLogSpriteWithDead(entry.targetHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, true);
                 }
-                case "EVENT" ->
-                {
+                case "EVENT" -> {
                     String eventText = entry.rawEntry;
                     labelText = shortenDamageText(eventText);
-                    labelColor = new Color(100, 200, 255);
+                    labelColor = BATTLE_EVENT_COLOR;
                     textX = textStartX_oneSprite;
 
                     drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 }
-                case "EVENT_HIT" ->
-                {
+                case "EVENT_HIT" -> {
                     String hitText = entry.rawEntry;
-                    if (hitText.startsWith("[HIT] "))
-                    {
+                    if (hitText.startsWith("[HIT] ")) {
                         hitText = hitText.substring(6);
                     }
                     labelText = shortenDamageText(hitText);
-                    labelColor = new Color(255, 200, 50);
+                    labelColor = BATTLE_EVENT_HIT_COLOR;
                     textX = textStartX_oneSprite;
 
                     drawBattleLogSpriteWithDead(entry.attackerHullId, rightSpriteX, spriteCenterY, LOG_SPRITE_SIZE, alphaMult, false);
                 }
-                case "ROUND" ->
-                {
+                case "ROUND" -> {
                     String roundText = entry.rawEntry;
-                    if (roundText.startsWith("[ROUND] "))
-                    {
+                    if (roundText.startsWith("[ROUND] ")) {
                         roundText = roundText.substring(8);
                     }
                     labelText = "-------- " + roundText + " --------";
-                    labelColor = new Color(180, 180, 200);
+                    labelColor = BATTLE_ROUND_COLOR;
                     textX = textStartX_oneSprite;
+                }
+                default -> {
+                    labelText = "";
+                    labelColor = Color.WHITE;
+                    textX = textStartX_twoSprites;
                 }
             }
 
             if (battleLogTextLabels[lineIndex] != null && !labelText.isEmpty()) {
                 battleLogTextLabels[lineIndex].setText(labelText);
                 battleLogTextLabels[lineIndex].setColor(labelColor);
+                battleLogTextLabels[lineIndex].setOpacity(1f);
                 
-                float textY = logPanelY + currentY + (LOG_LINE_HEIGHT - 14f) / 2f;
-                battleLogTextPanels[lineIndex].getPosition().inTL(textX, textY);
+                final float textY = logPanelY + currentY + (LOG_LINE_HEIGHT - 14f) / 2f;
+                battleLogTextLabels[lineIndex].getPosition().inTL(textX, textY);
             }
 
             currentY += LOG_LINE_HEIGHT + rowSpacing;
@@ -1761,27 +1636,24 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         }
 
         for (int j = lineIndex; j < 12; j++) {
-            battleLogTextPanels[j].getPosition().inTL(-1000f, -1000f);
             if (battleLogTextLabels[j] != null) {
-                battleLogTextLabels[j].setText("");
+                battleLogTextLabels[j].setOpacity(0f);
             }
         }
     }
     
     protected void drawBattleLogSpriteWithDead(String hullId, float cx, float cy, float maxSize, float alphaMult, boolean dead) {
-        SpriteAPI sprite = getShipSprite(hullId);
+        final SpriteAPI sprite = getShipSprite(hullId);
         if (sprite != null) {
-            float spriteWidth = sprite.getWidth();
-            float spriteHeight = sprite.getHeight();
-            float maxDim = Math.max(spriteWidth, spriteHeight);
-            float scale = maxSize / maxDim;
-            float scaledWidth = spriteWidth * scale;
-            float scaledHeight = spriteHeight * scale;
+            final float spriteWidth = sprite.getWidth();
+            final float spriteHeight = sprite.getHeight();
+            final float maxDim = Math.max(spriteWidth, spriteHeight);
+            final float scale = maxSize / maxDim;
             
-            sprite.setSize(scaledWidth, scaledHeight);
+            sprite.setSize(spriteWidth * scale, spriteHeight * scale);
             
             if (dead) {
-                sprite.setColor(new Color(100, 30, 30));
+                sprite.setColor(COLOR_DESTROYED);
                 sprite.setAlphaMult(alphaMult * 0.5f);
             } else {
                 sprite.setColor(Color.WHITE);
@@ -1791,7 +1663,7 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
             sprite.renderAtCenter(cx, cy);
             
             if (dead) {
-                float halfSize = maxSize / 2f - 4f;
+                final float halfSize = maxSize / 2f - 4f;
                 GL11.glDisable(GL11.GL_TEXTURE_2D);
                 GL11.glColor4f(1f, 0f, 0f, alphaMult * 0.8f);
                 GL11.glLineWidth(2f);
@@ -1811,12 +1683,122 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         return text.replace("CRIT damage", "CRIT dmg").replace("damage", "dmg");
     }
 
+    @Override
+    public void actionPerformed(Object input, Object source) {
+        Object data = null;
+        if (source instanceof ButtonAPI btn) {
+            data = btn.getCustomData();
+        }
+        processAction(data);
+        updateButtonVisibility();
+    }
+    
+    protected void processAction(Object data) {
+        if (data == null) return;
+        
+        if (ARENA_LEAVE_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onLeave();
+            return;
+        }
+        
+        if (ARENA_BET_CANCEL.equals(data)) {
+            showingBetAmounts = false;
+            selectedChampionIndex = -1;
+            addingBetDuringBattle = false;
+            return;
+        }
+        
+        if (NEXT_ROUND_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onWatchNextRound();
+            return;
+        }
+        
+        if (NEXT_GAME_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onNextGame();
+            return;
+        }
+        
+        if (ARENA_SKIP_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onSkipToEnd();
+            return;
+        }
+        
+        if (ARENA_ADD_BET_DATA.equals(data)) {
+            addingBetDuringBattle = true;
+            showingBetAmounts = true;
+            selectedChampionIndex = -1;
+            return;
+        }
+        
+        if (ARENA_SUSPEND_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onSuspend();
+            return;
+        }
+        
+        if (ARENA_START_BATTLE_DATA.equals(data)) {
+            if (actionCallback != null) actionCallback.onStartBattle();
+            return;
+        }
+        
+        if ("arena_confirm_overdraft".equals(data)) {
+            if (showingOverdraftConfirmation && actionCallback != null) {
+                actionCallback.onConfirmBet(pendingChampionIndex, pendingBetAmount);
+            }
+            clearOverdraftConfirmation();
+            return;
+        }
+        
+        if ("arena_cancel_overdraft".equals(data)) {
+            clearOverdraftConfirmation();
+            return;
+        }
+        
+        if ("arena_dismiss_error".equals(data)) {
+            clearErrorMessage();
+            return;
+        }
+
+        if (data instanceof String strData) {
+            if (strData.contains(ARENA_SELECT_DATA)) {
+                final int idx = Integer.parseInt(strData.replaceAll(".*?(\\d+)$", "$1"));
+
+                if (idx == -1) {
+                    addingBetDuringBattle = false;
+                    showingBetAmounts = false;
+                    selectedChampionIndex = -1;
+                } else {
+                    selectedChampionIndex = idx;
+                    showingBetAmounts = true;
+
+                    if (currentRound == 0 && actionCallback != null) {
+                        actionCallback.onSelectChampion(idx);
+                    }
+                }
+                return;
+            }
+
+            if (strData.contains(ARENA_BET_DATA)) {
+                int amount;
+                try {
+                    amount = Integer.parseInt(strData.replaceAll(".*?(\\d+)$", "$1"));
+                } catch (Exception e) {
+                    amount = 0;
+                }
+
+                if (selectedChampionIndex >= 0) {
+                    handleBetAmountClick(selectedChampionIndex, amount);
+                }
+                return;
+            }
+        }
+    }
+
     public void processInput(List<InputEventAPI> events) {
         for (InputEventAPI event : events) {
             if (event.isConsumed()) continue;
             
             if (event.isKeyDownEvent()) {
-                int key = event.getEventValue();
+                final int key = event.getEventValue();
                 
                 if (key == Keyboard.KEY_ESCAPE) {
                     event.consume();
@@ -1833,151 +1815,6 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
                     return;
                 }
             }
-        }
-        
-        checkButtonClicks();
-    }
-    
-    protected void checkButtonClicks() {
-        if (leaveButton != null && leaveButton.isChecked()) {
-            leaveButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onLeave();
-            }
-            return;
-        }
-        
-        if (currentRound > 0 && addingBetDuringBattle && showingBetAmounts) {
-            for (ButtonAPI btn : championSelectButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer idx = (Integer) btn.getCustomData();
-                    if (idx != null) {
-                        if (idx == -1) {
-                            addingBetDuringBattle = false;
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
-                        } else {
-                            selectedChampionIndex = idx;
-                            showingBetAmounts = true;
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (!showingBetAmounts && selectedChampionIndex < 0 && currentRound == 0) {
-            for (ButtonAPI btn : championSelectButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer idx = (Integer) btn.getCustomData();
-                    if (idx != null) {
-                        selectedChampionIndex = idx;
-                        showingBetAmounts = true;
-                        if (actionCallback != null) {
-                            actionCallback.onSelectChampion(idx);
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (selectedChampionIndex >= 0) {
-            for (ButtonAPI btn : betAmountButtons) {
-                if (btn.isChecked()) {
-                    btn.setChecked(false);
-                    Integer amount = (Integer) btn.getCustomData();
-                    if (amount != null) {
-                        if (amount == -1) {
-                            showingBetAmounts = false;
-                            selectedChampionIndex = -1;
-                            addingBetDuringBattle = false;
-                        } else {
-                            handleBetAmountClick(selectedChampionIndex, amount);
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-        
-        if (watchNextButton != null && watchNextButton.isChecked()) {
-            watchNextButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onWatchNextRound();
-            }
-            return;
-        }
-        
-        if (nextGameButton != null && nextGameButton.isChecked()) {
-            nextGameButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onNextGame();
-            }
-            return;
-        }
-        
-        if (skipToEndButton != null && skipToEndButton.isChecked()) {
-            skipToEndButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onSkipToEnd();
-            }
-            return;
-        }
-        
-        if (addBetButton != null && addBetButton.isChecked()) {
-            addBetButton.setChecked(false);
-            addingBetDuringBattle = true;
-            showingBetAmounts = true;
-            selectedChampionIndex = -1;
-            return;
-        }
-        
-        if (suspendButton != null && suspendButton.isChecked()) {
-            suspendButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onSuspend();
-            }
-            return;
-        }
-        
-        if (returnToLobbyButton != null && returnToLobbyButton.isChecked()) {
-            returnToLobbyButton.setChecked(false);
-            readyToClose = true;
-            if (actionCallback != null) {
-                actionCallback.onReturnToLobby();
-            }
-            return;
-        }
-        
-        if (startBattleButton != null && startBattleButton.isChecked()) {
-            startBattleButton.setChecked(false);
-            if (actionCallback != null) {
-                actionCallback.onStartBattle();
-            }
-        }
-        
-        if (confirmOverdraftButton != null && confirmOverdraftButton.isChecked()) {
-            confirmOverdraftButton.setChecked(false);
-            if (showingOverdraftConfirmation && actionCallback != null) {
-                actionCallback.onConfirmBet(pendingChampionIndex, pendingBetAmount);
-            }
-            clearOverdraftConfirmation();
-            return;
-        }
-        
-        if (cancelOverdraftButton != null && cancelOverdraftButton.isChecked()) {
-            cancelOverdraftButton.setChecked(false);
-            clearOverdraftConfirmation();
-            return;
-        }
-        
-        if (dismissErrorButton != null && dismissErrorButton.isChecked()) {
-            dismissErrorButton.setChecked(false);
-            clearErrorMessage();
-            return;
         }
     }
     
@@ -2044,14 +1881,14 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
         if (combatants == null) return;
         
         for (int i = 0; i < combatants.size() && i < 5; i++) {
-            SpiralAbyssArena.SpiralGladiator ship = combatants.get(i);
+            SpiralGladiator ship = combatants.get(i);
             cachedOdds[i] = ship.getCurrentOdds(currentRound);
         }
         oddsCached = true;
     }
     
     public void updateState(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
+            List<SpiralGladiator> combatants,
             int currentRound,
             int totalBet,
             List<BetInfo> bets,
@@ -2121,7 +1958,7 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
     }
     
     public void resetForNewMatch(
-            List<SpiralAbyssArena.SpiralGladiator> combatants,
+            List<SpiralGladiator> combatants,
             int currentRound,
             int totalBet,
             List<BetInfo> bets,
@@ -2174,12 +2011,14 @@ List<ParsedLogEntry> filtered = new ArrayList<>();
     }
     
     protected String getPositionString(int finalPosition) {
-        if (finalPosition == 0) return "1st";
-        if (finalPosition == 1) return "2nd";
-        if (finalPosition == 2) return "3rd";
-        if (finalPosition == 3) return "4th";
-        if (finalPosition == 4) return "5th";
-        return (finalPosition + 1) + "th";
+        return switch (finalPosition) {
+            case 0 -> "1st";
+            case 1 -> "2nd";
+            case 2 -> "3rd";
+            case 3 -> "4th";
+            case 4 -> "5th";
+            default -> (finalPosition + 1) + "th";
+        };
     }
     
     public boolean isReadyToClose() {
