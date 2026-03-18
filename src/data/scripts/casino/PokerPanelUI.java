@@ -265,6 +265,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin
     // ============================================================================
     protected ButtonAPI flipTableButton;
     protected ButtonAPI checkCallButton;
+    protected List<ButtonAPI> raiseOptionButtons = new ArrayList<>();
     protected List<CustomPanelAPI> raiseOptionPanels = new ArrayList<>();
     protected CustomPanelAPI flipTablePanel;
     protected CustomPanelAPI suspendPanel;
@@ -502,19 +503,18 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         checkCallPanel.setOpacity(0f);
         
         for (int i = 0; i < 5; i++) {
-            int amt = i * 100;
-            String btnId = POKER_RAISE_PREFIX + amt;
-            
             CustomPanelAPI raiseOptPanel = panel.createCustomPanel(RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, null);
             TooltipMakerAPI raiseOptTooltip = raiseOptPanel.createUIElement(RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, false);
             raiseOptTooltip.setActionListenerDelegate(this);
-            ButtonAPI btn = raiseOptTooltip.addButton(Strings.format("poker_panel.raise_btn", amt), btnId, RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+            ButtonAPI btn = raiseOptTooltip.addButton("", POKER_RAISE_PREFIX + "0", RAISE_BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
             btn.setQuickMode(true);
+            btn.setCustomData(POKER_RAISE_PREFIX + "0");
             btn.getPosition().inTL(0, 0);
             raiseOptPanel.addUIElement(raiseOptTooltip).inTL(0, 0);
             panel.addComponent(raiseOptPanel).inTL(0, 0);
             raiseOptPanel.setOpacity(0f);
             raiseOptionPanels.add(raiseOptPanel);
+            raiseOptionButtons.add(btn);
         }
         
         buttonsCreated = true;
@@ -531,6 +531,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
         flipTableButton.setText(flipTableLabel);
         
         int callAmount = state.opponentBet - state.playerBet;
+        boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind || state.opponentDeclaredAllIn;
+        boolean canRaise = state.playerStack > 0 && state.opponentStack > 0 && callAmount < state.playerStack && !opponentEffectivelyAllIn;
         boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER &&
                                state.round != PokerGame.Round.SHOWDOWN;
         
@@ -552,9 +554,71 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             checkCallPanel.setOpacity(0f);
         }
         
-        for (CustomPanelAPI pnl : raiseOptionPanels) {
-            pnl.setOpacity(0f);
+        if (canRaise && isPlayerTurn) {
+            float[] raiseAmounts = getRaiseOptions(state);
+            float raiseOptionsY = bottomY - BUTTON_HEIGHT - BUTTON_SPACING;
+            float totalRaiseWidth = RAISE_BUTTON_WIDTH * raiseAmounts.length + BUTTON_SPACING * (raiseAmounts.length - 1);
+            float raiseStartX = (PANEL_WIDTH - totalRaiseWidth) / 2f;
+            
+            for (int i = 0; i < raiseOptionPanels.size(); i++) {
+                if (i < raiseAmounts.length) {
+                    int amt = (int) raiseAmounts[i];
+                    String label = formatRaiseLabel(amt, state.bigBlind, state.pot, state.playerStack, state.opponentBet, state.playerBet);
+                    String btnId = POKER_RAISE_PREFIX + amt;
+                    float btnX = raiseStartX + (RAISE_BUTTON_WIDTH + BUTTON_SPACING) * i;
+                    
+                    raiseOptionButtons.get(i).setText(label);
+                    raiseOptionButtons.get(i).setCustomData(btnId);
+                    raiseOptionPanels.get(i).getPosition().inTL(btnX, raiseOptionsY);
+                    raiseOptionPanels.get(i).setOpacity(1f);
+                } else {
+                    raiseOptionPanels.get(i).setOpacity(0f);
+                }
+            }
+        } else {
+            for (CustomPanelAPI pnl : raiseOptionPanels) {
+                pnl.setOpacity(0f);
+            }
         }
+    }
+    
+    protected float[] getRaiseOptions(PokerGame.PokerState state) {
+        List<Float> options = new ArrayList<>();
+        int pot = state.pot;
+        int stack = state.playerStack;
+        int bb = state.bigBlind;
+        int opponentBet = state.opponentBet;
+        
+        int bbTotal = opponentBet + bb;
+        if (bbTotal <= state.playerBet + stack) options.add((float) bbTotal);
+        
+        int halfPot = pot / 2;
+        int halfPotTotal = opponentBet + halfPot;
+        if (halfPot >= bb && halfPotTotal <= state.playerBet + stack && !options.contains((float) halfPotTotal)) {
+            options.add((float) halfPotTotal);
+        }
+        
+        int potTotal = opponentBet + pot;
+        if (pot >= bb && potTotal <= state.playerBet + stack && !options.contains((float) potTotal)) {
+            options.add((float) potTotal);
+        }
+        
+        int twoPot = pot * 2;
+        int twoPotTotal = opponentBet + twoPot;
+        if (twoPot > pot && twoPotTotal <= state.playerBet + stack && !options.contains((float) twoPotTotal)) {
+            options.add((float) twoPotTotal);
+        }
+        
+        int allInTotal = state.playerBet + stack;
+        if (stack > 0 && !options.contains((float) allInTotal)) {
+            options.add((float) allInTotal);
+        }
+        
+        float[] result = new float[options.size()];
+        for (int i = 0; i < options.size(); i++) {
+            result[i] = options.get(i);
+        }
+        return result;
     }
 
     /**
@@ -600,16 +664,21 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
      */
     protected void createStackDisplays() {
         if (panel == null) return;
+        
+        final float STACK_LABEL_WIDTH = 450f;
+        final float STACK_LABEL_HEIGHT = 25f;
 
         opponentStackLabel = settings.createLabel(Strings.format("poker_panel.opponent_stack_bet", 0, 0), Fonts.DEFAULT_SMALL);
         opponentStackLabel.setColor(COLOR_OPPONENT);
         opponentStackLabel.setAlignment(Alignment.LMID);
-        panel.addComponent((UIComponentAPI) opponentStackLabel).inTL(MARGIN, 140f);
+        panel.addComponent((UIComponentAPI) opponentStackLabel).inTL(MARGIN, 140f)
+            .setSize(STACK_LABEL_WIDTH, STACK_LABEL_HEIGHT);
 
         playerStackLabel = settings.createLabel(Strings.format("poker_panel.player_stack_bet", 0, 0), Fonts.DEFAULT_SMALL);
         playerStackLabel.setColor(COLOR_PLAYER);
         playerStackLabel.setAlignment(Alignment.LMID);
-        panel.addComponent((UIComponentAPI) playerStackLabel).inTL(MARGIN, PANEL_HEIGHT - 150f);
+        panel.addComponent((UIComponentAPI) playerStackLabel).inTL(MARGIN, PANEL_HEIGHT - 150f)
+            .setSize(STACK_LABEL_WIDTH, STACK_LABEL_HEIGHT);
     }
     
     /**
@@ -646,13 +715,17 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createRoundLabel() {
         if (panel == null) return;
         
-        float x = (PANEL_WIDTH - 600f) / 2f;
+        final float ROUND_LABEL_WIDTH = 600f;
+        final float ROUND_LABEL_HEIGHT = 25f;
+        
+        float x = (PANEL_WIDTH - ROUND_LABEL_WIDTH) / 2f;
         float y = PANEL_HEIGHT * 0.40f;
         
         roundLabel = settings.createLabel(Strings.format("poker_panel.round_progress", Strings.get("poker_rounds.preflop"), 0, 50), Fonts.DEFAULT_SMALL);
         roundLabel.setColor(new Color(150, 200, 255));
         roundLabel.setAlignment(Alignment.MID);
-        panel.addComponent((UIComponentAPI) roundLabel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) roundLabel).inTL(x, y)
+            .setSize(ROUND_LABEL_WIDTH, ROUND_LABEL_HEIGHT);
     }
     
     /**
@@ -695,13 +768,17 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createWaitingLabel() {
         if (panel == null) return;
         
-        float x = (PANEL_WIDTH - 160f) / 2f;
+        final float WAITING_LABEL_WIDTH = 200f;
+        final float WAITING_LABEL_HEIGHT = 25f;
+        
+        float x = (PANEL_WIDTH - WAITING_LABEL_WIDTH) / 2f;
         float y = PANEL_HEIGHT * 0.68f;
         
         waitingLabel = settings.createLabel(Strings.get("poker_panel.opponent_thinking"), Fonts.DEFAULT_SMALL);
         waitingLabel.setColor(new Color(255, 200, 100));
         waitingLabel.setAlignment(Alignment.MID);
-        panel.addComponent((UIComponentAPI) waitingLabel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) waitingLabel).inTL(x, y)
+            .setSize(WAITING_LABEL_WIDTH, WAITING_LABEL_HEIGHT);
         waitingLabel.setOpacity(0f);
     }
     
@@ -720,10 +797,14 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createOpponentActionLabel() {
         if (panel == null) return;
         
+        final float ACTION_LABEL_WIDTH = 250f;
+        final float ACTION_LABEL_HEIGHT = 25f;
+        
         opponentActionLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         opponentActionLabel.setColor(COLOR_OPPONENT);
         opponentActionLabel.setAlignment(Alignment.LMID);
-        panel.addComponent((UIComponentAPI) opponentActionLabel).inTL(160, 200);
+        panel.addComponent((UIComponentAPI) opponentActionLabel).inTL(160, 200)
+            .setSize(ACTION_LABEL_WIDTH, ACTION_LABEL_HEIGHT);
         opponentActionLabel.setOpacity(0f);
     }
     
@@ -733,10 +814,14 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createPlayerActionLabel() {
         if (panel == null) return;
         
+        final float ACTION_LABEL_WIDTH = 250f;
+        final float ACTION_LABEL_HEIGHT = 25f;
+        
         playerActionLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         playerActionLabel.setColor(COLOR_PLAYER);
         playerActionLabel.setAlignment(Alignment.LMID);
-        panel.addComponent((UIComponentAPI) playerActionLabel).inTL(160, 480);
+        panel.addComponent((UIComponentAPI) playerActionLabel).inTL(160, 480)
+            .setSize(ACTION_LABEL_WIDTH, ACTION_LABEL_HEIGHT);
         playerActionLabel.setOpacity(0f);
     }
     
@@ -793,13 +878,17 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createReturnMessageLabel() {
         if (panel == null) return;
         
-        float x = (PANEL_WIDTH - 400f) / 2f;
+        final float RETURN_LABEL_WIDTH = 400f;
+        final float RETURN_LABEL_HEIGHT = 25f;
+        
+        float x = (PANEL_WIDTH - RETURN_LABEL_WIDTH) / 2f;
         float y = PANEL_HEIGHT * 0.3f;
         
         returnMessageLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         returnMessageLabel.setColor(new Color(200, 200, 100));
         returnMessageLabel.setAlignment(Alignment.MID);
-        panel.addComponent((UIComponentAPI) returnMessageLabel).inTL(x, y);
+        panel.addComponent((UIComponentAPI) returnMessageLabel).inTL(x, y)
+            .setSize(RETURN_LABEL_WIDTH, RETURN_LABEL_HEIGHT);
         returnMessageLabel.setOpacity(0f);
     }
     
@@ -820,6 +909,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createCardRankLabels() {
         if (panel == null) return;
         
+        final float CARD_RANK_WIDTH = 50f;
+        final float CARD_RANK_HEIGHT = 20f;
         Color yellowHighlight = new Color(1f, 0.85f, 0f);
         
         for (int i = 0; i < 2; i++) {
@@ -828,7 +919,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             playerCardRankLabels[i].setAlignment(Alignment.MID);
             playerCardRankLabels[i].setHighlightColor(yellowHighlight);
             playerCardRankLabels[i].setHighlight(0, 2);
-            panel.addComponent((UIComponentAPI) playerCardRankLabels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) playerCardRankLabels[i]).inTL(-1000, -1000)
+                .setSize(CARD_RANK_WIDTH, CARD_RANK_HEIGHT);
             playerCardRankLabels[i].setOpacity(0f);
         }
         
@@ -838,7 +930,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             opponentCardRankLabels[i].setAlignment(Alignment.MID);
             opponentCardRankLabels[i].setHighlightColor(yellowHighlight);
             opponentCardRankLabels[i].setHighlight(0, 2);
-            panel.addComponent((UIComponentAPI) opponentCardRankLabels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) opponentCardRankLabels[i]).inTL(-1000, -1000)
+                .setSize(CARD_RANK_WIDTH, CARD_RANK_HEIGHT);
             opponentCardRankLabels[i].setOpacity(0f);
         }
         
@@ -848,7 +941,8 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
             communityCardRankLabels[i].setAlignment(Alignment.MID);
             communityCardRankLabels[i].setHighlightColor(yellowHighlight);
             communityCardRankLabels[i].setHighlight(0, 2);
-            panel.addComponent((UIComponentAPI) communityCardRankLabels[i]).inTL(-1000, -1000);
+            panel.addComponent((UIComponentAPI) communityCardRankLabels[i]).inTL(-1000, -1000)
+                .setSize(CARD_RANK_WIDTH, CARD_RANK_HEIGHT);
             communityCardRankLabels[i].setOpacity(0f);
         }
     }
@@ -1000,10 +1094,14 @@ public PokerPanelUI(PokerGame game, PokerActionCallback callback) {
     protected void createResultLabel() {
         if (panel == null) return;
         
+        final float RESULT_LABEL_WIDTH = 450f;
+        final float RESULT_LABEL_HEIGHT = 25f;
+        
         resultLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         resultLabel.setColor(Color.WHITE);
         resultLabel.setAlignment(Alignment.MID);
-        panel.addComponent((UIComponentAPI) resultLabel).inTL(PANEL_WIDTH / 2f - 225f, PANEL_HEIGHT * 0.32f);
+        panel.addComponent((UIComponentAPI) resultLabel).inTL(PANEL_WIDTH / 2f - RESULT_LABEL_WIDTH / 2f, PANEL_HEIGHT * 0.32f)
+            .setSize(RESULT_LABEL_WIDTH, RESULT_LABEL_HEIGHT);
         resultLabel.setOpacity(0f);
     }
     

@@ -220,13 +220,17 @@ protected List<BetInfo> arenaBets = new ArrayList<>();
         handlers.put(OPTION_ARENA_ADD_ANOTHER_BET, option -> showAddAnotherBetMenu());
         handlers.put(OPTION_ARENA_STATUS, option -> showArenaVisualPanel());
         handlers.put(OPTION_ARENA_LEAVE_NOW, option -> {
-            // If leaving without a suspended game, clear any suspended memory and return bets
             if (!hasSuspendedArena()) {
                 clearSuspendedArenaMemory();
             }
             resetArenaState();
             main.showMenu();
         });
+        handlers.put("arena_resume_continue", option -> {
+            clearSuspendedArenaMemory();
+            showArenaVisualPanel();
+        });
+        handlers.put("arena_resume_wait", option -> main.showMenu());
         handlers.put(OPTION_ARENA_START_BATTLE, option -> {
             int chosenIdx = -1;
             for (int i = 0; i < arenaCombatants.size(); i++) {
@@ -1505,19 +1509,19 @@ private void performAddBetToChampion(int championIndex, int additionalAmount) {
     private void restoreSuspendedArena() {
         com.fs.starfarer.api.campaign.rules.MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
-        // Check if there's a suspended arena
-        String suspendedGameType = mem.getString(MEM_SUSPENDED_GAME_TYPE);
-        if (!"Arena".equals(suspendedGameType)) {
-            main.getTextPanel().addPara(Strings.get("arena_suspend.no_suspended"), Color.RED);
+        if (!mem.contains(MEM_ARENA_SUSPEND_TIME) || !mem.contains(MEM_ARENA_COMBATANT_COUNT)) {
+            clearSuspendedArenaMemory();
+            main.getTextPanel().addPara("The suspended arena data has been corrupted. Starting a new match.", Color.RED);
             showArenaLobby();
             return;
         }
 
-        // Restore basic arena state
+        long suspendTime = mem.getLong(MEM_ARENA_SUSPEND_TIME);
+        float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
+
         currentRound = mem.getInt(MEM_ARENA_CURRENT_ROUND);
         opponentsDefeated = mem.getInt(MEM_ARENA_OPPONENTS_DEFEATED);
 
-        // Restore combatants
         int combatantCount = mem.getInt(MEM_ARENA_COMBATANT_COUNT);
         if (combatantCount > 0) {
             arenaCombatants = new ArrayList<>();
@@ -1525,7 +1529,7 @@ private void performAddBetToChampion(int championIndex, int additionalAmount) {
                 String prefix = mem.getString(MEM_ARENA_COMBATANT_PREFIX + i + "_prefix");
                 String hullId = mem.getString(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_id");
                 if (hullId == null) {
-                    hullId = "";  // Fallback for older saves
+                    hullId = "";
                 }
                 String hullName = mem.getString(MEM_ARENA_COMBATANT_PREFIX + i + "_hull_name");
                 String affix = mem.getString(MEM_ARENA_COMBATANT_PREFIX + i + "_affix");
@@ -1562,24 +1566,15 @@ private void performAddBetToChampion(int championIndex, int additionalAmount) {
             }
         }
         
-        // Restore chosen champion
         if (!arenaBets.isEmpty()) {
             chosenChampion = arenaBets.get(0).ship;
         }
         
-        // Initialize activeArena if null (needed for proper state tracking)
         if (activeArena == null) {
             activeArena = new SpiralAbyssArena();
         }
-        
-        // Calculate how long player was away for the shaming message
-        long suspendTime = mem.getLong(MEM_ARENA_SUSPEND_TIME);
-        float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
-        
-        // Clear the suspended game data after restoring
-        clearSuspendedArenaMemory();
-        
-if (daysAway >= 30) {
+
+        if (daysAway >= 30) {
             main.getTextPanel().addPara(Strings.format("arena_suspend.return_30_days", String.format("%.1f", daysAway)), Color.YELLOW);
         } else if (daysAway >= 7) {
             main.getTextPanel().addPara(Strings.format("arena_suspend.return_7_days", String.format("%.1f", daysAway)), Color.YELLOW);
@@ -1590,8 +1585,9 @@ if (daysAway >= 30) {
         }
         main.getTextPanel().addPara(Strings.get("arena_suspend.crowd_stirs"), Color.CYAN);
         
-        // Show the battle status using visual panel
-        showArenaVisualPanel();
+        main.getOptions().clearOptions();
+        main.getOptions().addOption(Strings.get("arena_resume.continue"), "arena_resume_continue");
+        main.getOptions().addOption(Strings.get("arena_resume.wait"), "arena_resume_wait");
     }
 
     /**

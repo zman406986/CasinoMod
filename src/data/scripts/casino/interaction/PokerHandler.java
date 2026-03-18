@@ -67,6 +67,11 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
         handlers.put("poker_abandon_confirm", option -> showAbandonConfirm());
         handlers.put("poker_abandon_confirm_leave", option -> handleLeaveTable());
         handlers.put("poker_abandon_cancel", option -> showPokerVisualPanel());
+        handlers.put("poker_resume_continue", option -> {
+            clearSuspendedGameMemory();
+            showPokerVisualPanel();
+        });
+        handlers.put("poker_resume_wait", option -> main.showMenu());
         handlers.put("suspend_abandon_confirm", option -> showSuspendAbandonConfirm());
         handlers.put("suspend_abandon_leave", option -> abandonSuspendedGame());
         handlers.put("suspend_abandon_cancel", option -> {
@@ -120,17 +125,14 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
     public void showPokerConfirm() {
         main.options.clearOptions();
 
-        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        
-        if (mem.contains("$ipc_suspended_game_type")) {
-            String gameType = mem.getString("$ipc_suspended_game_type");
-            if ("Poker".equals(gameType)) {
-                main.setState(CasinoInteraction.State.POKER);
-                main.textPanel.addPara(Strings.get("poker.resuming"), Color.YELLOW);
-                restoreSuspendedGame();
-                return;
-            }
+        if (hasSuspendedPoker()) {
+            main.setState(CasinoInteraction.State.POKER);
+            main.textPanel.addPara(Strings.get("poker.resuming"), Color.YELLOW);
+            restoreSuspendedGame();
+            return;
         }
+
+        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
         if (mem.contains(POKER_COOLDOWN_KEY)) {
             long cooldownStart = mem.getLong(POKER_COOLDOWN_KEY);
@@ -797,110 +799,118 @@ switch(response.action) {
     public void restoreSuspendedGame() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
 
-        if (mem.contains("$ipc_poker_pot_size")) {
-            int pot = mem.getInt("$ipc_poker_pot_size");
-            int pBet = mem.getInt("$ipc_poker_player_bet");
-            int oBet = mem.getInt("$ipc_poker_opponent_bet");
-            int pStack = mem.getInt("$ipc_poker_player_stack");
-            int oStack = mem.getInt("$ipc_poker_opponent_stack");
-            boolean pDealer = mem.getBoolean("$ipc_poker_player_is_dealer");
-            int bigBlind = mem.contains("$ipc_poker_big_blind") ? 
-                mem.getInt("$ipc_poker_big_blind") : CasinoConfig.POKER_BIG_BLIND;
-
-            if (mem.contains("$ipc_poker_hands_played")) {
-                handsPlayedThisSession = mem.getInt("$ipc_poker_hands_played");
-            } else {
-                handsPlayedThisSession = 0;
-            }
-
-            PokerGame.Round round = PokerGame.Round.PREFLOP;
-            if (mem.contains("$ipc_poker_round")) {
-                try {
-                    round = PokerGame.Round.valueOf(mem.getString("$ipc_poker_round"));
-                } catch (Exception ignored) {}
-            }
-            
-            PokerGame.CurrentPlayer currentPlayer = PokerGame.CurrentPlayer.PLAYER;
-            if (mem.contains("$ipc_poker_current_player")) {
-                try {
-                    currentPlayer = PokerGame.CurrentPlayer.valueOf(mem.getString("$ipc_poker_current_player"));
-                } catch (Exception ignored) {}
-            }
-            
-            boolean playerHasActed = mem.getBoolean("$ipc_poker_player_has_acted");
-            boolean opponentHasActed = mem.getBoolean("$ipc_poker_opponent_has_acted");
-            boolean playerAllIn = mem.getBoolean("$ipc_poker_player_all_in");
-            boolean opponentAllIn = mem.getBoolean("$ipc_poker_opponent_all_in");
-
-            List<PokerGame.PokerGameLogic.Card> playerHand = new ArrayList<>();
-            if (mem.contains("$ipc_poker_player_hand_count")) {
-                int count = mem.getInt("$ipc_poker_player_hand_count");
-                for (int i = 0; i < count; i++) {
-                    if (mem.contains("$ipc_poker_player_hand_" + i)) {
-                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
-                            mem.getString("$ipc_poker_player_hand_" + i));
-                        if (card != null) playerHand.add(card);
-                    }
-                }
-            }
-            
-            List<PokerGame.PokerGameLogic.Card> opponentHand = new ArrayList<>();
-            if (mem.contains("$ipc_poker_opponent_hand_count")) {
-                int count = mem.getInt("$ipc_poker_opponent_hand_count");
-                for (int i = 0; i < count; i++) {
-                    if (mem.contains("$ipc_poker_opponent_hand_" + i)) {
-                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
-                            mem.getString("$ipc_poker_opponent_hand_" + i));
-                        if (card != null) opponentHand.add(card);
-                    }
-                }
-            }
-            
-            List<PokerGame.PokerGameLogic.Card> communityCards = new ArrayList<>();
-            if (mem.contains("$ipc_poker_community_count")) {
-                int count = mem.getInt("$ipc_poker_community_count");
-                for (int i = 0; i < count; i++) {
-                    if (mem.contains("$ipc_poker_community_" + i)) {
-                        PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
-                            mem.getString("$ipc_poker_community_" + i));
-                        if (card != null) communityCards.add(card);
-                    }
-                }
-            }
-
-            PokerGame.Dealer dealer = pDealer ? PokerGame.Dealer.PLAYER : PokerGame.Dealer.OPPONENT;
-            
-            pokerGame = PokerGame.createSuspendedGame(
-                pStack, oStack, bigBlind,
-                pot, pBet, oBet,
-                dealer, round, currentPlayer,
-                playerHand, opponentHand, communityCards,
-                playerHasActed, opponentHasActed,
-                playerAllIn, opponentAllIn
-            );
-
-            long suspendTime = mem.getLong("$ipc_poker_suspend_time");
-            float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
-
-            main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_stares"), Color.CYAN);
-            if (daysAway >= 30) {
-                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_30_days", daysAway), Color.YELLOW);
-            } else if (daysAway >= 7) {
-                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_7_days", daysAway), Color.YELLOW);
-            } else if (daysAway >= 1) {
-                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_1_day", daysAway), Color.YELLOW);
-            } else {
-                main.getTextPanel().addPara(Strings.format("poker_suspend.gone_hours", daysAway * 24), Color.YELLOW);
-            }
-            main.getTextPanel().addPara(Strings.get("poker_suspend.cards_havent_moved"), Color.GRAY);
-
-            mem.unset("$ipc_suspended_game_type");
-
-            showPokerVisualPanel();
-        } else {
-            setupGame();
+        if (!mem.contains("$ipc_poker_pot_size") || !mem.contains("$ipc_poker_suspend_time")) {
+            clearSuspendedGameMemory();
+            main.getTextPanel().addPara("The suspended game data has been corrupted. Starting a new game.", Color.RED);
+            showPokerConfirm();
+            return;
         }
 
+        int pot = mem.getInt("$ipc_poker_pot_size");
+        int pBet = mem.getInt("$ipc_poker_player_bet");
+        int oBet = mem.getInt("$ipc_poker_opponent_bet");
+        int pStack = mem.getInt("$ipc_poker_player_stack");
+        int oStack = mem.getInt("$ipc_poker_opponent_stack");
+        boolean pDealer = mem.getBoolean("$ipc_poker_player_is_dealer");
+        int bigBlind = mem.contains("$ipc_poker_big_blind") ? 
+            mem.getInt("$ipc_poker_big_blind") : CasinoConfig.POKER_BIG_BLIND;
+
+        if (mem.contains("$ipc_poker_hands_played")) {
+            handsPlayedThisSession = mem.getInt("$ipc_poker_hands_played");
+        } else {
+            handsPlayedThisSession = 0;
+        }
+
+        PokerGame.Round round = PokerGame.Round.PREFLOP;
+        if (mem.contains("$ipc_poker_round")) {
+            try {
+                round = PokerGame.Round.valueOf(mem.getString("$ipc_poker_round"));
+            } catch (Exception ignored) {}
+        }
+        
+        PokerGame.CurrentPlayer currentPlayer = PokerGame.CurrentPlayer.PLAYER;
+        if (mem.contains("$ipc_poker_current_player")) {
+            try {
+                currentPlayer = PokerGame.CurrentPlayer.valueOf(mem.getString("$ipc_poker_current_player"));
+            } catch (Exception ignored) {}
+        }
+        
+        boolean playerHasActed = mem.getBoolean("$ipc_poker_player_has_acted");
+        boolean opponentHasActed = mem.getBoolean("$ipc_poker_opponent_has_acted");
+        boolean playerAllIn = mem.getBoolean("$ipc_poker_player_all_in");
+        boolean opponentAllIn = mem.getBoolean("$ipc_poker_opponent_all_in");
+
+        List<PokerGame.PokerGameLogic.Card> playerHand = new ArrayList<>();
+        if (mem.contains("$ipc_poker_player_hand_count")) {
+            int count = mem.getInt("$ipc_poker_player_hand_count");
+            for (int i = 0; i < count; i++) {
+                if (mem.contains("$ipc_poker_player_hand_" + i)) {
+                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                        mem.getString("$ipc_poker_player_hand_" + i));
+                    if (card != null) playerHand.add(card);
+                }
+            }
+        }
+        
+        List<PokerGame.PokerGameLogic.Card> opponentHand = new ArrayList<>();
+        if (mem.contains("$ipc_poker_opponent_hand_count")) {
+            int count = mem.getInt("$ipc_poker_opponent_hand_count");
+            for (int i = 0; i < count; i++) {
+                if (mem.contains("$ipc_poker_opponent_hand_" + i)) {
+                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                        mem.getString("$ipc_poker_opponent_hand_" + i));
+                    if (card != null) opponentHand.add(card);
+                }
+            }
+        }
+        
+        List<PokerGame.PokerGameLogic.Card> communityCards = new ArrayList<>();
+        if (mem.contains("$ipc_poker_community_count")) {
+            int count = mem.getInt("$ipc_poker_community_count");
+            for (int i = 0; i < count; i++) {
+                if (mem.contains("$ipc_poker_community_" + i)) {
+                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                        mem.getString("$ipc_poker_community_" + i));
+                    if (card != null) communityCards.add(card);
+                }
+            }
+        }
+
+        PokerGame.Dealer dealer = pDealer ? PokerGame.Dealer.PLAYER : PokerGame.Dealer.OPPONENT;
+        
+        pokerGame = PokerGame.createSuspendedGame(
+            pStack, oStack, bigBlind,
+            pot, pBet, oBet,
+            dealer, round, currentPlayer,
+            playerHand, opponentHand, communityCards,
+            playerHasActed, opponentHasActed,
+            playerAllIn, opponentAllIn
+        );
+
+        long suspendTime = mem.getLong("$ipc_poker_suspend_time");
+        float daysAway = Global.getSector().getClock().getElapsedDaysSince(suspendTime);
+
+        main.getTextPanel().addPara(Strings.get("poker_suspend.dealer_stares"), Color.CYAN);
+        if (daysAway >= 30) {
+            main.getTextPanel().addPara(Strings.format("poker_suspend.gone_30_days", daysAway), Color.YELLOW);
+        } else if (daysAway >= 7) {
+            main.getTextPanel().addPara(Strings.format("poker_suspend.gone_7_days", daysAway), Color.YELLOW);
+        } else if (daysAway >= 1) {
+            main.getTextPanel().addPara(Strings.format("poker_suspend.gone_1_day", daysAway), Color.YELLOW);
+        } else {
+            main.getTextPanel().addPara(Strings.format("poker_suspend.gone_hours", daysAway * 24), Color.YELLOW);
+        }
+        main.getTextPanel().addPara(Strings.get("poker_suspend.cards_havent_moved"), Color.GRAY);
+
+        main.getOptions().clearOptions();
+        main.getOptions().addOption(Strings.get("poker_resume.continue"), "poker_resume_continue");
+        main.getOptions().addOption(Strings.get("poker_resume.wait"), "poker_resume_wait");
+    }
+
+    public boolean hasSuspendedPoker() {
+        MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
+        String suspendedGameType = mem.getString("$ipc_suspended_game_type");
+        return "Poker".equals(suspendedGameType);
     }
 
     private void clearSuspendedGameMemory() {

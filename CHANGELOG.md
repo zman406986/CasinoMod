@@ -1,11 +1,11 @@
 # Changelog
 
-## Version 1.2.2
+## Version 1.3.0
 - Merged WolframSegler's PR (version checker support, arena UI fixes, readme, and lots of behind-the-scene improvements). If you see less bugs and better performance, it's thanks to them!
 - Added arena animation and improved poker UI after learning from the above. If you get new bugs and lagging, it's me adding more vibe coded crap.
-- Externalized all text strings to allow easier translation.
+- Externalized all text strings and made UI CJK font friendly to allow easier translation.
 - Adjusted poker game stack size and default BB values to better match each other.
-- More code cleanup.
+- More bug fixes and code cleanup.
 
 ## Version 1.2.1
 - Fixed arena overdraft and added error handling for insufficient funds.

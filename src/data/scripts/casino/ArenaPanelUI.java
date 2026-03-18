@@ -1409,7 +1409,7 @@ protected LabelAPI instructionLabel;
                 } else if (killedHullIds.contains(ship.hullId) || (!isAnimating && ship.isDead)) {
                     tint = COLOR_TINT_DEAD;
                     spriteAlpha = 0.6f * alphaMult * boxAlpha;
-                } else if (ship.hp < ship.maxHp * 0.5f) {
+                } else if (displayHp < ship.maxHp * 0.5f) {
                     tint = COLOR_TINT_DAMAGED;
                     spriteAlpha = 0.8f * alphaMult * boxAlpha;
                 } else {
@@ -2088,12 +2088,38 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         oddsCached = true;
     }
     
+    protected void syncAnimationStateFromCombatants() {
+        if (combatants == null) return;
+        
+        for (int i = 0; i < combatants.size(); i++) {
+            SpiralGladiator ship = combatants.get(i);
+            
+            // Sync HP to match combatant state (needed when restoring suspended game)
+            animatedHp[i] = ship.hp;
+            targetAnimatedHp[i] = ship.hp;
+            prevAnimatedHp[i] = ship.hp;
+            
+            // Sync dead state so X and fade persist (needed when restoring suspended game)
+            if (ship.isDead) {
+                killedHullIds.add(ship.hullId);
+                fadeOutHullIds.add(ship.hullId);
+                fadeOutAlpha[i] = 0.5f;
+            }
+        }
+    }
+    
     public void updateState(
             List<SpiralGladiator> combatants,
             int currentRound,
             int totalBet,
             List<BetInfo> bets,
             List<String> battleLog) {
+        
+        boolean isRoundProgression = lastCurrentRound >= 0 && currentRound > lastCurrentRound;
+        
+        if (isRoundProgression) {
+            isAnimating = true;
+        }
         
         this.combatants = combatants;
         this.currentRound = currentRound;
@@ -2108,6 +2134,11 @@ protected List<ParsedLogEntry> getFilteredEntries() {
             showingBetAmounts = false;
             selectedChampionIndex = -1;
             addingBetDuringBattle = false;
+        }
+        
+        // Sync animation state for suspended game restoration
+        if (currentRound > 0 && !shipStateInitialized) {
+            syncAnimationStateFromCombatants();
         }
         
         updateLabels();
@@ -2212,6 +2243,8 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         this.battleLog = battleLog;
         
         shipStateInitialized = false;
+        lastCurrentRound = -1;
+        lastTotalBet = -1;
         for (int i = 0; i < 5; i++) {
             lastShipHp[i] = -1;
             lastShipMaxHp[i] = -1;
