@@ -369,6 +369,8 @@ private String formatBB(int amount, int bigBlind) {
                 case RAISE:
                     processPlayerRaise(raiseAmount);
                     break;
+                case ALL_IN:
+                    throw new IllegalArgumentException();
             }
             return;
         }
@@ -1212,6 +1214,9 @@ private void endHand() {
             case RAISE -> {
                 pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
                 delegate.setLastPlayerAction(Strings.format("poker_actions.you_raise_to", raiseAmount));
+            }
+            case ALL_IN -> {
+                throw new IllegalArgumentException();
             }
         }
         

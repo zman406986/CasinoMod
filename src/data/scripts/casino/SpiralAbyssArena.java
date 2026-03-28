@@ -5,8 +5,6 @@ import com.fs.starfarer.api.combat.ShipAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import java.util.*;
 
-import data.scripts.casino.Strings;
-
 public class SpiralAbyssArena {
     private final Random random = new Random();
     

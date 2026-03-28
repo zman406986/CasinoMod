@@ -10,8 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-import data.scripts.casino.Strings;
-
 /**
  * Core manager for VIP status, Stargem balance, credit facilities, and daily rewards.
  * Implements EveryFrameScript to run continuously in the background.
