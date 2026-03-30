@@ -8,111 +8,88 @@ import org.json.JSONObject;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.MissingResourceException;
 
 public class Strings {
     private static final Logger log = Global.getLogger(Strings.class);
     private static final String STRINGS_PATH = "data/config/strings.json";
     private static JSONObject strings = null;
 
-    public static void load() {
+    /**
+     * I Removed the null checks and the code always assumes a key exists. Throws an exception otherwise.
+     * This is desirable as it allows us to catch the missing strings early in development. Silently failing here is bad.
+     * 
+     * @author WolframSegler
+     * TODO remove this message
+     */
+
+    static { load();}
+    private static final void load() {
         try {
             strings = Global.getSettings().loadJSON(STRINGS_PATH, CasinoConfig.MOD_ID);
             log.info("Casino strings loaded successfully");
         } catch (IOException | JSONException e) {
-            log.error("Error loading casino strings: " + e.getMessage());
-            strings = new JSONObject();
+            throw new RuntimeException("Strings from " + STRINGS_PATH + " could not be loaded.");
         }
     }
 
-    public static String get(String key) {
-        if (strings == null) {
-            log.warn("Strings not loaded, returning key: " + key);
-            return key;
-        }
+    public static final String get(String key) {
+        if (strings == null) { load();}
         
-        String[] parts = key.split("\\.");
-        JSONObject current = strings;
-        
+        final String[] parts = key.split("\\.");
         try {
+            JSONObject current = strings;
             for (int i = 0; i < parts.length - 1; i++) {
-                if (!current.has(parts[i])) {
-                    return key;
-                }
                 current = current.getJSONObject(parts[i]);
             }
-            
-            String lastPart = parts[parts.length - 1];
-            if (!current.has(lastPart)) {
-                return key;
-            }
-            
-            return current.getString(lastPart);
+            return current.getString(parts[parts.length - 1]);
+
         } catch (JSONException e) {
-            log.warn("Error getting string for key: " + key + " - " + e.getMessage());
-            return key;
+            throw new MissingResourceException("Missing translation for key: " + key, "Strings", key);
         }
     }
 
-    public static String format(String key, Object... args) {
-        String template = get(key);
-        try {
-            return String.format(template, args);
-        } catch (Exception e) {
-            log.warn("Error formatting string for key: " + key + " - " + e.getMessage());
-            return template;
-        }
+    public static final String format(String key, Object... args) {
+        return String.format(get(key), args);
     }
 
-    public static boolean has(String key) {
-        if (strings == null) return false;
+    public static final boolean has(String key) {
+        if (strings == null) { load();}
         
-        String[] parts = key.split("\\.");
-        JSONObject current = strings;
-        
+        final String[] parts = key.split("\\.");
         try {
+            JSONObject current = strings;
             for (int i = 0; i < parts.length - 1; i++) {
                 if (!current.has(parts[i])) return false;
                 current = current.getJSONObject(parts[i]);
             }
             return current.has(parts[parts.length - 1]);
+
         } catch (JSONException e) {
             return false;
         }
     }
 
-    public static List<String> getList(String key) {
-        if (strings == null) {
-            log.warn("Strings not loaded, returning empty list for key: " + key);
-            return Collections.emptyList();
-        }
+    public static final List<String> getList(String key) {
+        if (strings == null) { load();}
         
-        String[] parts = key.split("\\.");
-        JSONObject current = strings;
-        
+        final String[] parts = key.split("\\.");
         try {
+            JSONObject current = strings;
             for (int i = 0; i < parts.length - 1; i++) {
-                if (!current.has(parts[i])) {
-                    return Collections.emptyList();
-                }
                 current = current.getJSONObject(parts[i]);
             }
             
-            String lastPart = parts[parts.length - 1];
-            if (!current.has(lastPart)) {
-                return Collections.emptyList();
-            }
-            
-            JSONArray array = current.getJSONArray(lastPart);
-            List<String> result = new ArrayList<>();
+            final JSONArray array = current.getJSONArray(parts[parts.length - 1]);
+            final List<String> result = new ArrayList<>();
             for (int i = 0; i < array.length(); i++) {
                 result.add(array.getString(i));
             }
             return result;
+
         } catch (JSONException e) {
-            log.warn("Error getting string list for key: " + key + " - " + e.getMessage());
-            return Collections.emptyList();
+            throw new MissingResourceException("Missing translation for key: " + key, "Strings", key);
         }
     }
 }

@@ -25,7 +25,6 @@ import com.fs.starfarer.api.ui.UIComponentAPI;
 
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
-import data.scripts.casino.cards.CardSprites;
 import data.scripts.casino.shared.CardGameUI;
 import data.scripts.casino.BlackjackGame.Action;
 import data.scripts.casino.BlackjackGame.GameState;
@@ -644,7 +643,7 @@ public class BlackjackPanelUI extends BaseCustomUIPanelPlugin
             final Card card = hand.cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
             final CardFlipAnimation anim = i < playerCardAnimations.length ? playerCardAnimations[i] : null;
-            renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+            CardGameUI.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
         }
     }
 
@@ -670,7 +669,7 @@ public class BlackjackPanelUI extends BaseCustomUIPanelPlugin
                 float cardX = handX + i * (CARD_WIDTH + CARD_SPACING / 2f);
                 int animIndex = h * 5 + i;
                 CardFlipAnimation anim = animIndex < playerCardAnimations.length ? playerCardAnimations[animIndex] : null;
-                renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+                CardGameUI.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
             }
         }
     }
@@ -693,19 +692,11 @@ public class BlackjackPanelUI extends BaseCustomUIPanelPlugin
 
             if (revealed || i > 0) {
                 CardFlipAnimation anim = i < dealerCardAnimations.length ? dealerCardAnimations[i] : null;
-                renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+                CardGameUI.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
             } else {
-                renderCardFaceDown(cardX, cardY, alphaMult);
+                CardGameUI.renderCardFaceDown(cardX, cardY, alphaMult);
             }
         }
-    }
-
-    private void renderCardFaceDown(float x, float y, float alphaMult) {
-        CardGameUI.renderCardFaceDown(x, y, alphaMult);
-    }
-
-    private void renderCardAnimated(float x, float y, Card card, CardFlipAnimation anim, float alphaMult) {
-        CardGameUI.renderCardAnimated(x, y, CardSprites.get(card), anim, alphaMult);
     }
 
     public void advance(float amount) {

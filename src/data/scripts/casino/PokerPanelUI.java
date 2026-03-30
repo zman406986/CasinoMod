@@ -24,7 +24,6 @@ import com.fs.starfarer.api.ui.UIComponentAPI;
 
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
-import data.scripts.casino.cards.CardSprites;
 import data.scripts.casino.cards.CardUtils;
 import data.scripts.casino.shared.CardGameUI;
 import data.scripts.casino.PokerGame.PokerState;
@@ -762,7 +761,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin
         for (int i = 0; i < numCards; i++) {
             final Card card = cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
-            renderCardAnimated(cardX, cy - CARD_HEIGHT/2, card, communityCardAnimations[i], alphaMult);
+            CardGameUI.renderCardAnimated(cardX, cy - CARD_HEIGHT/2, card, communityCardAnimations[i], alphaMult);
         }
     }
 
@@ -775,7 +774,7 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin
         for (int i = 0; i < cards.size(); i++) {
             final Card card = cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
-            renderCardAnimated(cardX, y, card, playerCardAnimations[i], alphaMult);
+            CardGameUI.renderCardAnimated(cardX, y, card, playerCardAnimations[i], alphaMult);
         }
     }
 
@@ -789,20 +788,10 @@ public class PokerPanelUI extends BaseCustomUIPanelPlugin
             final Card card = cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
             if (showCards) {
-                renderCardAnimated(cardX, y, card, opponentCardAnimations[i], alphaMult);
+                CardGameUI.renderCardAnimated(cardX, y, card, opponentCardAnimations[i], alphaMult);
             } else {
-                renderCardFaceDown(cardX, y, alphaMult);
+                CardGameUI.renderCardFaceDown(cardX, y, alphaMult);
             }
-        }
-    }
-
-    private void renderCardFaceDown(float x, float y, float alphaMult) {
-        CardGameUI.renderCardFaceDown(x, y, alphaMult);
-    }
-
-    private void renderCardAnimated(float x, float y, Card card, CardFlipAnimation anim, float alphaMult) {
-        if (card != null) {
-            CardGameUI.renderCardAnimated(x, y, CardSprites.get(card), anim, alphaMult);
         }
     }
 

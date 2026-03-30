@@ -9,6 +9,7 @@ import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.util.Misc;
 
+import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
 import data.scripts.casino.cards.CardSprites;
 
@@ -72,6 +73,10 @@ public final class CardGameUI {
 
     public static void renderCardFaceDown(float x, float y, float alphaMult) {
         renderCardFaceDown(x, y, CARD_WIDTH, CARD_HEIGHT, alphaMult);
+    }
+
+    public static void renderCardAnimated(float x, float y, Card card, CardFlipAnimation anim, float alphaMult) {
+        renderCardAnimated(x, y, CardSprites.get(card), anim, alphaMult);
     }
 
     public static void renderCardAnimated(float x, float y, float cardWidth, float cardHeight,

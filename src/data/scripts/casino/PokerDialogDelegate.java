@@ -6,16 +6,18 @@ import com.fs.starfarer.api.campaign.CustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
+
+import data.scripts.casino.PokerPanelUI.PokerActionCallback;
 import data.scripts.casino.interaction.PokerHandler;
 import data.scripts.casino.shared.BaseGameDelegate;
 
-public class PokerDialogDelegate extends BaseGameDelegate {
+public class PokerDialogDelegate extends BaseGameDelegate implements PokerActionCallback {
+    private static final String COMPLECTION_STR = "PokerGameCompleted";
 
-    protected PokerPanelUI pokerPanel;
+    protected final PokerPanelUI pokerPanel;
+    protected final PokerHandler handler;
     protected PokerGame game;
-    protected PokerHandler handler;
 
-    protected PokerPanelUI.PokerActionCallback actionCallback;
     protected boolean gameEnded = false;
 
     protected PokerGame.Action pendingAction = null;
@@ -40,44 +42,9 @@ public class PokerDialogDelegate extends BaseGameDelegate {
         this.game = game;
         this.handler = handler;
 
-        actionCallback = new PokerPanelUI.PokerActionCallback() {
-            @Override
-            public void onPlayerAction(PokerGame.Action action, int raiseAmount) {
-                handlePlayerAction(action, raiseAmount);
-            }
-
-            @Override
-            public void onBackToMenu() {
-                if (onDismissCallback != null) {
-                    onDismissCallback.run();
-                }
-            }
-
-            @Override
-            public void onNextHand() {
-                handleNextHand();
-            }
-
-            @Override
-            public void onSuspend() {
-                handleSuspend();
-            }
-
-            @Override
-            public void onHowToPlay() {
-                handleHowToPlay();
-            }
-
-            @Override
-            public void onFlipTable() {
-                handleFlipTable();
-            }
-        };
-
-        pokerPanel = new PokerPanelUI(game, actionCallback);
+        pokerPanel = new PokerPanelUI(game, this);
     }
 
-    @Override
     public CustomUIPanelPlugin getCustomPanelPlugin() {
         return pokerPanel;
     }
@@ -86,21 +53,19 @@ public class PokerDialogDelegate extends BaseGameDelegate {
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         super.init(panel, callbacks);
 
-        if (pokerPanel != null) {
-            pokerPanel.init(panel, callbacks);
-            pokerPanel.updateGameState(game);
+        pokerPanel.init(panel, callbacks);
+        pokerPanel.updateGameState(game);
 
-            if (lastOpponentAction != null && !lastOpponentAction.isEmpty()) {
-                pokerPanel.showOpponentAction(lastOpponentAction);
-            }
+        if (lastOpponentAction != null && !lastOpponentAction.isEmpty()) {
+            pokerPanel.showOpponentAction(lastOpponentAction);
+        }
 
-            if (lastPlayerAction != null && !lastPlayerAction.isEmpty()) {
-                pokerPanel.showPlayerAction(lastPlayerAction);
-            }
+        if (lastPlayerAction != null && !lastPlayerAction.isEmpty()) {
+            pokerPanel.showPlayerAction(lastPlayerAction);
+        }
 
-            if (returnMessage != null && !returnMessage.isEmpty()) {
-                pokerPanel.showReturnMessage(returnMessage);
-            }
+        if (returnMessage != null && !returnMessage.isEmpty()) {
+            pokerPanel.showReturnMessage(returnMessage);
         }
     }
 
@@ -108,8 +73,8 @@ public class PokerDialogDelegate extends BaseGameDelegate {
     public void advance(float amount) {
         super.advance(amount);
 
-        PokerGame.PokerState state = game.getState();
-        boolean someoneIsBust = state.playerStack < state.bigBlind || state.opponentStack < state.bigBlind;
+        final PokerGame.PokerState state = game.getState();
+        final boolean someoneIsBust = state.playerStack < state.bigBlind || state.opponentStack < state.bigBlind;
 
         if (someoneIsBust && !gameEnded) {
             gameEnded = true;
@@ -118,36 +83,33 @@ public class PokerDialogDelegate extends BaseGameDelegate {
 
     @Override
     protected String getCompletionEventName() {
-        return "PokerGameCompleted";
+        return COMPLECTION_STR;
     }
 
     public void updateGame(PokerGame newGame) {
         this.game = newGame;
         this.lastOpponentAction = "";
         this.lastPlayerAction = "";
-        if (pokerPanel != null) {
-            pokerPanel.updateGameState(newGame);
-            pokerPanel.hideOpponentAction();
-            pokerPanel.hidePlayerAction();
-        }
+
+        pokerPanel.updateGameState(newGame);
+        pokerPanel.hideOpponentAction();
+        pokerPanel.hidePlayerAction();
+
         gameEnded = false;
         resetState();
     }
 
     public void refreshAfterStateChange(PokerGame updatedGame) {
         this.game = updatedGame;
-        if (pokerPanel != null) {
-            pokerPanel.updateGameState(updatedGame);
-        }
+        pokerPanel.updateGameState(updatedGame);
     }
 
     public void startOpponentTurn() {
-        if (pokerPanel != null) {
-            pokerPanel.startOpponentTurn();
-        }
+        pokerPanel.startOpponentTurn();
     }
 
-    protected void handlePlayerAction(PokerGame.Action action, int raiseAmount) {
+    public void onPlayerAction(PokerGame.Action action, int raiseAmount) {
+        // FIXME handler is always non null
         if (handler != null) {
             handler.processPlayerActionInPlace(action, raiseAmount, this);
             return;
@@ -156,15 +118,13 @@ public class PokerDialogDelegate extends BaseGameDelegate {
         pendingAction = action;
         pendingRaiseAmount = raiseAmount;
 
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
     public void setLastOpponentAction(String action) {
         this.lastOpponentAction = action;
 
-        if (pokerPanel != null && action != null && !action.isEmpty()) {
+        if (action != null && !action.isEmpty()) {
             pokerPanel.showOpponentAction(action);
         }
     }
@@ -185,7 +145,8 @@ public class PokerDialogDelegate extends BaseGameDelegate {
         return pendingNextHand;
     }
 
-    protected void handleNextHand() {
+    public void onNextHand() {
+        // FIXME handler is always non null
         if (handler != null) {
             handler.startNextHandInPlace(this);
             return;
@@ -193,34 +154,26 @@ public class PokerDialogDelegate extends BaseGameDelegate {
 
         pendingNextHand = true;
         pendingAction = null;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleSuspend() {
+    public void onSuspend() {
         pendingSuspend = true;
         pendingAction = null;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleHowToPlay() {
+    public void onHowToPlay() {
         pendingHowToPlay = true;
         pendingAction = null;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleFlipTable() {
-        boolean isShowdown = game != null && game.getState() != null &&
+    public void onFlipTable() {
+        final boolean isShowdown = game != null && game.getState() != null &&
             game.getState().round == PokerGame.Round.SHOWDOWN;
 
+        // FIXME handler is always non null
         if (handler != null && isShowdown) {
             handler.handleCleanLeaveInPlace(this);
             return;
@@ -232,10 +185,7 @@ public class PokerDialogDelegate extends BaseGameDelegate {
             pendingFlipTable = true;
         }
         pendingAction = null;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
     public boolean getPendingSuspend() {
@@ -252,5 +202,10 @@ public class PokerDialogDelegate extends BaseGameDelegate {
 
     public boolean getPendingCleanLeave() {
         return pendingCleanLeave;
+    }
+
+    @Override
+    public void onBackToMenu() {
+        onDismissCallback.run();
     }
 }
