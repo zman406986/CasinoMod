@@ -93,7 +93,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
         
         arenaPanel.advance(amount);
         
-        if (battleEnded && arenaPanel.isReadyToClose()) {
+        if (battleEnded) {
             callbacks.getPanelFader().fadeOut();
             if (callbacks.getPanelFader().isFadedOut()) {
                 callbacks.dismissDialog();

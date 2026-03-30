@@ -14,9 +14,9 @@ public abstract class BaseGameDelegate implements CustomVisualDialogDelegate {
     protected float endDelay = 1.5f;
     protected boolean finished = false;
 
-    protected InteractionDialogAPI dialog;
-    protected Map<String, MemoryAPI> memoryMap;
-    protected Runnable onDismissCallback;
+    protected final InteractionDialogAPI dialog;
+    protected final Map<String, MemoryAPI> memoryMap;
+    protected final Runnable onDismissCallback;
 
     protected BaseGameDelegate(InteractionDialogAPI dialog, Map<String, MemoryAPI> memoryMap,
             Runnable onDismissCallback) {
@@ -51,17 +51,13 @@ public abstract class BaseGameDelegate implements CustomVisualDialogDelegate {
             FireBest.fire(null, dialog, memoryMap, eventName);
         }
 
-        if (onDismissCallback != null) {
-            onDismissCallback.run();
-        }
+        onDismissCallback.run();
     }
 
     protected abstract String getCompletionEventName();
 
     public void closeDialog() {
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
     public boolean isFinished() {
