@@ -47,8 +47,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
     private static final String ARENA_ADD_BET_DATA = "arena_add_bet";
     private static final String ARENA_SUSPEND_DATA = "arena_suspend";
     private static final String ARENA_START_BATTLE_DATA = "arena_start_battle";
+    private static final String ARENA_CONFIRM_DIALOG = "arena_confirm_overdraft";
+    private static final String ARENA_CANCEL_OVERDRAFT = "arena_cancel_overdraft";
+    private static final String ARENA_DISMISS_ERROR = "arena_dismiss_error";
 
-    protected static class ParsedLogEntry {
+    @SuppressWarnings("unused")
+    private static class ParsedLogEntry {
         String type;
         String attackerHullId;
         String targetHullId;
@@ -192,104 +196,111 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
         }
     }
 
-    protected DialogCallbacks callbacks;
-    protected CustomPanelAPI panel;
-    protected PositionAPI pos;
-    
-    protected ArenaActionCallback actionCallback;
-    
-    protected List<SpiralGladiator> combatants;
-    protected int currentRound;
-    protected int totalBet;
-    protected List<BetInfo> bets;
-    protected List<String> battleLog;
-    
-    protected int selectedChampionIndex = -1;
-    protected boolean battleEnded = false;
-    protected int winnerIndex = -1;
-    protected int totalReward = 0;
-    protected RewardBreakdown rewardBreakdown;
-    protected boolean readyToClose = false;
-    
-    protected static final float PANEL_WIDTH = 1000f;
-    protected static final float PANEL_HEIGHT = 700f;
-    
-    protected static final float SHIP_COLUMN_WIDTH = 300f;
-    protected static final float CENTER_COLUMN_WIDTH = 450f;
+    private final ArenaActionCallback actionCallback;
+    private CustomPanelAPI panel;
 
-    protected static final float BOX_WIDTH = 150f;
-    protected static final float BOX_HEIGHT = 65f;
-    protected static final float BOX_SPACING = 3f;
-    protected static final float ENTRY_SPACING = 10f;
+    /**
+     * Note about position
+     * 
+     * The position instance is constant and does not change. It is owned by panel and can be accessed trough it.
+     * The positionChanged method does not create a new positionAPI instance. It just returns the positionAPI of panel.
+     * A position member is this not needed.
+     * 
+     * @author WolframSegler
+     * TODO remove this after reading
+     */
     
-    protected static final float MARGIN = 20f;
+    private List<SpiralGladiator> combatants;
+    private int currentRound;
+    private int totalBet;
+    private List<BetInfo> bets;
+    private List<String> battleLog;
     
-    protected static final float CHAMP_BUTTON_WIDTH = 100f;
-    protected static final float CHAMP_BUTTON_HEIGHT = 25f;
-    protected static final float CHAMP_BUTTON_X = BOX_WIDTH + MARGIN + 15f;
+    private int selectedChampionIndex = -1;
+    private boolean battleEnded = false;
+    private int winnerIndex = -1;
+    private int totalReward = 0;
+    private RewardBreakdown rewardBreakdown;
     
-    protected static final float BUTTON_WIDTH = 120f;
-    protected static final float BUTTON_HEIGHT = 35f;
-    protected static final float BUTTON_SPACING = 10f;
+    private static final float PANEL_WIDTH = 1000f;
+    private static final float PANEL_HEIGHT = 700f;
     
-    protected static final float leftX = SHIP_COLUMN_WIDTH + MARGIN;
-    protected static final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
+    private static final float SHIP_COLUMN_WIDTH = 300f;
+    private static final float CENTER_COLUMN_WIDTH = 450f;
+
+    private static final float BOX_WIDTH = 150f;
+    private static final float BOX_HEIGHT = 65f;
+    private static final float BOX_SPACING = 3f;
+    private static final float ENTRY_SPACING = 10f;
     
-    protected static final Color COLOR_HEALTHY = new Color(50, 200, 50);
-    protected static final Color COLOR_DAMAGED = new Color(200, 150, 50);
-    protected static final Color COLOR_DESTROYED = new Color(100, 30, 30);
-    protected static final Color COLOR_BOX_BG = new Color(40, 40, 50);
-    protected static final Color COLOR_BOX_BORDER = new Color(80, 80, 100);
-    protected static final Color COLOR_SELECTED = new Color(255, 215, 0);
+    private static final float MARGIN = 20f;
     
-    protected static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);
-    protected static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
-    protected static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
-    protected static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
-    protected static final Color NET_POSITIVE_COLOR = new Color(50, 255, 100);
-    protected static final Color NET_NEGATIVE_COLOR = new Color(255, 100, 50);
-    protected static final Color KILL_COLOR = new Color(255, 150, 50);
+    private static final float CHAMP_BUTTON_WIDTH = 100f;
+    private static final float CHAMP_BUTTON_HEIGHT = 25f;
+    private static final float CHAMP_BUTTON_X = BOX_WIDTH + MARGIN + 15f;
     
-    protected static final Color BATTLE_HIT_COLOR_CRIT = new Color(255, 100, 100);
-    protected static final Color BATTLE_HIT_COLOR = new Color(255, 255, 100);
-    protected static final Color BATTLE_MISS_COLOR = new Color(150, 150, 150);
-    protected static final Color BATTLE_EVENT_COLOR = new Color(100, 200, 255);
-    protected static final Color BATTLE_EVENT_HIT_COLOR = new Color(255, 200, 50);
-    protected static final Color BATTLE_ROUND_COLOR = new Color(180, 180, 200);
-    protected static final Color DISABLED_BTN_COLOR = new Color(255, 200, 0);
+    private static final float BUTTON_WIDTH = 120f;
+    private static final float BUTTON_HEIGHT = 35f;
+    private static final float BUTTON_SPACING = 10f;
     
-    protected static final Color COLOR_BG_DARK = new Color(15, 15, 20);
-    protected static final Color COLOR_SIDEBAR = new Color(25, 25, 35);
-    protected static final Color COLOR_TINT_DEAD = new Color(150, 50, 50);
-    protected static final Color COLOR_TINT_DAMAGED = new Color(255, 200, 100);
+    private static final float leftX = SHIP_COLUMN_WIDTH + MARGIN;
+    private static final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
     
-    protected boolean isPrefixPositive(String prefix) {
+    private static final Color COLOR_HEALTHY = new Color(50, 200, 50);
+    private static final Color COLOR_DAMAGED = new Color(200, 150, 50);
+    private static final Color COLOR_DESTROYED = new Color(100, 30, 30);
+    private static final Color COLOR_BOX_BG = new Color(40, 40, 50);
+    private static final Color COLOR_BOX_BORDER = new Color(80, 80, 100);
+    private static final Color COLOR_SELECTED = new Color(255, 215, 0);
+    
+    private static final Color PREFIX_POSITIVE_COLOR = new Color(50, 255, 50);
+    private static final Color PREFIX_NEGATIVE_COLOR = new Color(255, 50, 50);
+    private static final Color AFFIX_POSITIVE_COLOR = new Color(100, 200, 100);
+    private static final Color AFFIX_NEGATIVE_COLOR = new Color(255, 150, 150);
+    private static final Color NET_POSITIVE_COLOR = new Color(50, 255, 100);
+    private static final Color NET_NEGATIVE_COLOR = new Color(255, 100, 50);
+    private static final Color KILL_COLOR = new Color(255, 150, 50);
+    
+    private static final Color BATTLE_HIT_COLOR_CRIT = new Color(255, 100, 100);
+    private static final Color BATTLE_HIT_COLOR = new Color(255, 255, 100);
+    private static final Color BATTLE_MISS_COLOR = new Color(150, 150, 150);
+    private static final Color BATTLE_EVENT_COLOR = new Color(100, 200, 255);
+    private static final Color BATTLE_EVENT_HIT_COLOR = new Color(255, 200, 50);
+    private static final Color BATTLE_ROUND_COLOR = new Color(180, 180, 200);
+    private static final Color DISABLED_BTN_COLOR = new Color(255, 200, 0);
+    
+    private static final Color COLOR_BG_DARK = new Color(15, 15, 20);
+    private static final Color COLOR_SIDEBAR = new Color(25, 25, 35);
+    private static final Color COLOR_TINT_DEAD = new Color(150, 50, 50);
+    private static final Color COLOR_TINT_DAMAGED = new Color(255, 200, 100);
+    
+    private boolean isPrefixPositive(String prefix) {
         if (prefix == null) return true;
         return Strings.getList("arena_prefixes.positive").contains(prefix);
     }
     
-    protected boolean isAffixPositive(String affix) {
+    private boolean isAffixPositive(String affix) {
         if (affix == null) return true;
         return Strings.getList("arena_affixes.positive").contains(affix);
     }
     
-    protected Color getPrefixColor(String prefix) {
+    private Color getPrefixColor(String prefix) {
         return isPrefixPositive(prefix) ? PREFIX_POSITIVE_COLOR : PREFIX_NEGATIVE_COLOR;
     }
     
-    protected Color getAffixColor(String affix) {
+    private Color getAffixColor(String affix) {
         return isAffixPositive(affix) ? AFFIX_POSITIVE_COLOR : AFFIX_NEGATIVE_COLOR;
     }
     
-    protected void applyShipNameHighlighting(LabelAPI label, SpiralGladiator ship) {
+    private void applyShipNameHighlighting(LabelAPI label, SpiralGladiator ship) {
         if (label == null || ship == null) return;
         
-        String prefix = ship.prefix != null ? ship.prefix : "";
-        String hullName = ship.hullName != null ? ship.hullName : "";
-        String affix = ship.affix != null ? ship.affix : "";
+        final String prefix = ship.prefix != null ? ship.prefix : "";
+        final String hullName = ship.hullName != null ? ship.hullName : "";
+        final String affix = ship.affix != null ? ship.affix : "";
         
-        List<String> highlights = new ArrayList<>();
-        List<Color> colors = new ArrayList<>();
+        final List<String> highlights = new ArrayList<>();
+        final List<Color> colors = new ArrayList<>();
         
         if (!prefix.isEmpty()) {
             highlights.add(prefix);
@@ -312,122 +323,118 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
         }
     }
     
-    protected LabelAPI roundLabel;
-    protected LabelAPI betLabel;
+    private LabelAPI roundLabel;
+    private LabelAPI betLabel;
     
-    protected LabelAPI[] shipNameLabels = new LabelAPI[5];
-    protected LabelAPI[] shipHpLabels = new LabelAPI[5];
-    protected LabelAPI[] shipOddsLabels = new LabelAPI[5];
+    private LabelAPI[] shipNameLabels = new LabelAPI[5];
+    private LabelAPI[] shipHpLabels = new LabelAPI[5];
+    private LabelAPI[] shipOddsLabels = new LabelAPI[5];
     
-    protected LabelAPI[] battleLogTextLabels = new LabelAPI[12];
+    private LabelAPI[] battleLogTextLabels = new LabelAPI[12];
     
-    protected static final float LOG_SPRITE_SIZE = 28f;
-    protected static final float LOG_LINE_HEIGHT = 32f;
-    protected static final float LOG_SPRITE_GAP = 4f;
-    protected static final float LOG_LEFT_MARGIN = 5f;
+    private static final float LOG_SPRITE_SIZE = 28f;
+    private static final float LOG_LINE_HEIGHT = 32f;
+    private static final float LOG_SPRITE_GAP = 4f;
+    private static final float LOG_LEFT_MARGIN = 5f;
     
-    protected LabelAPI resultLabel;
+    private LabelAPI resultLabel;
     
-    protected static final int MAX_REWARD_LINES = 25;
-    protected LabelAPI[] rewardBreakdownLabels = new LabelAPI[MAX_REWARD_LINES];
+    private static final int MAX_REWARD_LINES = 25;
+    private LabelAPI[] rewardBreakdownLabels = new LabelAPI[MAX_REWARD_LINES];
     
-protected LabelAPI instructionLabel;
+    private LabelAPI instructionLabel;
 
-    protected ButtonAPI watchNextButton;
-    protected ButtonAPI nextGameButton;
-    protected ButtonAPI skipToEndButton;
-    protected ButtonAPI addBetButton;
-    protected ButtonAPI suspendButton;
-    protected ButtonAPI leaveButton;
-    protected ButtonAPI startBattleButton;
+    private ButtonAPI watchNextButton;
+    private ButtonAPI nextGameButton;
+    private ButtonAPI skipToEndButton;
+    private ButtonAPI addBetButton;
+    private ButtonAPI suspendButton;
+    private ButtonAPI leaveButton;
+    private ButtonAPI startBattleButton;
     
-    protected final List<ButtonAPI> championSelectButtons = new ArrayList<>();
-    protected final List<ButtonAPI> betAmountButtons = new ArrayList<>();
+    private final List<ButtonAPI> championSelectButtons = new ArrayList<>();
+    private final List<ButtonAPI> betAmountButtons = new ArrayList<>();
     
-    protected TooltipMakerAPI buttonTooltip;
-    protected boolean buttonsCreated = false;
+    private boolean buttonsCreated = false;
     
-    protected static final int[] BET_AMOUNTS = {100, 500, 1000, 2000, 5000};
+    private static final int[] BET_AMOUNTS = {100, 500, 1000, 2000, 5000};
     
-    protected Map<String, SpriteAPI> spriteCache = new HashMap<>();
-    protected static final float SPRITE_SCALE = 0.75f;
+    private Map<String, SpriteAPI> spriteCache = new HashMap<>();
+    private static final float SPRITE_SCALE = 0.75f;
     
-    protected float[] cachedOdds = new float[5];
-    protected boolean oddsCached = false;
+    private float[] cachedOdds = new float[5];
+    private boolean oddsCached = false;
     
-    protected boolean showingBetAmounts = false;
-    protected boolean addingBetDuringBattle = false;
+    private boolean showingBetAmounts = false;
+    private boolean addingBetDuringBattle = false;
     
-    protected boolean showingOverdraftConfirmation = false;
-    protected boolean showingErrorMessage = false;
-    protected int pendingBetAmount = 0;
-    protected int pendingChampionIndex = -1;
-    protected String currentErrorMessage = "";
-    protected String currentOverdraftMessage = "";
+    private boolean showingOverdraftConfirmation = false;
+    private boolean showingErrorMessage = false;
+    private int pendingBetAmount = 0;
+    private int pendingChampionIndex = -1;
+    private String currentErrorMessage = "";
+    private String currentOverdraftMessage = "";
     
-    protected LabelAPI balanceLabel;
-    protected LabelAPI messageLabel;
+    private LabelAPI balanceLabel;
+    private LabelAPI messageLabel;
     
-    protected ButtonAPI confirmOverdraftButton;
-    protected ButtonAPI cancelOverdraftButton;
-    protected ButtonAPI dismissErrorButton;
+    private ButtonAPI confirmOverdraftButton;
+    private ButtonAPI cancelOverdraftButton;
+    private ButtonAPI dismissErrorButton;
     
-    protected float logX;
-    protected float logY;
-    protected float logW;
-    protected float logH;
+    private float logY;
+    private float logW;
     
-    protected List<ParsedLogEntry> cachedParsedEntries = new ArrayList<>();
-    protected Map<String, Boolean> hullIdDeadStatus = new HashMap<>();
-    protected int lastBattleLogSize = -1;
+    private List<ParsedLogEntry> cachedParsedEntries = new ArrayList<>();
+    private Map<String, Boolean> hullIdDeadStatus = new HashMap<>();
+    private int lastBattleLogSize = -1;
     
-    protected int lastCurrentRound = -1;
-    protected int lastTotalBet = -1;
+    private int lastCurrentRound = -1;
+    private int lastTotalBet = -1;
 
-    protected int[] lastShipHp = new int[5];
-    protected int[] lastShipMaxHp = new int[5];
-    protected boolean[] lastShipDead = new boolean[5];
-    protected float[] lastShipOdds = new float[5];
-    protected int[] lastShipBetCount = new int[5];
-    protected String[] lastShipHullIds = new String[5];
-    protected boolean shipStateInitialized = false;
+    private int[] lastShipHp = new int[5];
+    private int[] lastShipMaxHp = new int[5];
+    private boolean[] lastShipDead = new boolean[5];
+    private float[] lastShipOdds = new float[5];
+    private int[] lastShipBetCount = new int[5];
+    private String[] lastShipHullIds = new String[5];
+    private boolean shipStateInitialized = false;
 
     // Label caching (prevent redundant per-frame updates)
-    protected int lastBalance = Integer.MIN_VALUE;
-    protected int lastAvailableCredit = Integer.MIN_VALUE;
-    protected int lastCreditCeiling = Integer.MIN_VALUE;
-    protected boolean lastIsVIP = false;
-    protected String lastInstructionText = null;
-    protected boolean lastInstructionHidden = false;
-    protected boolean rewardBreakdownCached = false;
+    private int lastBalance = Integer.MIN_VALUE;
+    private int lastAvailableCredit = Integer.MIN_VALUE;
+    private int lastCreditCeiling = Integer.MIN_VALUE;
+    private boolean lastIsVIP = false;
+    private String lastInstructionText = null;
+    private boolean rewardBreakdownCached = false;
 
     // Battle Log Animation State
-    protected float logAnimationTimer = 0f;
-    protected int displayedLogIndex = 0;
-    protected boolean isAnimating = false;
-    protected List<ParsedLogEntry> pendingEntries = new ArrayList<>();
-    protected boolean skipRequested = false;
+    private float logAnimationTimer = 0f;
+    private int displayedLogIndex = 0;
+    private boolean isAnimating = false;
+    private List<ParsedLogEntry> pendingEntries = new ArrayList<>();
+    private boolean skipRequested = false;
 
     // Sprite Animation State (sidebar ships)
-    protected String currentAttackerHullId = null;
-    protected String currentTargetHullId = null;
-    protected float spriteAnimTimer = 0f;
-    protected float attackerNudgeOffset = 0f;
-    protected boolean targetFlashState = false;
+    private String currentAttackerHullId = null;
+    private String currentTargetHullId = null;
+    private float spriteAnimTimer = 0f;
+    private float attackerNudgeOffset = 0f;
+    private boolean targetFlashState = false;
 
     // HP Animation State
-    protected int[] animatedHp = new int[5];
-    protected int[] targetAnimatedHp = new int[5];
-    protected int[] prevAnimatedHp = new int[5];
-    protected float[] hpAnimTimer = new float[5];
-    protected boolean[] hpAnimating = new boolean[5];
+    private int[] animatedHp = new int[5];
+    private int[] targetAnimatedHp = new int[5];
+    private int[] prevAnimatedHp = new int[5];
+    private float[] hpAnimTimer = new float[5];
+    private boolean[] hpAnimating = new boolean[5];
 
     // Kill Tracking
-    protected Set<String> killedHullIds = new HashSet<>();
-    protected Set<String> fadeOutHullIds = new HashSet<>();
-    protected float[] fadeOutAlpha = new float[5];
+    private Set<String> killedHullIds = new HashSet<>();
+    private Set<String> fadeOutHullIds = new HashSet<>();
+    private float[] fadeOutAlpha = new float[5];
     
-    protected int getTotalBetOnShip(int shipIndex) {
+    private int getTotalBetOnShip(int shipIndex) {
         if (bets == null || combatants == null || shipIndex < 0 || shipIndex >= combatants.size()) {
             return 0;
         }
@@ -441,7 +448,7 @@ protected LabelAPI instructionLabel;
         return total;
     }
     
-    protected boolean canBetMoreOnShip(int shipIndex) {
+    private boolean canBetMoreOnShip(int shipIndex) {
         int currentBet = getTotalBetOnShip(shipIndex);
         return currentBet < CasinoConfig.ARENA_MAX_BET_PER_CHAMPION;
     }
@@ -455,7 +462,6 @@ protected LabelAPI instructionLabel;
         void onSuspend();
         void onLeave();
         void onNextGame();
-        void onEscape();
     }
     
     public static class RewardBreakdown {
@@ -499,28 +505,27 @@ protected LabelAPI instructionLabel;
     }
     
     public ArenaPanelUI(
-            List<SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog,
-            ArenaActionCallback callback) {
-        
+        List<SpiralGladiator> combatants,
+        int currentRound,
+        int totalBet,
+        List<BetInfo> bets,
+        List<String> battleLog,
+        ArenaActionCallback callback
+    ) {
         this.combatants = combatants;
         this.currentRound = currentRound;
         this.totalBet = totalBet;
         this.bets = bets;
         this.battleLog = battleLog;
         this.actionCallback = callback;
-        
-}
+    }
     
     private boolean isShipEffectivelyDead(SpiralGladiator ship) {
         if (ship == null) return false;
         return killedHullIds.contains(ship.hullId) || (!isAnimating && ship.isDead);
     }
     
-protected SpriteAPI getShipSprite(String hullId) {
+    private SpriteAPI getShipSprite(String hullId) {
         if (hullId == null || hullId.isEmpty()) return null;
         
         if (spriteCache.containsKey(hullId)) {
@@ -551,7 +556,6 @@ protected SpriteAPI getShipSprite(String hullId) {
     
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         this.panel = panel;
-        this.callbacks = callbacks;
         
         callbacks.getPanelFader().setDurationOut(0.5f);
         
@@ -559,10 +563,6 @@ protected SpriteAPI getShipSprite(String hullId) {
         createUIElements();
         updateLabels();
         updateButtonVisibility();
-    }
-    
-    public void positionChanged(PositionAPI position) {
-        this.pos = position;
     }
 
     public void advance(float amount) {
@@ -604,7 +604,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         updateHpAnimations(amount);
     }
 
-    protected void updateSpriteAnimations(float amount) {
+    private void updateSpriteAnimations(float amount) {
         if (spriteAnimTimer > 0) {
             spriteAnimTimer -= amount;
             float progress = 1f - (spriteAnimTimer / CasinoConfig.ARENA_SPRITE_NUDGE_DURATION);
@@ -626,7 +626,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
-    protected void updateHpAnimations(float amount) {
+    private void updateHpAnimations(float amount) {
         for (int i = 0; i < hpAnimTimer.length; i++) {
             if (hpAnimTimer[i] > 0) {
                 hpAnimTimer[i] -= amount;
@@ -639,11 +639,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
-    protected void triggerEntryAnimation(ParsedLogEntry entry) {
-        triggerEntryAnimation(entry, true);
-    }
-
-    protected void triggerEntryAnimation(ParsedLogEntry entry, boolean animate) {
+    private void triggerEntryAnimation(ParsedLogEntry entry, boolean animate) {
         switch (entry.type) {
             case "HIT" -> {
                 if (animate) {
@@ -693,7 +689,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
-    protected void animateHpReduction(String hullId, int damage, boolean animate) {
+    private void animateHpReduction(String hullId, int damage, boolean animate) {
         int idx = findCombatantIndex(hullId);
         if (idx >= 0 && idx < hpAnimTimer.length) {
             if (animate) {
@@ -707,7 +703,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
-    protected int findCombatantIndex(String hullId) {
+    private int findCombatantIndex(String hullId) {
         if (combatants == null || hullId == null) return -1;
         for (int i = 0; i < combatants.size(); i++) {
             if (hullId.equals(combatants.get(i).hullId)) {
@@ -717,7 +713,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         return -1;
     }
 
-    protected void finalizeAnimationState() {
+    private void finalizeAnimationState() {
         if (combatants != null) {
             for (int i = 0; i < combatants.size(); i++) {
                 animatedHp[i] = combatants.get(i).hp;
@@ -783,7 +779,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
-    protected void createUIElements() {
+    private void createUIElements() {
         if (panel == null) return;
         
         createRoundLabel();
@@ -798,16 +794,13 @@ protected SpriteAPI getShipSprite(String hullId) {
         createAllButtonsOnce();
     }
     
-    protected void createBattleLogPanel() {
+    private void createBattleLogPanel() {
         if (panel == null) return;
         
         final float logPanelW = CENTER_COLUMN_WIDTH - MARGIN;
-        final float logPanelH = PANEL_HEIGHT - MARGIN * 2 - 80f;
         
-        logX = LOG_LEFT_MARGIN;
         logY = LOG_LINE_HEIGHT;
         logW = logPanelW - LOG_LEFT_MARGIN * 2;
-        logH = logPanelH - LOG_LINE_HEIGHT;
         
         final float textWidthTwoSprites = logW - LOG_SPRITE_SIZE * 2 - LOG_SPRITE_GAP * 2 - 30f;
         final float textWidthOneSprite = logW - LOG_SPRITE_SIZE - LOG_SPRITE_GAP - 30f;
@@ -823,12 +816,12 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
     
-    protected void createAllButtonsOnce() {
+    private void createAllButtonsOnce() {
         if (panel == null || buttonsCreated) return;
         
-        buttonTooltip = panel.createUIElement(PANEL_WIDTH, PANEL_HEIGHT, false);
-        buttonTooltip.setActionListenerDelegate(this);
-        panel.addUIElement(buttonTooltip).inTL(0, 0);
+        final TooltipMakerAPI btnTp = panel.createUIElement(PANEL_WIDTH, PANEL_HEIGHT, false);
+        btnTp.setActionListenerDelegate(this);
+        panel.addUIElement(btnTp).inTL(0, 0);
         
         final float startY = MARGIN + 10f;
         final float NAME_HEIGHT = 16f;
@@ -840,7 +833,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             final float shipY = startY + i * totalItemHeight;
             final float buttonY = shipY + (BOX_HEIGHT - CHAMP_BUTTON_HEIGHT) / 2f;
             
-            final ButtonAPI btn = buttonTooltip.addButton(
+            final ButtonAPI btn = btnTp.addButton(
                 Strings.get("arena_panel.select"), 
                 ARENA_SELECT_DATA + i, 
                 CHAMP_BUTTON_WIDTH, CHAMP_BUTTON_HEIGHT, 0f
@@ -852,11 +845,13 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
         
         // Cancel button (index 0 in betAmountButtons)
-        final ButtonAPI cancelBtn = buttonTooltip.addButton(
+        final ButtonAPI cancelBtn = btnTp.addButton(
             Strings.get("common.cancel"), 
             ARENA_BET_CANCEL, 
             BUTTON_WIDTH, BUTTON_HEIGHT, 0f
         );
+        cancelBtn.setQuickMode(true);
+        cancelBtn.setShortcut(Keyboard.KEY_ESCAPE, false);
         cancelBtn.getPosition().inTL(leftX, bottomY);
         cancelBtn.setOpacity(0f);
         betAmountButtons.add(cancelBtn);
@@ -866,7 +861,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             final int amt = BET_AMOUNTS[i];
             final float btnX = leftX + i * (BUTTON_WIDTH + BUTTON_SPACING);
             
-            final ButtonAPI btn = buttonTooltip.addButton(
+            final ButtonAPI btn = btnTp.addButton(
                 Strings.format("arena_panel.sg", amt), 
                 ARENA_BET_DATA + amt, 
                 BUTTON_WIDTH, BUTTON_HEIGHT, 0f
@@ -876,32 +871,33 @@ protected SpriteAPI getShipSprite(String hullId) {
             betAmountButtons.add(btn);
         }
         
-        leaveButton = buttonTooltip.addButton(Strings.get("common.leave"), ARENA_LEAVE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        leaveButton = btnTp.addButton(Strings.get("common.leave"), ARENA_LEAVE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         leaveButton.setQuickMode(true);
+        leaveButton.setShortcut(Keyboard.KEY_ESCAPE, false);
         leaveButton.getPosition().inTL(leftX, bottomY);
         leaveButton.setOpacity(0f);
         
-        suspendButton = buttonTooltip.addButton(Strings.get("arena_panel.suspend"), ARENA_SUSPEND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        suspendButton = btnTp.addButton(Strings.get("arena_panel.suspend"), ARENA_SUSPEND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         suspendButton.setQuickMode(true);
         suspendButton.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
         suspendButton.setOpacity(0f);
         
-        addBetButton = buttonTooltip.addButton(Strings.get("arena_panel.add_bet"), ARENA_ADD_BET_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        addBetButton = btnTp.addButton(Strings.get("arena_panel.add_bet"), ARENA_ADD_BET_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         addBetButton.setQuickMode(true);
         addBetButton.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 2, bottomY);
         addBetButton.setOpacity(0f);
         
-        skipToEndButton = buttonTooltip.addButton(Strings.get("arena_panel.skip_to_end"), ARENA_SKIP_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        skipToEndButton = btnTp.addButton(Strings.get("arena_panel.skip_to_end"), ARENA_SKIP_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         skipToEndButton.setQuickMode(true);
         skipToEndButton.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 3, bottomY);
         skipToEndButton.setOpacity(0f);
         
-        watchNextButton = buttonTooltip.addButton(Strings.get("arena_panel.next_round"), NEXT_ROUND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        watchNextButton = btnTp.addButton(Strings.get("arena_panel.next_round"), NEXT_ROUND_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         watchNextButton.setQuickMode(true);
         watchNextButton.getPosition().inTL(leftX + (BUTTON_WIDTH + BUTTON_SPACING) * 4, bottomY);
         watchNextButton.setOpacity(0f);
         
-        nextGameButton = buttonTooltip.addButton(
+        nextGameButton = btnTp.addButton(
             Strings.get("arena_panel.next_game"), 
             NEXT_GAME_DATA, 
             Color.BLACK, DISABLED_BTN_COLOR, 
@@ -911,34 +907,36 @@ protected SpriteAPI getShipSprite(String hullId) {
         nextGameButton.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
         nextGameButton.setOpacity(0f);
         
-        startBattleButton = buttonTooltip.addButton(Strings.get("arena_panel.start_battle"), ARENA_START_BATTLE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        startBattleButton = btnTp.addButton(Strings.get("arena_panel.start_battle"), ARENA_START_BATTLE_DATA, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         startBattleButton.setQuickMode(true);
         startBattleButton.getPosition().inTL(leftX + BUTTON_WIDTH + BUTTON_SPACING, bottomY);
         startBattleButton.setOpacity(0f);
         
-        confirmOverdraftButton = buttonTooltip.addButton(
+        confirmOverdraftButton = btnTp.addButton(
             Strings.get("arena_panel.confirm_overdraft"), 
-            "arena_confirm_overdraft", 
+            ARENA_CONFIRM_DIALOG, 
             BUTTON_WIDTH + 30f, BUTTON_HEIGHT, 0f
         );
         confirmOverdraftButton.setQuickMode(true);
         confirmOverdraftButton.getPosition().inTL(leftX, bottomY);
         confirmOverdraftButton.setOpacity(0f);
         
-        cancelOverdraftButton = buttonTooltip.addButton(Strings.get("common.cancel"), "arena_cancel_overdraft", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        cancelOverdraftButton = btnTp.addButton(Strings.get("common.cancel"), ARENA_CANCEL_OVERDRAFT, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         cancelOverdraftButton.setQuickMode(true);
+        cancelOverdraftButton.setShortcut(Keyboard.KEY_ESCAPE, false);
         cancelOverdraftButton.getPosition().inTL(leftX + BUTTON_WIDTH + 40f + BUTTON_SPACING, bottomY);
         cancelOverdraftButton.setOpacity(0f);
         
-        dismissErrorButton = buttonTooltip.addButton(Strings.get("common.ok"), "arena_dismiss_error", BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
+        dismissErrorButton = btnTp.addButton(Strings.get("common.ok"), ARENA_DISMISS_ERROR, BUTTON_WIDTH, BUTTON_HEIGHT, 0f);
         dismissErrorButton.setQuickMode(true);
+        dismissErrorButton.setShortcut(Keyboard.KEY_ESCAPE, false);
         dismissErrorButton.getPosition().inTL((PANEL_WIDTH - BUTTON_WIDTH) / 2f, bottomY);
         dismissErrorButton.setOpacity(0f);
         
         buttonsCreated = true;
     }
     
-    protected void updateButtonVisibility() {
+    private void updateButtonVisibility() {
         final boolean showChampionSelect =
             (currentRound == 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage) ||
             (currentRound > 0 && showingBetAmounts && addingBetDuringBattle && selectedChampionIndex < 0 && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage);
@@ -974,58 +972,34 @@ protected SpriteAPI getShipSprite(String hullId) {
             }
         }
         
-        if (leaveButton != null) {
-            boolean showLeave = false;
-            if (battleEnded) {
-                showLeave = true;
-            } else if (!showingOverdraftConfirmation && !showingErrorMessage) {
-                showLeave = !showingBetAmounts;
-            }
-            leaveButton.setOpacity(showLeave ? 1f : 0f);
-        }
         
-        if (suspendButton != null) {
-            suspendButton.setOpacity(!battleEnded && currentRound > 0 && !showingBetAmounts && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
-        }
+        final boolean showLeave = battleEnded ?
+            true : (!showingOverdraftConfirmation && !showingErrorMessage) ?
+            !showingBetAmounts : false;
+        leaveButton.setOpacity(showLeave ? 1f : 0f);
         
-        if (addBetButton != null) {
-            addBetButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
-        }
-        
-        if (skipToEndButton != null) {
-            skipToEndButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
-        }
-        
-        if (watchNextButton != null) {
-            watchNextButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
-        }
-        
-        if (nextGameButton != null) {
-            nextGameButton.setOpacity(battleEnded ? 1f : 0f);
-        }
-        
-        if (startBattleButton != null) {
-            startBattleButton.setOpacity(currentRound == 0 && !showingBetAmounts && totalBet > 0 && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
-        }
-        
-        if (confirmOverdraftButton != null) {
-            confirmOverdraftButton.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
-        }
-        
-        if (cancelOverdraftButton != null) {
-            cancelOverdraftButton.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
-        }
-        
-        if (dismissErrorButton != null) {
-            dismissErrorButton.setOpacity(showingErrorMessage ? 1f : 0f);
-        }
-        
-        if (messageLabel != null) {
-            messageLabel.setOpacity(showingOverdraftConfirmation || showingErrorMessage ? 1f : 0f);
-        }
+        suspendButton.setOpacity(!battleEnded && currentRound > 0 && !showingBetAmounts && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
+
+        addBetButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
+
+        skipToEndButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
+
+        watchNextButton.setOpacity(currentRound > 0 && !showingBetAmounts && !battleEnded && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
+
+        nextGameButton.setOpacity(battleEnded ? 1f : 0f);
+
+        startBattleButton.setOpacity(currentRound == 0 && !showingBetAmounts && totalBet > 0 && !showingOverdraftConfirmation && !showingErrorMessage ? 1f : 0f);
+
+        confirmOverdraftButton.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
+
+        cancelOverdraftButton.setOpacity(showingOverdraftConfirmation ? 1f : 0f);
+
+        dismissErrorButton.setOpacity(showingErrorMessage ? 1f : 0f);
+
+        messageLabel.setOpacity(showingOverdraftConfirmation || showingErrorMessage ? 1f : 0f);
     }
     
-    protected void createRoundLabel() {
+    private void createRoundLabel() {
         if (panel == null) return;
         
         final float LABEL_WIDTH = 150f;
@@ -1040,7 +1014,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
-    protected void createBetLabel() {
+    private void createBetLabel() {
         if (panel == null) return;
         
         final float LABEL_WIDTH = 200f;
@@ -1055,7 +1029,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
-    protected void createInstructionLabel() {
+    private void createInstructionLabel() {
         if (panel == null) return;
         
         final float LABEL_WIDTH = 250f;
@@ -1070,7 +1044,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
-    protected void createBalanceLabel() {
+    private void createBalanceLabel() {
         if (panel == null) return;
         
         final float LABEL_WIDTH = 400f;
@@ -1087,7 +1061,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         updateBalanceLabel();
     }
     
-    protected void createMessageLabel() {
+    private void createMessageLabel() {
         if (panel == null) return;
         
         final float LABEL_WIDTH = 400f;
@@ -1102,7 +1076,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             .setSize(LABEL_WIDTH, LABEL_HEIGHT);
     }
     
-    protected void updateBalanceLabel() {
+    private void updateBalanceLabel() {
         if (balanceLabel == null) return;
         
         int balance = CasinoVIPManager.getBalance();
@@ -1138,7 +1112,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         balanceLabel.setColor(balanceColor);
     }
     
-    protected void createResultLabel() {
+    private void createResultLabel() {
         if (panel == null) return;
         
         final float RESULT_WIDTH = 200f;
@@ -1154,7 +1128,7 @@ protected SpriteAPI getShipSprite(String hullId) {
             .setSize(RESULT_WIDTH, RESULT_HEIGHT);
     }
     
-    protected void createRewardBreakdownLabels() {
+    private void createRewardBreakdownLabels() {
         if (panel == null) return;
         
         final float breakdownX = SHIP_COLUMN_WIDTH + MARGIN + CENTER_COLUMN_WIDTH - MARGIN;
@@ -1173,7 +1147,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
     
-    protected void createShipLabels() {
+    private void createShipLabels() {
         if (panel == null || combatants == null) return;
         
         final float NAME_WIDTH = (SHIP_COLUMN_WIDTH - MARGIN * 2) * 2;
@@ -1223,25 +1197,22 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
 
+    /**
+     * Note:
+     * The CustomUIPanelAPI method such as renderBelow get called exclusively by their owner panel.
+     * Which in this case is the panel member. Therefore when this method is called, panel always exists.
+     * Panels also are guaranteed to always have a position. They never not have a position. Therefore, both null checks are not needed.
+     * 
+     * @author WolframSegler
+     * TODO remove message after reading
+     */
     
     public void renderBelow(float alphaMult) {
-        float x, y, w, h;
-        
-        if (pos != null) {
-            x = pos.getX();
-            y = pos.getY();
-            w = pos.getWidth();
-            h = pos.getHeight();
-        } else {
-            x = 0;
-            y = 0;
-            w = PANEL_WIDTH;
-            h = PANEL_HEIGHT;
-        }
-        
-        GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        float s = Global.getSettings().getScreenScaleMult();
-        GL11.glScissor((int)(x * s), (int)(y * s), (int)(w * s), (int)(h * s));
+        final PositionAPI pos = panel.getPosition();
+        final float x = pos.getX();
+        final float y = pos.getY();
+        final float w = pos.getWidth();
+        final float h = pos.getHeight();
         
         Misc.renderQuad(x, y, w, h, COLOR_BG_DARK, alphaMult);
         
@@ -1268,11 +1239,9 @@ protected SpriteAPI getShipSprite(String hullId) {
         
         updateLabels();
         updateButtonVisibility();
-        
-        GL11.glDisable(GL11.GL_SCISSOR_TEST);
     }
     
-    protected void renderShipBoxes(float panelX, float panelY, float panelH, float alphaMult) {
+    private void renderShipBoxes(float panelX, float panelY, float panelH, float alphaMult) {
         if (combatants == null) return;
 
         final float NAME_HEIGHT = 16f;
@@ -1402,56 +1371,47 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
     
-    protected void updateLabels() {
+    private void updateLabels() {
         updateBalanceLabel();
         
-        if (roundLabel != null && currentRound != lastCurrentRound) {
+        if (currentRound != lastCurrentRound) {
             lastCurrentRound = currentRound;
             roundLabel.setText(Strings.format("arena_panel.round", currentRound));
         }
         
-        if (betLabel != null && totalBet != lastTotalBet) {
+        if (totalBet != lastTotalBet) {
             lastTotalBet = totalBet;
             betLabel.setText(Strings.format("arena_panel.total_bet", totalBet));
         }
         
-        if (instructionLabel != null) {
-            String newInstructionText;
-            boolean hideInstruction = false;
-            
-            if (showingOverdraftConfirmation) {
-                newInstructionText = Strings.get("arena_panel.confirm_overdraft");
-            } else if (showingErrorMessage) {
-                newInstructionText = "";
-                hideInstruction = true;
-            } else if (battleEnded) {
-                newInstructionText = Strings.get("arena_panel.next_game");
-            } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex < 0) {
-                newInstructionText = Strings.get("arena_panel.select_champion_bet");
-            } else if (currentRound > 0 && addingBetDuringBattle) {
-                SpiralGladiator selected = combatants.get(selectedChampionIndex);
-                newInstructionText = Strings.format("arena.add_bet_on", selected.hullName);
-            } else if (currentRound > 0) {
-                newInstructionText = null;
-                hideInstruction = true;
-            } else if (showingBetAmounts && selectedChampionIndex >= 0) {
-                SpiralGladiator selected = combatants.get(selectedChampionIndex);
-                newInstructionText = Strings.format("arena.add_bet_on", selected.hullName);
-            } else {
-                newInstructionText = Strings.get("arena_panel.select_champion_bet");
-            }
-            
-            if (hideInstruction != lastInstructionHidden || 
-                (newInstructionText == null && lastInstructionText != null) ||
-                (newInstructionText != null && !newInstructionText.equals(lastInstructionText))) {
-                lastInstructionText = newInstructionText;
-                lastInstructionHidden = hideInstruction;
-                if (hideInstruction) {
-                    instructionLabel.setText("");
-                } else {
-                    instructionLabel.setText(newInstructionText);
-                }
-            }
+        boolean hideInstruction = false;
+        final String newInstructionText;
+        if (showingOverdraftConfirmation) {
+            newInstructionText = Strings.get("arena_panel.confirm_overdraft");
+        } else if (showingErrorMessage) {
+            newInstructionText = "";
+            hideInstruction = true;
+        } else if (battleEnded) {
+            newInstructionText = Strings.get("arena_panel.next_game");
+        } else if (currentRound > 0 && addingBetDuringBattle && selectedChampionIndex < 0) {
+            newInstructionText = Strings.get("arena_panel.select_champion_bet");
+        } else if (currentRound > 0 && addingBetDuringBattle) {
+            SpiralGladiator selected = combatants.get(selectedChampionIndex);
+            newInstructionText = Strings.format("arena.add_bet_on", selected.hullName);
+        } else if (currentRound > 0) {
+            newInstructionText = null;
+            hideInstruction = true;
+        } else if (showingBetAmounts && selectedChampionIndex >= 0) {
+            SpiralGladiator selected = combatants.get(selectedChampionIndex);
+            newInstructionText = Strings.format("arena.add_bet_on", selected.hullName);
+        } else {
+            newInstructionText = Strings.get("arena_panel.select_champion_bet");
+        }
+        
+        final String newText = hideInstruction ? null : newInstructionText;
+        if (!Objects.equals(lastInstructionText, newText)) {
+            lastInstructionText = newText;
+            instructionLabel.setText(newText == null ? "" : newText);
         }
         
         if (combatants != null) {
@@ -1459,28 +1419,22 @@ protected SpriteAPI getShipSprite(String hullId) {
                 SpiralGladiator ship = combatants.get(i);
                 
                 // Show labels
-                if (shipNameLabels[i] != null) {
-                    shipNameLabels[i].setOpacity(1f);
-                }
-                if (shipHpLabels[i] != null) {
-                    shipHpLabels[i].setOpacity(1f);
-                }
-                if (shipOddsLabels[i] != null) {
-                    shipOddsLabels[i].setOpacity(1f);
-                }
+                shipNameLabels[i].setOpacity(1f);
+                shipHpLabels[i].setOpacity(1f);
+                shipOddsLabels[i].setOpacity(1f);
                 
                 // Update ship name if ship changed
-                boolean shipChanged = !shipStateInitialized || 
+                final boolean shipChanged = !shipStateInitialized || 
                     (lastShipHullIds[i] == null || !lastShipHullIds[i].equals(ship.hullId));
                 
-                if (shipChanged && shipNameLabels[i] != null) {
+                if (shipChanged) {
                     lastShipHullIds[i] = ship.hullId;
-                    String fullName = ship.prefix + " " + ship.hullName + " " + ship.affix;
+                    final String fullName = ship.prefix + " " + ship.hullName + " " + ship.affix;
                     shipNameLabels[i].setText(fullName);
                     applyShipNameHighlighting(shipNameLabels[i], ship);
                 }
                 
-                boolean hpChanged = !shipStateInitialized || 
+                final boolean hpChanged = !shipStateInitialized || 
                     lastShipHp[i] != ship.hp || 
                     lastShipMaxHp[i] != ship.maxHp ||
                     lastShipDead[i] != ship.isDead;
@@ -1490,13 +1444,11 @@ protected SpriteAPI getShipSprite(String hullId) {
                     lastShipMaxHp[i] = ship.maxHp;
                     lastShipDead[i] = ship.isDead;
                     
-                    if (shipHpLabels[i] != null) {
-                        int displayHp = (isAnimating || hpAnimating[i]) ? animatedHp[i] : ship.hp;
-                        shipHpLabels[i].setText(displayHp + "/" + ship.maxHp + " HP");
-                        Color hpColor = (killedHullIds.contains(ship.hullId) || ship.isDead) ? COLOR_DESTROYED : 
-                            ((float) displayHp / ship.maxHp > 0.5f ? COLOR_HEALTHY : COLOR_DAMAGED);
-                        shipHpLabels[i].setColor(hpColor);
-                    }
+                    final int displayHp = (isAnimating || hpAnimating[i]) ? animatedHp[i] : ship.hp;
+                    shipHpLabels[i].setText(displayHp + "/" + ship.maxHp + " HP");
+                    final Color hpColor = (killedHullIds.contains(ship.hullId) || ship.isDead) ? COLOR_DESTROYED : 
+                        ((float) displayHp / ship.maxHp > 0.5f ? COLOR_HEALTHY : COLOR_DAMAGED);
+                    shipHpLabels[i].setColor(hpColor);
                 }
                 
                 float displayOdds = oddsCached && i < cachedOdds.length ? cachedOdds[i] : ship.getCurrentOdds(currentRound);
@@ -1509,7 +1461,7 @@ protected SpriteAPI getShipSprite(String hullId) {
                 }
                 
                 boolean oddsChanged = !shipStateInitialized || lastShipOdds[i] != displayOdds || lastShipBetCount[i] != currentBetCount;
-                if (oddsChanged && shipOddsLabels[i] != null) {
+                if (oddsChanged) {
                     lastShipOdds[i] = displayOdds;
                     lastShipBetCount[i] = currentBetCount;
                     
@@ -1523,48 +1475,36 @@ protected SpriteAPI getShipSprite(String hullId) {
             
             // Hide labels for ships that no longer exist (e.g., fewer ships in new match)
             for (int i = combatants.size(); i < 5; i++) {
-                if (shipNameLabels[i] != null) {
-                    shipNameLabels[i].setOpacity(0f);
-                }
-                if (shipHpLabels[i] != null) {
-                    shipHpLabels[i].setOpacity(0f);
-                }
-                if (shipOddsLabels[i] != null) {
-                    shipOddsLabels[i].setOpacity(0f);
-                }
+                shipNameLabels[i].setOpacity(0f);
+                shipHpLabels[i].setOpacity(0f);
+                shipOddsLabels[i].setOpacity(0f);
             }
             
             shipStateInitialized = true;
         }
         
-        if (resultLabel != null) {
-            if (!battleEnded) {
-                resultLabel.setText("");
-            } else if (rewardBreakdown != null) {
-                // Don't show "Battle Complete!" - keep empty
-                resultLabel.setText("");
-            } else {
-                if (winnerIndex >= 0 && winnerIndex < Objects.requireNonNull(combatants).size()) {
-                    SpiralGladiator winner = combatants.get(winnerIndex);
-                    resultLabel.setText(Strings.format("arena_panel_rewards.winner_reward", winner.hullName, totalReward));
-                    resultLabel.setColor(Color.GREEN);
-                } else {
-                    // Don't show "Battle Complete!" - keep empty
-                    resultLabel.setText("");
-                }
-            }
+        if (!battleEnded) {
+            resultLabel.setText("");
+        } else if (rewardBreakdown != null) {
+            // Don't show "Battle Complete!" - keep empty
+            resultLabel.setText("");
+        } else if (winnerIndex >= 0 && winnerIndex < combatants.size()) {
+            SpiralGladiator winner = combatants.get(winnerIndex);
+            resultLabel.setText(Strings.format("arena_panel_rewards.winner_reward", winner.hullName, totalReward));
+            resultLabel.setColor(Color.GREEN);
+        } else {
+            // Don't show "Battle Complete!" - keep empty
+            resultLabel.setText("");
         }
         
         updateRewardBreakdownLabels();
     }
     
-    protected void updateRewardBreakdownLabels() {
+    private void updateRewardBreakdownLabels() {
         if (!battleEnded || rewardBreakdown == null) {
             if (!rewardBreakdownCached) {
                 for (int i = 0; i < MAX_REWARD_LINES; i++) {
-                    if (rewardBreakdownLabels[i] != null) {
-                        rewardBreakdownLabels[i].setText("");
-                    }
+                    rewardBreakdownLabels[i].setText("");
                 }
             }
             return;
@@ -1572,12 +1512,8 @@ protected SpriteAPI getShipSprite(String hullId) {
         
         if (rewardBreakdownCached) return;
         
-        if (rewardBreakdownLabels[0] == null) return;
-        
         for (int i = 0; i < MAX_REWARD_LINES; i++) {
-            if (rewardBreakdownLabels[i] != null) {
-                rewardBreakdownLabels[i].setText("");
-            }
+            rewardBreakdownLabels[i].setText("");
         }
         
         int lineIndex = 0;
@@ -1664,7 +1600,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         rewardBreakdownCached = true;
     }
     
-    protected void updateHullIdDeadStatus() {
+    private void updateHullIdDeadStatus() {
         hullIdDeadStatus.clear();
         if (combatants != null) {
             for (SpiralGladiator g : combatants) {
@@ -1673,7 +1609,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
     
-    protected void updateCachedParsedEntries() {
+    private void updateCachedParsedEntries() {
         int currentSize = battleLog != null ? battleLog.size() : 0;
         if (currentSize == lastBattleLogSize) {
             return;
@@ -1690,7 +1626,7 @@ protected SpriteAPI getShipSprite(String hullId) {
         }
     }
     
-protected List<ParsedLogEntry> getFilteredEntries() {
+private List<ParsedLogEntry> getFilteredEntries() {
         updateHullIdDeadStatus();
         updateCachedParsedEntries();
         
@@ -1704,7 +1640,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         return filtered;
     }
 
-    protected void renderBattleLogSprites(float panelX, float panelY, float alphaMult) {
+    private void renderBattleLogSprites(float panelX, float panelY, float alphaMult) {
         List<ParsedLogEntry> validEntries;
         int entriesToShow;
 
@@ -1822,7 +1758,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
                 }
             }
 
-            if (battleLogTextLabels[lineIndex] != null && !labelText.isEmpty()) {
+            if (!labelText.isEmpty()) {
                 battleLogTextLabels[lineIndex].setText(labelText);
                 battleLogTextLabels[lineIndex].setColor(labelColor);
                 battleLogTextLabels[lineIndex].setOpacity(1f);
@@ -1836,68 +1772,59 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
 
         for (int j = lineIndex; j < 12; j++) {
-            if (battleLogTextLabels[j] != null) {
-                battleLogTextLabels[j].setOpacity(0f);
-            }
+            battleLogTextLabels[j].setOpacity(0f);
         }
     }
     
-    protected void drawBattleLogSpriteWithDead(String hullId, float cx, float cy, float alphaMult, boolean dead) {
+    private void drawBattleLogSpriteWithDead(String hullId, float cx, float cy, float alphaMult, boolean dead) {
         final SpriteAPI sprite = getShipSprite(hullId);
-        if (sprite != null) {
-            final float spriteWidth = sprite.getWidth();
-            final float spriteHeight = sprite.getHeight();
-            final float maxDim = Math.max(spriteWidth, spriteHeight);
-            final float scale = LOG_SPRITE_SIZE / maxDim;
-            
-            sprite.setSize(spriteWidth * scale, spriteHeight * scale);
-            
-            if (dead) {
-                sprite.setColor(COLOR_DESTROYED);
-                sprite.setAlphaMult(alphaMult * 0.5f);
-            } else {
-                sprite.setColor(Color.WHITE);
-                sprite.setAlphaMult(alphaMult);
-            }
-            sprite.setNormalBlend();
-            sprite.renderAtCenter(cx, cy);
-            
-            if (dead) {
-                final float halfSize = LOG_SPRITE_SIZE / 2f - 4f;
-                GL11.glDisable(GL11.GL_TEXTURE_2D);
-                GL11.glColor4f(1f, 0f, 0f, alphaMult * 0.8f);
-                GL11.glLineWidth(2f);
-                GL11.glBegin(GL11.GL_LINES);
-                GL11.glVertex2f(cx - halfSize, cy - halfSize);
-                GL11.glVertex2f(cx + halfSize, cy + halfSize);
-                GL11.glVertex2f(cx + halfSize, cy - halfSize);
-                GL11.glVertex2f(cx - halfSize, cy + halfSize);
-                GL11.glEnd();
-                GL11.glLineWidth(1f);
-            }
+        if (sprite == null) return;
+        
+        final float spriteWidth = sprite.getWidth();
+        final float spriteHeight = sprite.getHeight();
+        final float maxDim = Math.max(spriteWidth, spriteHeight);
+        final float scale = LOG_SPRITE_SIZE / maxDim;
+        
+        sprite.setSize(spriteWidth * scale, spriteHeight * scale);
+        
+        sprite.setColor(dead ? COLOR_DESTROYED : Color.WHITE);
+        sprite.setAlphaMult(alphaMult * (dead ? 0.5f : 1f));
+        sprite.setNormalBlend();
+        sprite.renderAtCenter(cx, cy);
+        
+        if (dead) {
+            final float halfSize = LOG_SPRITE_SIZE / 2f - 4f;
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GL11.glColor4f(1f, 0f, 0f, alphaMult * 0.8f);
+            GL11.glLineWidth(2f);
+            GL11.glBegin(GL11.GL_LINES);
+            GL11.glVertex2f(cx - halfSize, cy - halfSize);
+            GL11.glVertex2f(cx + halfSize, cy + halfSize);
+            GL11.glVertex2f(cx + halfSize, cy - halfSize);
+            GL11.glVertex2f(cx - halfSize, cy + halfSize);
+            GL11.glEnd();
+            GL11.glLineWidth(1f);
         }
     }
 
-    protected String shortenDamageText(String text) {
+    private String shortenDamageText(String text) {
         if (text == null) return "";
         return text.replace("CRIT damage", "CRIT dmg").replace("damage", "dmg");
     }
 
     @Override
     public void actionPerformed(Object input, Object source) {
-        Object data = null;
         if (source instanceof ButtonAPI btn) {
-            data = btn.getCustomData();
+            processAction(btn.getCustomData());
         }
-        processAction(data);
         updateButtonVisibility();
     }
     
-    protected void processAction(Object data) {
+    private void processAction(Object data) {
         if (data == null) return;
         
         if (data == ARENA_LEAVE_DATA) {
-            if (actionCallback != null) actionCallback.onLeave();
+            actionCallback.onLeave();
             return;
         }
         
@@ -1909,17 +1836,17 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
         
         if (data == NEXT_ROUND_DATA) {
-            if (actionCallback != null) actionCallback.onWatchNextRound();
+            actionCallback.onWatchNextRound();
             return;
         }
         
         if (data == NEXT_GAME_DATA) {
-            if (actionCallback != null) actionCallback.onNextGame();
+            actionCallback.onNextGame();
             return;
         }
         
         if (data == ARENA_SKIP_DATA) {
-            if (actionCallback != null) actionCallback.onSkipToEnd();
+            actionCallback.onSkipToEnd();
             return;
         }
         
@@ -1931,29 +1858,29 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
         
         if (data == ARENA_SUSPEND_DATA) {
-            if (actionCallback != null) actionCallback.onSuspend();
+            actionCallback.onSuspend();
             return;
         }
         
         if (data == ARENA_START_BATTLE_DATA) {
-            if (actionCallback != null) actionCallback.onStartBattle();
+            actionCallback.onStartBattle();
             return;
         }
         
-        if ("arena_confirm_overdraft".equals(data)) {
-            if (showingOverdraftConfirmation && actionCallback != null) {
+        if (data == ARENA_CONFIRM_DIALOG) {
+            if (showingOverdraftConfirmation) {
                 actionCallback.onConfirmBet(pendingChampionIndex, pendingBetAmount);
             }
             clearOverdraftConfirmation();
             return;
         }
         
-        if ("arena_cancel_overdraft".equals(data)) {
+        if (data == ARENA_CANCEL_OVERDRAFT) {
             clearOverdraftConfirmation();
             return;
         }
         
-        if ("arena_dismiss_error".equals(data)) {
+        if (data == ARENA_DISMISS_ERROR) {
             clearErrorMessage();
             return;
         }
@@ -1970,7 +1897,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
                     selectedChampionIndex = idx;
                     showingBetAmounts = true;
 
-                    if (currentRound == 0 && actionCallback != null) {
+                    if (currentRound == 0) {
                         actionCallback.onSelectChampion(idx);
                     }
                 }
@@ -1978,19 +1905,13 @@ protected List<ParsedLogEntry> getFilteredEntries() {
             }
 
             if (strData.contains(ARENA_BET_DATA)) {
-                int amount;
-                try {
-                    amount = Integer.parseInt(strData.replaceAll(".*?(\\d+)$", "$1"));
-                } catch (Exception e) {
-                    amount = 0;
-                }
-
+                final int amount = Integer.parseInt(strData.replaceAll(".*?(\\d+)$", "$1"));
                 handleBetAmountClick(selectedChampionIndex, amount);
             }
         }
     }
 
-    public void processInput(List<InputEventAPI> events) {
+    public final void processInput(List<InputEventAPI> events) {
         for (InputEventAPI event : events) {
             if (event.isConsumed()) continue;
 
@@ -1998,37 +1919,16 @@ protected List<ParsedLogEntry> getFilteredEntries() {
             if (event.isMouseDownEvent() && isAnimating) {
                 event.consume();
                 skipRequested = true;
-                return;
-            }
-            
-            if (event.isKeyDownEvent()) {
-                final int key = event.getEventValue();
-                
-                if (key == Keyboard.KEY_ESCAPE) {
-                    event.consume();
-                    if (showingOverdraftConfirmation) {
-                        clearOverdraftConfirmation();
-                    } else if (showingErrorMessage) {
-                        clearErrorMessage();
-                    } else if (showingBetAmounts) {
-                        showingBetAmounts = false;
-                        selectedChampionIndex = -1;
-                    } else if (actionCallback != null) {
-                        actionCallback.onEscape();
-                    }
-                    return;
-                }
             }
         }
     }
     
-    protected void handleBetAmountClick(int championIndex, int amount) {
-        BetValidationResult validation = validateBet(amount);
+    private final void handleBetAmountClick(int championIndex, int amount) {
+        final BetValidationResult validation = validateBet(amount);
         
         if (validation.isAffordable()) {
-            if (actionCallback != null) {
-                actionCallback.onConfirmBet(championIndex, amount);
-            }
+            actionCallback.onConfirmBet(championIndex, amount);
+
             showingBetAmounts = false;
             selectedChampionIndex = -1;
             updateBalanceLabel();
@@ -2051,7 +1951,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
     }
     
-    protected void clearOverdraftConfirmation() {
+    private final void clearOverdraftConfirmation() {
         showingOverdraftConfirmation = false;
         pendingBetAmount = 0;
         pendingChampionIndex = -1;
@@ -2060,14 +1960,14 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         updateMessageLabel();
     }
     
-    protected void clearErrorMessage() {
+    private final void clearErrorMessage() {
         showingErrorMessage = false;
         currentErrorMessage = "";
         updateButtonVisibility();
         updateMessageLabel();
     }
     
-    protected void updateMessageLabel() {
+    private final void updateMessageLabel() {
         if (messageLabel == null) return;
         
         if (showingOverdraftConfirmation) {
@@ -2081,7 +1981,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
     }
     
-    protected void cacheOdds() {
+    private final void cacheOdds() {
         if (combatants == null) return;
         
         for (int i = 0; i < combatants.size() && i < 5; i++) {
@@ -2091,7 +1991,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         oddsCached = true;
     }
     
-    protected void syncAnimationStateFromCombatants() {
+    private final void syncAnimationStateFromCombatants() {
         if (combatants == null) return;
         
         for (int i = 0; i < combatants.size(); i++) {
@@ -2111,14 +2011,14 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         }
     }
     
-    public void updateState(
-            List<SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog) {
-        
-        boolean isRoundProgression = lastCurrentRound >= 0 && currentRound > lastCurrentRound;
+    public final void updateState(
+        List<SpiralGladiator> combatants,
+        int currentRound,
+        int totalBet,
+        List<BetInfo> bets,
+        List<String> battleLog
+    ) {
+        final boolean isRoundProgression = lastCurrentRound >= 0 && currentRound > lastCurrentRound;
         
         if (isRoundProgression) {
             isAnimating = true;
@@ -2147,25 +2047,13 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         updateLabels();
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward, int finalRound) {
-        this.battleEnded = true;
-        this.winnerIndex = winnerIndex;
-        this.totalReward = totalReward;
-        this.currentRound = finalRound;
-        this.showingBetAmounts = false;
-        this.addingBetDuringBattle = false;
-        this.selectedChampionIndex = -1;
-        this.showingOverdraftConfirmation = false;
-        this.showingErrorMessage = false;
-        this.rewardBreakdownCached = false;
-        
-        oddsCached = false;
-        cacheOdds();
-        
-        updateLabels();
+    public final void setBattleEnded(int winnerIndex, int totalReward, int finalRound) {
+        setBattleEnded(winnerIndex, totalReward, null, finalRound);
     }
     
-    public void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown, int finalRound) {
+    public final void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown,
+        int finalRound
+    ) {
         this.battleEnded = true;
         this.winnerIndex = winnerIndex;
         this.totalReward = totalReward;
@@ -2184,17 +2072,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         updateLabels();
     }
     
-    @Deprecated
-    public void setBattleEnded(int winnerIndex, int totalReward) {
-        setBattleEnded(winnerIndex, totalReward, this.currentRound);
-    }
-    
-    @Deprecated
-    public void setBattleEnded(int winnerIndex, int totalReward, RewardBreakdown breakdown) {
-        setBattleEnded(winnerIndex, totalReward, breakdown, this.currentRound);
-    }
-    
-    protected void resetAnimationState() {
+    private final void resetAnimationState() {
         logAnimationTimer = 0f;
         displayedLogIndex = 0;
         isAnimating = false;
@@ -2218,13 +2096,13 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         Arrays.fill(fadeOutAlpha, 1.0f);
     }
     
-    public void resetForNewMatch(
-            List<SpiralGladiator> combatants,
-            int currentRound,
-            int totalBet,
-            List<BetInfo> bets,
-            List<String> battleLog) {
-        
+    public final void resetForNewMatch(
+        List<SpiralGladiator> combatants,
+        int currentRound,
+        int totalBet,
+        List<BetInfo> bets,
+        List<String> battleLog
+    ) {
         resetAnimationState();
         
         this.battleEnded = false;
@@ -2256,7 +2134,6 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         lastCreditCeiling = Integer.MIN_VALUE;
         lastIsVIP = false;
         lastInstructionText = null;
-        lastInstructionHidden = false;
         for (int i = 0; i < 5; i++) {
             lastShipHp[i] = -1;
             lastShipMaxHp[i] = -1;
@@ -2278,17 +2155,17 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         updateMessageLabel();
     }
     
-    protected String buildBetDisplayText(SpiralGladiator ship) {
+    private final String buildBetDisplayText(SpiralGladiator ship) {
         if (bets == null || bets.isEmpty()) return "";
         
-        Map<Integer, List<BetInfo>> betsByRound = new HashMap<>();
+        final Map<Integer, List<BetInfo>> betsByRound = new HashMap<>();
         for (BetInfo b : bets) {
             if (b.ship == ship) {
                 betsByRound.computeIfAbsent(b.roundPlaced, k -> new ArrayList<>()).add(b);
             }
         }
 
-        List<String> betStrings = getStrings(betsByRound);
+        final List<String> betStrings = getStrings(betsByRound);
 
         if (betStrings.isEmpty()) return "";
         
@@ -2302,7 +2179,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
 
     private static List<String> getStrings(Map<Integer, List<BetInfo>> betsByRound)
     {
-        List<String> betStrings = new ArrayList<>();
+        final List<String> betStrings = new ArrayList<>();
         for (Map.Entry<Integer, List<BetInfo>> entry : betsByRound.entrySet()) {
             List<BetInfo> roundBets = entry.getValue();
             if (!roundBets.isEmpty()) {
@@ -2317,7 +2194,7 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         return betStrings;
     }
 
-    protected String getPositionString(int finalPosition) {
+    private final String getPositionString(int finalPosition) {
         return switch (finalPosition) {
             case 0 -> "1st";
             case 1 -> "2nd";
@@ -2328,16 +2205,11 @@ protected List<ParsedLogEntry> getFilteredEntries() {
         };
     }
     
-    public boolean isReadyToClose() {
-        return readyToClose;
-    }
-    
-    public void showExternalError(String message) {
+    public final void showExternalError(String message) {
         currentErrorMessage = message;
         showingErrorMessage = true;
         showingOverdraftConfirmation = false;
         updateButtonVisibility();
         updateMessageLabel();
-    }
-    
+    }   
 }

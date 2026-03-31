@@ -275,7 +275,6 @@ public class CasinoConfig {
         }
 
         loadGachaShipsBlacklist();
-        Strings.load();
     }
 
     private static void loadGachaShipsBlacklist() {

@@ -4,9 +4,6 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 
-import data.scripts.casino.PokerGame.PokerGameLogic.Rank;
-import data.scripts.casino.PokerGame.PokerGameLogic.Suit;
-
 public class CardSprites {
     private static final SettingsAPI settings = Global.getSettings();
     public static final SpriteAPI BACK_AQUA = settings.getSprite("card", "back_aqua");
@@ -84,6 +81,10 @@ public class CardSprites {
     public static final SpriteAPI SUIT_DIAMOND = settings.getSprite("card", "suit_diamond");
     public static final SpriteAPI SUIT_HEART = settings.getSprite("card", "suit_heart");
     public static final SpriteAPI SUIT_SPADE = settings.getSprite("card", "suit_spade");
+
+    public static final SpriteAPI get(Card card) {
+        return get(card.suit, card.rank);
+    }
 
     public static final SpriteAPI get(Suit suit, Rank rank) {
         switch (suit) {

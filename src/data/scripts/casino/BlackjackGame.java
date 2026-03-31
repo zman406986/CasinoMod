@@ -1,8 +1,11 @@
 package data.scripts.casino;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+
+import data.scripts.casino.cards.Card;
+import data.scripts.casino.cards.Deck;
+import data.scripts.casino.cards.GameType;
 
 public class BlackjackGame {
 
@@ -10,68 +13,7 @@ public class BlackjackGame {
 
     public enum GameState { BETTING, PLAYER_TURN, DEALER_TURN, RESULT }
 
-    public enum Suit { 
-        SPADES(Strings.get("poker_suits.spades")), 
-        HEARTS(Strings.get("poker_suits.hearts")), 
-        DIAMONDS(Strings.get("poker_suits.diamonds")), 
-        CLUBS(Strings.get("poker_suits.clubs"));
-        
-        public final String displayName;
-        Suit(String name) { this.displayName = name; }
-    }
-
-    public enum Rank {
-        TWO(2, "2"), THREE(3, "3"), FOUR(4, "4"), FIVE(5, "5"), SIX(6, "6"),
-        SEVEN(7, "7"), EIGHT(8, "8"), NINE(9, "9"), TEN(10, "10"),
-        JACK(10, "J"), QUEEN(10, "Q"), KING(10, "K"), ACE(11, "A");
-
-        public final int value;
-        public final String symbol;
-
-        Rank(int v, String s) { value = v; symbol = s; }
-    }
-
     private static final float BLACKJACK_PAYOUT = 2.5f; // 3:2 payout for blackjack
-
-    public record Card(Rank rank, Suit suit) {
-        @Override
-        public String toString() {
-            return "[" + Strings.format("poker_card_format.of", suit.displayName, rank.symbol) + "]";
-        }
-
-        public int getValue() { return rank.value; }
-
-        public boolean isAce() { return rank == Rank.ACE; }
-    }
-
-    public static class Deck {
-        public final List<Card> cards = new ArrayList<>();
-        private static final int NUM_DECKS = 6;
-
-        public Deck() {
-            for (int d = 0; d < NUM_DECKS; d++) {
-                for(Suit s : Suit.values()) {
-                    for(Rank r : Rank.values()) {
-                        cards.add(new Card(r, s));
-                    }
-                }
-            }
-        }
-
-        public void shuffle() { Collections.shuffle(cards); }
-
-        // Auto-refresh with new shuffled deck if empty
-        public Card draw() {
-            if (cards.isEmpty()) {
-                Deck fresh = new Deck();
-                fresh.shuffle();
-                cards.addAll(fresh.cards);
-            }
-            return cards.remove(cards.size() - 1);
-        }
-
-        public int cardsRemaining() { return cards.size(); }
-    }
 
     public static class Hand {
         public final List<Card> cards = new ArrayList<>();
@@ -91,7 +33,7 @@ public class BlackjackGame {
             int total = 0;
             int aces = 0;
             for (Card c : cards) {
-                total += c.rank().value;
+                total += c.value();
                 if (c.isAce()) aces++;
             }
             while (total > 21 && aces > 0) {
@@ -105,7 +47,7 @@ public class BlackjackGame {
             int total = 0;
             int aces = 0;
             for (Card c : cards) {
-                total += c.rank().value;
+                total += c.value();
                 if (c.isAce()) aces++;
             }
             int reducedAces = 0;
@@ -123,7 +65,7 @@ public class BlackjackGame {
         // Can split if two cards of same rank
         public boolean canSplit() {
             return cards.size() == 2 &&
-                   cards.get(0).rank() == cards.get(1).rank();
+                   cards.get(0).rank == cards.get(1).rank;
         }
 
         public boolean canDoubleDown() { return cards.size() == 2; }
@@ -159,7 +101,7 @@ public class BlackjackGame {
         state.playerHand = new Hand();
         state.dealerHand = new Hand();
         state.splitHands = new ArrayList<>();
-        deck = new Deck();
+        deck = new Deck(GameType.BLACKJACK);
         deck.shuffle();
         handsSinceShuffle = 0;
     }
@@ -167,7 +109,7 @@ public class BlackjackGame {
     public void startNewHand() {
         handsSinceShuffle++;
         if (handsSinceShuffle >= RESHUFFLE_INTERVAL) {
-            deck = new Deck();
+            deck = new Deck(GameType.BLACKJACK);
             deck.shuffle();
             handsSinceShuffle = 0;
         }

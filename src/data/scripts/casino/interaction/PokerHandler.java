@@ -7,7 +7,7 @@ import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.shared.CasinoFinancials;
 import data.scripts.casino.PokerDialogDelegate;
 import data.scripts.casino.PokerGame;
-import data.scripts.casino.PokerGame.PokerGameLogic;
+import data.scripts.casino.cards.Card;
 import data.scripts.casino.Strings;
 
 import java.awt.Color;
@@ -804,36 +804,36 @@ state = pokerGame.getState();
         boolean playerAllIn = mem.getBoolean("$ipc_poker_player_all_in");
         boolean opponentAllIn = mem.getBoolean("$ipc_poker_opponent_all_in");
 
-        List<PokerGame.PokerGameLogic.Card> playerHand = new ArrayList<>();
+        List<Card> playerHand = new ArrayList<>();
         if (mem.contains("$ipc_poker_player_hand_count")) {
             int count = mem.getInt("$ipc_poker_player_hand_count");
             for (int i = 0; i < count; i++) {
                 if (mem.contains("$ipc_poker_player_hand_" + i)) {
-                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                    Card card = PokerGame.stringToCard(
                         mem.getString("$ipc_poker_player_hand_" + i));
                     if (card != null) playerHand.add(card);
                 }
             }
         }
         
-        List<PokerGame.PokerGameLogic.Card> opponentHand = new ArrayList<>();
+        List<Card> opponentHand = new ArrayList<>();
         if (mem.contains("$ipc_poker_opponent_hand_count")) {
             int count = mem.getInt("$ipc_poker_opponent_hand_count");
             for (int i = 0; i < count; i++) {
                 if (mem.contains("$ipc_poker_opponent_hand_" + i)) {
-                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                    Card card = PokerGame.stringToCard(
                         mem.getString("$ipc_poker_opponent_hand_" + i));
                     if (card != null) opponentHand.add(card);
                 }
             }
         }
         
-        List<PokerGame.PokerGameLogic.Card> communityCards = new ArrayList<>();
+        List<Card> communityCards = new ArrayList<>();
         if (mem.contains("$ipc_poker_community_count")) {
             int count = mem.getInt("$ipc_poker_community_count");
             for (int i = 0; i < count; i++) {
                 if (mem.contains("$ipc_poker_community_" + i)) {
-                    PokerGame.PokerGameLogic.Card card = PokerGame.stringToCard(
+                    Card card = PokerGame.stringToCard(
                         mem.getString("$ipc_poker_community_" + i));
                     if (card != null) communityCards.add(card);
                 }
@@ -983,12 +983,12 @@ state = pokerGame.getState();
         }
     }
 
-    private void displayColoredCards(List<PokerGameLogic.Card> cards) {
+    private void displayColoredCards(List<Card> cards) {
         main.textPanel.setFontInsignia();
         StringBuilder cardText = new StringBuilder();
         for (int i = 0; i < cards.size(); i++) {
-            PokerGameLogic.Card c = cards.get(i);
-            Color suitColor = switch (c.suit()) {
+            Card c = cards.get(i);
+            Color suitColor = switch (c.suit) {
                 case HEARTS -> Color.RED;
                 case DIAMONDS -> Color.BLUE;
                 case CLUBS -> Color.GREEN;
@@ -1001,7 +1001,7 @@ state = pokerGame.getState();
         }
     }
 
-    private void displayColoredCardsOnOneLine(List<PokerGameLogic.Card> cards, String prefix, Color prefixColor) {
+    private void displayColoredCardsOnOneLine(List<Card> cards, String prefix, Color prefixColor) {
         if (cards == null || cards.isEmpty()) {
             return;
         }
@@ -1013,8 +1013,8 @@ state = pokerGame.getState();
         List<Color> highlightColors = new ArrayList<>();
 
         for (int i = 0; i < cards.size(); i++) {
-            PokerGameLogic.Card c = cards.get(i);
-            Color suitColor = switch (c.suit()) {
+            Card c = cards.get(i);
+            Color suitColor = switch (c.suit) {
                 case HEARTS -> Color.RED;
                 case DIAMONDS -> Color.BLUE;
                 case CLUBS -> Color.GREEN;

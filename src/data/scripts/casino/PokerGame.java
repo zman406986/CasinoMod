@@ -2,6 +2,12 @@ package data.scripts.casino;
 
 import java.util.*;
 
+import data.scripts.casino.cards.Card;
+import data.scripts.casino.cards.Deck;
+import data.scripts.casino.cards.GameType;
+import data.scripts.casino.cards.Rank;
+import data.scripts.casino.cards.Suit;
+
 
 public class PokerGame {
 
@@ -13,10 +19,10 @@ public class PokerGame {
 
     public enum CurrentPlayer { PLAYER, OPPONENT }
 
-public static class PokerState {
-        public List<PokerGameLogic.Card> playerHand;
-        public List<PokerGameLogic.Card> opponentHand;
-        public List<PokerGameLogic.Card> communityCards;
+    public static class PokerState {
+        public List<Card> playerHand;
+        public List<Card> opponentHand;
+        public List<Card> communityCards;
         public int pot;
         public int playerStack;
         public int opponentStack;
@@ -44,14 +50,13 @@ public static class PokerState {
 
     private final PokerState state;
     private final SimplePokerAI ai;
-    private PokerGameLogic.Deck deck;
+    private Deck deck;
     private int bigBlindAmount;
 
     public PokerGame() {
         this(1000, 1000, 10, 20);
     }
 
-    @SuppressWarnings("unused")
     public PokerGame(int playerStack, int opponentStack, int unusedSmallBlind, int unusedBigBlind) {
         ai = new SimplePokerAI();
         state = new PokerState();
@@ -74,7 +79,7 @@ public static class PokerState {
     private PokerGame(boolean forSuspend) {
         ai = new SimplePokerAI();
         state = new PokerState();
-        deck = new PokerGameLogic.Deck();
+        deck = new Deck(GameType.POKER);
         deck.shuffle();
     }
     
@@ -82,9 +87,9 @@ public static class PokerState {
             int playerStack, int opponentStack, int bigBlind,
             int pot, int playerBet, int opponentBet,
             Dealer dealer, Round round, CurrentPlayer currentPlayer,
-            List<PokerGameLogic.Card> playerHand,
-            List<PokerGameLogic.Card> opponentHand,
-            List<PokerGameLogic.Card> communityCards,
+            List<Card> playerHand,
+            List<Card> opponentHand,
+            List<Card> communityCards,
             boolean playerHasActed, boolean opponentHasActed,
             boolean playerDeclaredAllIn, boolean opponentDeclaredAllIn) {
         
@@ -119,26 +124,26 @@ public static class PokerState {
         return game;
     }
     
-    public static String cardToString(PokerGameLogic.Card card) {
+    public static String cardToString(Card card) {
         if (card == null) return "";
-        return card.rank.value + "-" + card.suit.name();
+        return card.value() + "-" + card.suit.name();
     }
     
-    private static final PokerGameLogic.Rank[] RANK_BY_VALUE = new PokerGameLogic.Rank[15];
+    private static final Rank[] RANK_BY_VALUE = new Rank[15];
     static {
-        for (PokerGameLogic.Rank r : PokerGameLogic.Rank.values()) {
-            RANK_BY_VALUE[r.value] = r;
+        for (Rank r : Rank.values()) {
+            RANK_BY_VALUE[r.getValue(GameType.POKER)] = r;
         }
     }
     
-    public static PokerGameLogic.Card stringToCard(String str) {
+    public static Card stringToCard(String str) {
         if (str == null || str.isEmpty()) return null;
         String[] parts = str.split("-");
         if (parts.length != 2) return null;
         int rankValue = Integer.parseInt(parts[0]);
-        PokerGameLogic.Suit suit = PokerGameLogic.Suit.valueOf(parts[1]);
+        Suit suit = Suit.valueOf(parts[1]);
         if (rankValue >= 2 && rankValue <= 14) {
-            return new PokerGameLogic.Card(RANK_BY_VALUE[rankValue], suit);
+            return new Card(RANK_BY_VALUE[rankValue], suit, GameType.POKER);
         }
         return null;
     }
@@ -154,46 +159,11 @@ public static class PokerState {
     }
 
     public static class PokerGameLogic {
-        public enum Suit { 
-            SPADES(Strings.get("poker_suits.spades")), 
-            HEARTS(Strings.get("poker_suits.hearts")), 
-            DIAMONDS(Strings.get("poker_suits.diamonds")), 
-            CLUBS(Strings.get("poker_suits.clubs"));
-            
-            public final String displayName;
-            Suit(String name) { this.displayName = name; }
-        }
-        
-        public enum Rank { 
-            TWO(2, "2"), THREE(3, "3"), FOUR(4, "4"), FIVE(5, "5"), SIX(6, "6"), 
-            SEVEN(7, "7"), EIGHT(8, "8"), NINE(9, "9"), TEN(10, "10"), 
-            JACK(11, "J"), QUEEN(12, "Q"), KING(13, "K"), ACE(14, "A");
-            
-            public final int value;
-            public final String symbol;
-            Rank(int v, String s) { value = v; symbol = s; }
-        }
-        
         public enum HandRank {
             HIGH_CARD(1), PAIR(2), TWO_PAIR(3), THREE_OF_A_KIND(4), STRAIGHT(5), 
             FLUSH(6), FULL_HOUSE(7), FOUR_OF_A_KIND(8), STRAIGHT_FLUSH(9);
             public final int value;
             HandRank(int v) { value = v; }
-        }
-    
-        public record Card(Rank rank, Suit suit) {
-            @Override public String toString() {
-                return "[" + Strings.format("poker_card_format.of", suit.displayName, rank.symbol) + "]";
-            }
-        }
-    
-        public static class Deck {
-            public final List<Card> cards = new ArrayList<>();
-            public Deck() {
-                for(Suit s : Suit.values()) for(Rank r : Rank.values()) cards.add(new Card(r, s));
-            }
-            public void shuffle() { Collections.shuffle(cards); }
-            public Card draw() { return cards.isEmpty() ? null : cards.remove(cards.size()-1); }
         }
     
         public static class HandScore implements Comparable<HandScore> {
@@ -220,7 +190,7 @@ public static class PokerState {
             List<Card> all = new ArrayList<>(holeCards);
             all.addAll(communityCards);
             if (all.size() < 7) return new HandScore(HandRank.HIGH_CARD, new ArrayList<>());
-            all.sort((o1, o2) -> Integer.compare(o2.rank.value, o1.rank.value));
+            all.sort((o1, o2) -> Integer.compare(o2.rank.getValue(GameType.POKER), o1.rank.getValue(GameType.POKER)));
             return analyzeHand(all);
         }
         
@@ -234,7 +204,7 @@ public static class PokerState {
             for (int i = 0; i < 7; i++) {
                 Card c = sevenCards.get(i);
                 int suitIdx = c.suit.ordinal();
-                int rankVal = c.rank.value;
+                int rankVal = c.rank.getValue(GameType.POKER);
                 suitCounts[suitIdx]++;
                 rankCounts[rankVal]++;
                 suitRanks[suitIdx][suitRankCounts[suitIdx]] = rankVal;
@@ -520,7 +490,6 @@ public static class PokerState {
         private int[] aiBettingPattern = new int[AI_PATTERN_SIZE]; // 0=check, 1=call, 2=small_raise, 3=large_raise
         private int aiPatternIndex = 0;
         private int aiPatternCount = 0;
-        private int lastAIBetSize = 0;
 
         // Core AI state variables
         private float aggressionMeter = 0.5f;                    // 0.0 (passive) to 1.0 (aggressive)
@@ -637,6 +606,7 @@ public static class PokerState {
         private void contributeFromShowdownHistory() {
             if (showdownHistoryCount == 0) return;
             
+            // TODO use or delete
             float weightedBluffs = 0, weightedTraps = 0, weightedWeakValue = 0;
             float totalWeight = 0;
             
@@ -742,58 +712,9 @@ public static class PokerState {
             aiBettingPattern[aiPatternIndex] = patternType;
             aiPatternIndex = (aiPatternIndex + 1) % AI_PATTERN_SIZE;
             if (aiPatternCount < AI_PATTERN_SIZE) aiPatternCount++;
-            lastAIBetSize = betSize;
         }
         
-        private float runPretendMonteCarlo(List<PokerGameLogic.Card> communityCards) {
-            int wins = 0;
-            int ties = 0;
-            int samples = 2000;
-            
-            int[] cardIndices = new int[52];
-            boolean[] excluded = new boolean[52];
-            
-            for (int i = 0; i < 52; i++) {
-                cardIndices[i] = i;
-                excluded[i] = communityCards.contains(allCardsArray[i]);
-            }
-            
-            for (int i = 0; i < samples; i++) {
-                int validCount = 0;
-                for (int j = 0; j < 52; j++) {
-                    if (!excluded[j]) cardIndices[validCount++] = j;
-                }
-                
-                for (int j = validCount - 1; j > 0; j--) {
-                    int swapIdx = random.nextInt(j + 1);
-                    int tmp = cardIndices[j];
-                    cardIndices[j] = cardIndices[swapIdx];
-                    cardIndices[swapIdx] = tmp;
-                }
-                
-                int drawIndex = 0;
-                PokerGameLogic.Card[] boardCards = new PokerGameLogic.Card[5];
-                int boardStart = communityCards.size();
-                for (int j = 0; j < boardStart; j++) boardCards[j] = communityCards.get(j);
-                for (int j = boardStart; j < 5; j++) boardCards[j] = allCardsArray[cardIndices[drawIndex++]];
-                
-                PokerGameLogic.Card hyp1 = allCardsArray[cardIndices[drawIndex++]];
-                PokerGameLogic.Card hyp2 = allCardsArray[cardIndices[drawIndex++]];
-                PokerGameLogic.Card opp1 = allCardsArray[cardIndices[drawIndex++]];
-                PokerGameLogic.Card opp2 = allCardsArray[cardIndices[drawIndex++]];
-                
-                PokerGameLogic.HandScore ourScore = evaluateTwoCardsFast(hyp1, hyp2, boardCards);
-                PokerGameLogic.HandScore oppScore = evaluateTwoCardsFast(opp1, opp2, boardCards);
-                
-                int cmp = ourScore.compareTo(oppScore);
-                if (cmp > 0) wins++;
-                else if (cmp == 0) ties++;
-            }
-            
-            return (wins + ties * 0.5f) / samples;
-        }
-        
-        private float calculatePerceivedEquity(List<PokerGameLogic.Card> communityCards, int potSize) {
+        private float calculatePerceivedEquity(List<Card> communityCards, int potSize) {
             if (aiPatternCount < 2) return 0.5f;
             
             float basePerceived = 0.5f;
@@ -872,7 +793,7 @@ public static class PokerState {
             }
         }
         
-        public AIResponse decide(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
+        public AIResponse decide(List<Card> holeCards, List<Card> communityCards,
                                 int currentBetToCall, int potSize, int stackSize) {
             // Determine if this is pre-flop or post-flop
             if (communityCards.isEmpty()) {
@@ -882,7 +803,7 @@ public static class PokerState {
             }
         }
         
-        public AIResponse decideAllInResponse(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
+        public AIResponse decideAllInResponse(List<Card> holeCards, List<Card> communityCards,
                                 int currentBetToCall, int potSize) {
             // Player is all-in - AI can only call or fold, no raising allowed
             float equity = communityCards.isEmpty() ? 
@@ -900,7 +821,7 @@ public static class PokerState {
             }
         }
         
-        private AIResponse preFlopDecision(List<PokerGameLogic.Card> holeCards, int currentBetToCall, int potSize, int stackSize) {
+        private AIResponse preFlopDecision(List<Card> holeCards, int currentBetToCall, int potSize, int stackSize) {
             updateProfile();
 
             // Calculate pre-flop equity
@@ -1066,7 +987,7 @@ public static class PokerState {
             }
         }
         
-        private AIResponse postFlopDecision(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards,
+        private AIResponse postFlopDecision(List<Card> holeCards, List<Card> communityCards,
                                           int currentBetToCall, int potSize, int stackSize) {
             updateProfile();
             
@@ -1095,7 +1016,7 @@ public static class PokerState {
             return postFlopEVDecision(currentBetToCall, potSize, stackSize, playerRange, deceptionEquity, wetBoard, trueEquity, perceivedEquity);
         }
         
-        private float calculateImpliedOddsBonus(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards, float currentEquity) {
+        private float calculateImpliedOddsBonus(List<Card> holeCards, List<Card> communityCards, float currentEquity) {
             // Add equity for drawing hands based on outs
             int outs = countOuts(holeCards, communityCards);
             int streetsRemaining = 5 - communityCards.size();
@@ -1110,20 +1031,20 @@ public static class PokerState {
             return 0f;
         }
         
-        private int countOuts(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards) {
+        private int countOuts(List<Card> holeCards, List<Card> communityCards) {
             int outs = 0;
             
             int[] suitCounts = new int[4];
-            for (PokerGameLogic.Card c : holeCards) suitCounts[c.suit.ordinal()]++;
-            for (PokerGameLogic.Card c : communityCards) suitCounts[c.suit.ordinal()]++;
+            for (Card c : holeCards) suitCounts[c.suit.ordinal()]++;
+            for (Card c : communityCards) suitCounts[c.suit.ordinal()]++;
             
             for (int count : suitCounts) {
                 if (count == 4) outs += 9;
             }
             
             boolean[] rankPresent = new boolean[15];
-            for (PokerGameLogic.Card c : holeCards) rankPresent[c.rank.value] = true;
-            for (PokerGameLogic.Card c : communityCards) rankPresent[c.rank.value] = true;
+            for (Card c : holeCards) rankPresent[c.rank.getValue(GameType.POKER)] = true;
+            for (Card c : communityCards) rankPresent[c.rank.getValue(GameType.POKER)] = true;
             rankPresent[1] = rankPresent[14];
             
             int maxSeq = 0;
@@ -1143,16 +1064,16 @@ public static class PokerState {
             return outs;
         }
 
-        private boolean isWetBoard(List<PokerGameLogic.Card> communityCards) {
+        private boolean isWetBoard(List<Card> communityCards) {
             int[] suitCounts = new int[4];
-            for (PokerGameLogic.Card c : communityCards) suitCounts[c.suit.ordinal()]++;
+            for (Card c : communityCards) suitCounts[c.suit.ordinal()]++;
             
             for (int count : suitCounts) {
                 if (count >= 3) return true;
             }
             
             boolean[] rankPresent = new boolean[15];
-            for (PokerGameLogic.Card c : communityCards) rankPresent[c.rank.value] = true;
+            for (Card c : communityCards) rankPresent[c.rank.getValue(GameType.POKER)] = true;
             
             int maxSeq = 0;
             int currentSeq = 0;
@@ -1380,7 +1301,7 @@ public static class PokerState {
         private static boolean preflopCacheInitialized = false;
         
         // Pre-computed hand category caches for generateRandomOpponentHand (initialized at class load)
-        private static final PokerGameLogic.Card[] allCardsArray = new PokerGameLogic.Card[52];
+        private static final Card[] allCardsArray = new Card[52];
         private static final List<int[]> premiumHandIndices = new ArrayList<>();
         private static final List<int[]> strongHandIndices = new ArrayList<>();
         private static final List<int[]> playableHandIndices = new ArrayList<>();
@@ -1388,19 +1309,19 @@ public static class PokerState {
         private static final int[][] handCategoryByCardIndices = new int[52][52]; // 0=weak, 1=playable, 2=strong, 3=premium
         
         static {
-            PokerGameLogic.Deck deck = new PokerGameLogic.Deck();
+            Deck deck = new Deck(GameType.POKER);
             for (int i = 0; i < 52; i++) {
                 allCardsArray[i] = deck.cards.get(i);
             }
             
             for (int i = 0; i < 52; i++) {
                 for (int j = i + 1; j < 52; j++) {
-                    PokerGameLogic.Card c1 = allCardsArray[i];
-                    PokerGameLogic.Card c2 = allCardsArray[j];
+                    Card c1 = allCardsArray[i];
+                    Card c2 = allCardsArray[j];
                     
                     float equity = calculatePreflopEquitySimpleStatic(
-                        Math.max(c1.rank.value, c2.rank.value),
-                        Math.min(c1.rank.value, c2.rank.value),
+                        Math.max(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER)),
+                        Math.min(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER)),
                         c1.suit == c2.suit);
                     
                     int[] indices = new int[]{i, j};
@@ -1464,11 +1385,11 @@ public static class PokerState {
             if (preflopCacheInitialized) return;
             
             // Generate all 169 unique starting hand combinations
-            PokerGameLogic.Deck deck = new PokerGameLogic.Deck();
+            Deck deck = new Deck(GameType.POKER);
             for (int i = 0; i < deck.cards.size(); i++) {
                 for (int j = i + 1; j < deck.cards.size(); j++) {
-                    PokerGameLogic.Card c1 = deck.cards.get(i);
-                    PokerGameLogic.Card c2 = deck.cards.get(j);
+                    Card c1 = deck.cards.get(i);
+                    Card c2 = deck.cards.get(j);
                     
                     // Create canonical key (sorted by rank, suitedness)
                     String key = createHandKey(c1, c2);
@@ -1483,9 +1404,9 @@ public static class PokerState {
             preflopCacheInitialized = true;
         }
         
-        private String createHandKey(PokerGameLogic.Card c1, PokerGameLogic.Card c2) {
-            int r1 = c1.rank.value;
-            int r2 = c2.rank.value;
+        private String createHandKey(Card c1, Card c2) {
+            int r1 = c1.rank.getValue(GameType.POKER);
+            int r2 = c2.rank.getValue(GameType.POKER);
             int v1 = r1 >= r2 ? r1 : r2;
             int v2 = r1 < r2 ? r1 : r2;
             boolean suited = (c1.suit == c2.suit);
@@ -1496,7 +1417,7 @@ public static class PokerState {
             return v1 + "_" + v2 + "_" + (suited ? "s" : "o");
         }
         
-        private float calculatePreflopEquityMonteCarlo(PokerGameLogic.Card c1, PokerGameLogic.Card c2) {
+        private float calculatePreflopEquityMonteCarlo(Card c1, Card c2) {
             int wins = 0;
             int ties = 0;
             int samples = 250;
@@ -1529,11 +1450,11 @@ public static class PokerState {
                 }
                 
                 int drawIndex = 0;
-                PokerGameLogic.Card[] boardCards = new PokerGameLogic.Card[5];
+                Card[] boardCards = new Card[5];
                 for (int j = 0; j < 5; j++) boardCards[j] = allCardsArray[cardIndices[drawIndex++]];
                 
-                PokerGameLogic.Card opp1 = allCardsArray[cardIndices[drawIndex++]];
-                PokerGameLogic.Card opp2 = allCardsArray[cardIndices[drawIndex++]];
+                Card opp1 = allCardsArray[cardIndices[drawIndex++]];
+                Card opp2 = allCardsArray[cardIndices[drawIndex++]];
                 
                 PokerGameLogic.HandScore ourScore = evaluateTwoCardsFast(c1, c2, boardCards);
                 PokerGameLogic.HandScore oppScore = evaluateTwoCardsFast(opp1, opp2, boardCards);
@@ -1546,13 +1467,13 @@ public static class PokerState {
             return (wins + ties * 0.5f) / samples;
         }
         
-        private float calculatePreflopEquity(List<PokerGameLogic.Card> holeCards) {
+        private float calculatePreflopEquity(List<Card> holeCards) {
             // Initialize cache on first use
             initializePreflopEquityCache();
             
             // Lookup from cache
-            PokerGameLogic.Card c1 = holeCards.get(0);
-            PokerGameLogic.Card c2 = holeCards.get(1);
+            Card c1 = holeCards.get(0);
+            Card c2 = holeCards.get(1);
             String key = createHandKey(c1, c2);
             
             Float cached = preflopEquityCache.get(key);
@@ -1564,16 +1485,16 @@ public static class PokerState {
             return calculatePreflopEquitySimple(holeCards);
         }
         
-        private float calculatePostflopEquity(List<PokerGameLogic.Card> holeCards, List<PokerGameLogic.Card> communityCards) {
+        private float calculatePostflopEquity(List<Card> holeCards, List<Card> communityCards) {
             String playerRange = estimatePlayerRange();
             return runMonteCarloSimulation(holeCards, communityCards, playerRange);
         }
         
-        private float calculatePreflopEquitySimple(List<PokerGameLogic.Card> holeCards) {
-            PokerGameLogic.Card c1 = holeCards.get(0);
-            PokerGameLogic.Card c2 = holeCards.get(1);
-            int v1 = Math.max(c1.rank.value, c2.rank.value);
-            int v2 = Math.min(c1.rank.value, c2.rank.value);
+        private float calculatePreflopEquitySimple(List<Card> holeCards) {
+            Card c1 = holeCards.get(0);
+            Card c2 = holeCards.get(1);
+            int v1 = Math.max(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER));
+            int v2 = Math.min(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER));
             boolean suited = (c1.suit == c2.suit);
             int gap = v1 - v2;
 
@@ -1619,11 +1540,11 @@ public static class PokerState {
          * Classifies a preflop hand into categories for decision making.
          * This is more accurate than raw equity for all-in decisions.
          */
-        private HandCategory classifyPreflopHand(List<PokerGameLogic.Card> holeCards) {
-            PokerGameLogic.Card c1 = holeCards.get(0);
-            PokerGameLogic.Card c2 = holeCards.get(1);
-            int v1 = Math.max(c1.rank.value, c2.rank.value);
-            int v2 = Math.min(c1.rank.value, c2.rank.value);
+        private HandCategory classifyPreflopHand(List<Card> holeCards) {
+            Card c1 = holeCards.get(0);
+            Card c2 = holeCards.get(1);
+            int v1 = Math.max(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER));
+            int v2 = Math.min(c1.rank.getValue(GameType.POKER), c2.rank.getValue(GameType.POKER));
             boolean suited = (c1.suit == c2.suit);
 
             // Pairs: JJ+ = PREMIUM, TT-99 = STRONG, 88-22 = PLAYABLE
@@ -1694,15 +1615,15 @@ public static class PokerState {
         }
 
         private float runMonteCarloSimulation(
-                List<PokerGameLogic.Card> holeCards,
-                List<PokerGameLogic.Card> communityCards,
+                List<Card> holeCards,
+                List<Card> communityCards,
                 String playerRange) {
             int wins = 0;
             int ties = 0;
             int losses = 0;
             int simulationCount = CasinoConfig.POKER_MONTE_CARLO_SAMPLES;
             
-            PokerGameLogic.Card[] shuffledCards = new PokerGameLogic.Card[52];
+            Card[] shuffledCards = new Card[52];
             int[] cardIndices = new int[52];
             boolean[] excluded = new boolean[52];
             
@@ -1728,7 +1649,7 @@ public static class PokerState {
                 }
                 
                 int drawIndex = 0;
-                PokerGameLogic.Card[] boardCards = new PokerGameLogic.Card[5];
+                Card[] boardCards = new Card[5];
                 int boardStart = communityCards.size();
                 for (int j = 0; j < boardStart; j++) {
                     boardCards[j] = communityCards.get(j);
@@ -1761,15 +1682,15 @@ public static class PokerState {
         }
         
         private MonteCarloResult runMonteCarloSimulationFull(
-                List<PokerGameLogic.Card> holeCards,
-                List<PokerGameLogic.Card> communityCards,
+                List<Card> holeCards,
+                List<Card> communityCards,
                 String playerRange) {
             int wins = 0;
             int ties = 0;
             int losses = 0;
             int simulationCount = CasinoConfig.POKER_MONTE_CARLO_SAMPLES;
             
-            PokerGameLogic.Card[] shuffledCards = new PokerGameLogic.Card[52];
+            Card[] shuffledCards = new Card[52];
             int[] cardIndices = new int[52];
             boolean[] excluded = new boolean[52];
             
@@ -1795,7 +1716,7 @@ public static class PokerState {
                 }
                 
                 int drawIndex = 0;
-                PokerGameLogic.Card[] boardCards = new PokerGameLogic.Card[5];
+                Card[] boardCards = new Card[5];
                 int boardStart = communityCards.size();
                 for (int j = 0; j < boardStart; j++) {
                     boardCards[j] = communityCards.get(j);
@@ -1827,32 +1748,32 @@ public static class PokerState {
             return new MonteCarloResult(wins, ties, losses, simulationCount);
         }
         
-        private PokerGameLogic.HandScore evaluateHandFast(List<PokerGameLogic.Card> holeCards, PokerGameLogic.Card[] board) {
-            PokerGameLogic.Card[] allCards = new PokerGameLogic.Card[7];
+        private PokerGameLogic.HandScore evaluateHandFast(List<Card> holeCards, Card[] board) {
+            Card[] allCards = new Card[7];
             allCards[0] = holeCards.get(0);
             allCards[1] = holeCards.get(1);
             for (int i = 0; i < 5; i++) allCards[i + 2] = board[i];
             return analyzeHandFast(allCards);
         }
         
-        private PokerGameLogic.HandScore evaluateTwoCardsFast(PokerGameLogic.Card c1, PokerGameLogic.Card c2, PokerGameLogic.Card[] board) {
-            PokerGameLogic.Card[] allCards = new PokerGameLogic.Card[7];
+        private PokerGameLogic.HandScore evaluateTwoCardsFast(Card c1, Card c2, Card[] board) {
+            Card[] allCards = new Card[7];
             allCards[0] = c1;
             allCards[1] = c2;
             for (int i = 0; i < 5; i++) allCards[i + 2] = board[i];
             return analyzeHandFast(allCards);
         }
         
-        private PokerGameLogic.HandScore analyzeHandFast(PokerGameLogic.Card[] sevenCards) {
+        private PokerGameLogic.HandScore analyzeHandFast(Card[] sevenCards) {
             int[] suitCounts = new int[4];
             int[] rankCounts = new int[15];
             int[][] suitRanks = new int[4][7];
             int[] suitRankCounts = new int[4];
             
             for (int i = 0; i < 7; i++) {
-                PokerGameLogic.Card c = sevenCards[i];
+                Card c = sevenCards[i];
                 int suitIdx = c.suit.ordinal();
-                int rankVal = c.rank.value;
+                int rankVal = c.rank.getValue(GameType.POKER);
                 suitCounts[suitIdx]++;
                 rankCounts[rankVal]++;
                 suitRanks[suitIdx][suitRankCounts[suitIdx]] = rankVal;
@@ -1868,7 +1789,7 @@ public static class PokerState {
             }
             
             boolean[] rankPresent = new boolean[15];
-            for (int i = 0; i < 7; i++) rankPresent[sevenCards[i].rank.value] = true;
+            for (int i = 0; i < 7; i++) rankPresent[sevenCards[i].rank.getValue(GameType.POKER)] = true;
             rankPresent[1] = rankPresent[14];
             
             int straightHigh = -1;
@@ -1901,8 +1822,8 @@ public static class PokerState {
             if (hasFour) {
                 int kicker = 0;
                 for (int i = 0; i < 7; i++) {
-                    if (sevenCards[i].rank.value != fourRank && sevenCards[i].rank.value > kicker) {
-                        kicker = sevenCards[i].rank.value;
+                    if (sevenCards[i].rank.getValue(GameType.POKER) != fourRank && sevenCards[i].rank.getValue(GameType.POKER) > kicker) {
+                        kicker = sevenCards[i].rank.getValue(GameType.POKER);
                     }
                 }
                 return new PokerGameLogic.HandScore(PokerGameLogic.HandRank.FOUR_OF_A_KIND, 
@@ -1962,8 +1883,8 @@ public static class PokerState {
                 tie.add(threeRank);
                 int kickers = 0;
                 for (int i = 0; i < 7 && kickers < 2; i++) {
-                    if (sevenCards[i].rank.value != threeRank) {
-                        tie.add(sevenCards[i].rank.value);
+                    if (sevenCards[i].rank.getValue(GameType.POKER) != threeRank) {
+                        tie.add(sevenCards[i].rank.getValue(GameType.POKER));
                         kickers++;
                     }
                 }
@@ -1975,8 +1896,8 @@ public static class PokerState {
                 tie.add(pairRank);
                 tie.add(secondPairRank);
                 for (int i = 0; i < 7; i++) {
-                    if (sevenCards[i].rank.value != pairRank && sevenCards[i].rank.value != secondPairRank) {
-                        tie.add(sevenCards[i].rank.value);
+                    if (sevenCards[i].rank.getValue(GameType.POKER) != pairRank && sevenCards[i].rank.getValue(GameType.POKER) != secondPairRank) {
+                        tie.add(sevenCards[i].rank.getValue(GameType.POKER));
                         break;
                     }
                 }
@@ -1988,8 +1909,8 @@ public static class PokerState {
                 tie.add(pairRank);
                 int kickers = 0;
                 for (int i = 0; i < 7 && kickers < 3; i++) {
-                    if (sevenCards[i].rank.value != pairRank) {
-                        tie.add(sevenCards[i].rank.value);
+                    if (sevenCards[i].rank.getValue(GameType.POKER) != pairRank) {
+                        tie.add(sevenCards[i].rank.getValue(GameType.POKER));
                         kickers++;
                     }
                 }
@@ -1998,7 +1919,7 @@ public static class PokerState {
             
             List<Integer> tie = new ArrayList<>();
             int[] sortedRanks = new int[7];
-            for (int i = 0; i < 7; i++) sortedRanks[i] = sevenCards[i].rank.value;
+            for (int i = 0; i < 7; i++) sortedRanks[i] = sevenCards[i].rank.getValue(GameType.POKER);
             for (int i = 0; i < 7; i++) {
                 for (int j = i + 1; j < 7; j++) {
                     if (sortedRanks[j] > sortedRanks[i]) {
@@ -2055,79 +1976,6 @@ public static class PokerState {
             }
 
             return Math.max(0.1f, baseFoldProb);
-        }
-        
-        private List<PokerGameLogic.Card> generateRandomOpponentHand(String playerRange, PokerGameLogic.Deck deck) {
-            List<PokerGameLogic.Card> hand = new ArrayList<>();
-            
-            boolean[] availableCards = new boolean[52];
-            for (int i = 0; i < 52; i++) {
-                availableCards[i] = deck.cards.contains(allCardsArray[i]);
-            }
-            
-            List<int[]> selectedPool;
-            switch (playerRange) {
-                case "tight_range":
-                    float tightRoll = random.nextFloat();
-                    if (tightRoll < 0.70f && !premiumHandIndices.isEmpty()) {
-                        selectedPool = premiumHandIndices;
-                    } else if (tightRoll < 0.95f && !strongHandIndices.isEmpty()) {
-                        selectedPool = strongHandIndices;
-                    } else if (!playableHandIndices.isEmpty()) {
-                        selectedPool = playableHandIndices;
-                    } else {
-                        selectedPool = weakHandIndices;
-                    }
-                    break;
-                case "wide_range":
-                    float wideRoll = random.nextFloat();
-                    if (wideRoll < 0.20f && !premiumHandIndices.isEmpty()) {
-                        selectedPool = premiumHandIndices;
-                    } else if (wideRoll < 0.50f && !strongHandIndices.isEmpty()) {
-                        selectedPool = strongHandIndices;
-                    } else if (wideRoll < 0.80f && !playableHandIndices.isEmpty()) {
-                        selectedPool = playableHandIndices;
-                    } else {
-                        selectedPool = weakHandIndices;
-                    }
-                    break;
-                case "standard_range":
-                default:
-                    float stdRoll = random.nextFloat();
-                    if (stdRoll < 0.35f && !premiumHandIndices.isEmpty()) {
-                        selectedPool = premiumHandIndices;
-                    } else if (stdRoll < 0.70f && !strongHandIndices.isEmpty()) {
-                        selectedPool = strongHandIndices;
-                    } else if (stdRoll < 0.95f && !playableHandIndices.isEmpty()) {
-                        selectedPool = playableHandIndices;
-                    } else {
-                        selectedPool = weakHandIndices;
-                    }
-                    break;
-            }
-            
-            if (!selectedPool.isEmpty()) {
-                int startIdx = random.nextInt(selectedPool.size());
-                int poolSize = selectedPool.size();
-                for (int k = 0; k < poolSize; k++) {
-                    int idx = (startIdx + k) % poolSize;
-                    int[] indices = selectedPool.get(idx);
-                    if (availableCards[indices[0]] && availableCards[indices[1]]) {
-                        hand.add(allCardsArray[indices[0]]);
-                        hand.add(allCardsArray[indices[1]]);
-                        deck.cards.remove(allCardsArray[indices[0]]);
-                        deck.cards.remove(allCardsArray[indices[1]]);
-                        return hand;
-                    }
-                }
-            }
-            
-            if (deck.cards.size() >= 2) {
-                hand.add(deck.cards.remove(0));
-                hand.add(deck.cards.remove(0));
-            }
-
-            return hand;
         }
 
         public void trackPlayerAction(boolean isRaise, boolean isFold, boolean isCheck, boolean isPreFlop, boolean putMoneyInPot) {
@@ -2512,7 +2360,7 @@ public static class PokerState {
     }
 
     public void startNewHand() {
-        deck = new PokerGameLogic.Deck();
+        deck = new Deck(GameType.POKER);
         deck.shuffle();
 
         state.playerHand = new ArrayList<>();
@@ -2567,7 +2415,6 @@ public static class PokerState {
     /**
      * Returns who has the Small Blind position for the current hand
      */
-    @SuppressWarnings("unused")
     public Dealer getSmallBlind() {
         // Small Blind is the dealer
         return state.dealer;
@@ -2576,7 +2423,6 @@ public static class PokerState {
     /**
      * Returns true if it's post-flop (flop, turn, or river)
      */
-    @SuppressWarnings("unused")
     public boolean isPostFlop() {
         return state.round == Round.FLOP || state.round == Round.TURN || state.round == Round.RIVER;
     }

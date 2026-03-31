@@ -6,16 +6,16 @@ import com.fs.starfarer.api.campaign.CustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
+
+import data.scripts.casino.BlackjackPanelUI.BlackjackActionCallback;
 import data.scripts.casino.interaction.BlackjackHandler;
 import data.scripts.casino.shared.BaseGameDelegate;
 
-public class BlackjackDialogDelegate extends BaseGameDelegate {
+public class BlackjackDialogDelegate extends BaseGameDelegate implements BlackjackActionCallback {
 
-    protected BlackjackPanelUI blackjackPanel;
+    protected final BlackjackPanelUI blackjackPanel;
+    protected final BlackjackHandler handler;
     protected BlackjackGame game;
-    protected BlackjackHandler handler;
-
-    protected BlackjackPanelUI.BlackjackActionCallback actionCallback;
 
     protected BlackjackGame.Action pendingAction = null;
     protected boolean pendingNewHand = false;
@@ -27,34 +27,7 @@ public class BlackjackDialogDelegate extends BaseGameDelegate {
         this.game = game;
         this.handler = handler;
 
-        actionCallback = new BlackjackPanelUI.BlackjackActionCallback() {
-            @Override
-            public void onPlayerAction(BlackjackGame.Action action) {
-                handlePlayerAction(action);
-            }
-
-            @Override
-            public void onNewHand() {
-                handleNewHand();
-            }
-
-            @Override
-            public void onLeave() {
-                handleLeave();
-            }
-
-            @Override
-            public void onHowToPlay() {
-                handleHowToPlay();
-            }
-
-            @Override
-            public void onPlaceBet(int amount) {
-                handlePlaceBet(amount);
-            }
-        };
-
-        blackjackPanel = new BlackjackPanelUI(game, actionCallback);
+        blackjackPanel = new BlackjackPanelUI(game, this);
     }
 
     @Override
@@ -66,10 +39,8 @@ public class BlackjackDialogDelegate extends BaseGameDelegate {
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
         super.init(panel, callbacks);
 
-        if (blackjackPanel != null) {
-            blackjackPanel.init(panel, callbacks);
-            blackjackPanel.updateGameState(game);
-        }
+        blackjackPanel.init(panel, callbacks);
+        blackjackPanel.updateGameState(game);
     }
 
     @Override
@@ -79,73 +50,59 @@ public class BlackjackDialogDelegate extends BaseGameDelegate {
 
     public void updateGame(BlackjackGame newGame) {
         this.game = newGame;
-        if (blackjackPanel != null) {
-            blackjackPanel.updateGameState(newGame);
-        }
+        
+        blackjackPanel.updateGameState(newGame);
         resetState();
     }
 
     public void refreshAfterStateChange(BlackjackGame updatedGame) {
         this.game = updatedGame;
-        if (blackjackPanel != null) {
-            blackjackPanel.updateGameState(updatedGame);
-        }
+        blackjackPanel.updateGameState(updatedGame);
     }
 
-    protected void handlePlayerAction(BlackjackGame.Action action) {
+    public void onPlayerAction(BlackjackGame.Action action) {
+        // FIXME the handler is always non null
         if (handler != null) {
             handler.processPlayerActionInPlace(action, this);
             return;
         }
 
         pendingAction = action;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleNewHand() {
+    public void onNewHand() {
+        // FIXME the handler is always non null
         if (handler != null) {
             handler.startNewHandInPlace(this);
             return;
         }
 
         pendingNewHand = true;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleLeave() {
+    public void onLeave() {
         pendingLeave = true;
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handleHowToPlay() {
+    public void onHowToPlay() {
+        // FIXME the handler is always non null
         if (handler != null) {
             handler.showHowToPlay(this);
             return;
         }
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
-    protected void handlePlaceBet(int amount) {
+    public void onPlaceBet(int amount) {
+        // FIXME the handler is always non null
         if (handler != null) {
             handler.placeBetInPlace(amount, this);
             return;
         }
-
-        if (callbacks != null) {
-            callbacks.dismissDialog();
-        }
+        callbacks.dismissDialog();
     }
 
     public BlackjackGame.Action getPendingAction() {

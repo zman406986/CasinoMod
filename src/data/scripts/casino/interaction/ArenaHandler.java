@@ -1065,6 +1065,7 @@ private boolean simulateArenaStep() {
         return betShips;
     }
 
+    @SuppressWarnings("unused")
     private static class RewardCalculation {
         int totalWinReward;
         int totalConsolationReward;

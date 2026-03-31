@@ -1,7 +1,6 @@
 package data.scripts.casino.cards;
 
 import data.scripts.casino.Strings;
-import data.scripts.casino.PokerGame.PokerGameLogic.Rank;
 
 public class CardUtils {
     public static final String getRankName(int rankValue) {
@@ -21,24 +20,6 @@ public class CardUtils {
             case 3 -> "3";
             case 2 -> "2";
             default -> String.valueOf(rankValue);
-        };
-    }
-
-    public static final String getRankString(Rank rank) {
-        return switch (rank) {
-            case ACE -> "A";
-            case KING -> "K";
-            case QUEEN -> "Q";
-            case JACK -> "J";
-            case TEN -> "10";
-            case NINE -> "9";
-            case EIGHT -> "8";
-            case SEVEN -> "7";
-            case SIX -> "6";
-            case FIVE -> "5";
-            case FOUR -> "4";
-            case THREE -> "3";
-            case TWO -> "2";
         };
     }
 }

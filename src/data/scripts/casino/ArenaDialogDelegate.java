@@ -10,21 +10,22 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.FireBest;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 
+import data.scripts.casino.ArenaPanelUI.ArenaActionCallback;
 import data.scripts.casino.interaction.ArenaHandler;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 
-public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
+public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaActionCallback {
     
     protected DialogCallbacks callbacks;
     protected boolean finished = false;
     protected boolean battleEnded = false;
     
-    protected ArenaPanelUI arenaPanel;
-    protected InteractionDialogAPI dialog;
-    protected Map<String, MemoryAPI> memoryMap;
+    protected final ArenaPanelUI arenaPanel;
+    protected final InteractionDialogAPI dialog;
+    protected final Map<String, MemoryAPI> memoryMap;
     
-    protected Runnable onDismissCallback;
-    protected ArenaHandler handler;
+    protected final Runnable onDismissCallback;
+    protected final ArenaHandler handler;
     
     protected List<SpiralAbyssArena.SpiralGladiator> combatants;
     protected int currentRound;
@@ -64,101 +65,8 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         this.memoryMap = memoryMap;
         this.onDismissCallback = onDismissCallback;
         this.handler = handler;
-        
-        ArenaPanelUI.ArenaActionCallback actionCallback = new ArenaPanelUI.ArenaActionCallback() {
-            @Override
-            public void onSelectChampion(int championIndex) {
-                pendingChampionIndex = championIndex;
-            }
-            
-            @Override
-            public void onConfirmBet(int championIndex, int amount) {
-                if (handler != null) {
-                    handler.performAddBetToChampionInPlace(ArenaDialogDelegate.this, championIndex, amount);
-                    return;
-                }
-                pendingChampionIndex = championIndex;
-                pendingBetAmount = amount;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
-                }
-            }
-            
-            @Override
-            public void onWatchNextRound() {
-                if (handler != null) {
-                    handler.simulateArenaStepInPlace(ArenaDialogDelegate.this);
-                } else {
-                    pendingWatchNext = true;
-                    if (callbacks != null) {
-                        callbacks.dismissDialog();
-                    }
-                }
-            }
-            
-            @Override
-            public void onSkipToEnd() {
-                if (handler != null) {
-                    handler.simulateAllRemainingStepsInPlace(ArenaDialogDelegate.this);
-                } else {
-                    pendingSkipToEnd = true;
-                    if (callbacks != null) {
-                        callbacks.dismissDialog();
-                    }
-                }
-            }
-            
-
-            @Override
-            public void onSuspend() {
-                pendingSuspend = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
-                }
-            }
-            
-            @Override
-            public void onLeave() {
-                pendingLeave = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
-                }
-            }
-            
-            @Override
-            public void onNextGame() {
-                if (handler != null) {
-                    handler.startNewArenaMatchInPlace(ArenaDialogDelegate.this);
-                } else {
-                    pendingNextGame = true;
-                    if (callbacks != null) {
-                        callbacks.dismissDialog();
-                    }
-                }
-            }
-            
-            @Override
-            public void onStartBattle() {
-                if (handler != null) {
-                    handler.startArenaBattleInPlace(ArenaDialogDelegate.this);
-                    return;
-                }
-                pendingStartBattle = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
-                }
-            }
-            
-            @Override
-            public void onEscape() {
-                pendingLeave = true;
-                if (callbacks != null) {
-                    callbacks.dismissDialog();
-                }
-            }
-        };
-        
-        arenaPanel = new ArenaPanelUI(combatants, currentRound, totalBet, bets, battleLog, actionCallback);
+    
+        arenaPanel = new ArenaPanelUI(combatants, currentRound, totalBet, bets, battleLog, this);
     }
     
     public CustomUIPanelPlugin getCustomPanelPlugin() {
@@ -170,12 +78,8 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         
         callbacks.getPanelFader().setDurationOut(0.5f);
         
-        if (arenaPanel != null) {
-            arenaPanel.init(panel, callbacks);
-            
-            // Initialize state (follows same pattern as PokerDialogDelegate)
-            arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
-        }
+        arenaPanel.init(panel, callbacks);
+        arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
     }
     
     public float getNoiseAlpha() {
@@ -187,17 +91,13 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             return;
         }
         
-        if (arenaPanel != null) {
-            arenaPanel.advance(amount);
-        }
+        arenaPanel.advance(amount);
         
-        if (battleEnded && arenaPanel != null && arenaPanel.isReadyToClose()) {
-            if (callbacks != null) {
-                callbacks.getPanelFader().fadeOut();
-                if (callbacks.getPanelFader().isFadedOut()) {
-                    callbacks.dismissDialog();
-                    finished = true;
-                }
+        if (battleEnded) {
+            callbacks.getPanelFader().fadeOut();
+            if (callbacks.getPanelFader().isFadedOut()) {
+                callbacks.dismissDialog();
+                finished = true;
             }
         }
     }
@@ -211,9 +111,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
             FireBest.fire(null, dialog, memoryMap, "ArenaPanelDismissed");
         }
         
-        if (onDismissCallback != null) {
-            onDismissCallback.run();
-        }
+        onDismissCallback.run();
     }
     
     public void updateForBattle(
@@ -229,9 +127,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         this.bets = bets;
         this.battleLog = battleLog;
         
-        if (arenaPanel != null) {
-            arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
-        }
+        arenaPanel.updateState(combatants, currentRound, totalBet, bets, battleLog);
     }
     
     public void setBattleEnded(int winnerIndex, int totalReward, int finalRound) {
@@ -240,9 +136,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         this.totalReward = totalReward;
         this.currentRound = finalRound;
         
-        if (arenaPanel != null) {
-            arenaPanel.setBattleEnded(winnerIndex, totalReward, finalRound);
-        }
+        arenaPanel.setBattleEnded(winnerIndex, totalReward, finalRound);
     }
     
     public void setBattleEnded(int winnerIndex, int totalReward, ArenaPanelUI.RewardBreakdown breakdown, int finalRound) {
@@ -251,9 +145,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         this.totalReward = totalReward;
         this.currentRound = finalRound;
         
-        if (arenaPanel != null) {
-            arenaPanel.setBattleEnded(winnerIndex, totalReward, breakdown, finalRound);
-        }
+        arenaPanel.setBattleEnded(winnerIndex, totalReward, breakdown, finalRound);
     }
     
     @Deprecated
@@ -286,9 +178,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         
         clearPendingActions();
         
-        if (arenaPanel != null) {
-            arenaPanel.resetForNewMatch(combatants, currentRound, totalBet, bets, battleLog);
-        }
+        arenaPanel.resetForNewMatch(combatants, currentRound, totalBet, bets, battleLog);
     }
     
     public boolean getPendingLeave() {
@@ -338,10 +228,82 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate {
         return finished;
     }
     
-    public void showErrorMessage(String message) {
-        if (arenaPanel != null) {
-            arenaPanel.showExternalError(message);
+    public final void showErrorMessage(String message) {
+        arenaPanel.showExternalError(message);
+    }
+ 
+    @Override
+    public void onSelectChampion(int championIndex) {
+        pendingChampionIndex = championIndex;
+    }
+    
+    @Override
+    public void onConfirmBet(int championIndex, int amount) {
+        // FIXME handler is always non null. So is the rest of the code dead?
+        if (handler != null) {
+            handler.performAddBetToChampionInPlace(ArenaDialogDelegate.this, championIndex, amount);
+            return;
+        }
+
+        pendingChampionIndex = championIndex;
+        pendingBetAmount = amount;
+        callbacks.dismissDialog();
+    }
+    
+    @Override
+    public void onWatchNextRound() {
+        // FIXME handler is always non null. So is the else branch needed?
+        if (handler != null) {
+            handler.simulateArenaStepInPlace(ArenaDialogDelegate.this);
+        } else {
+            pendingWatchNext = true;
+            callbacks.dismissDialog();
         }
     }
     
+    @Override
+    public void onSkipToEnd() {
+        // FIXME handler is always non null. So is the else branch needed?
+        if (handler != null) {
+            handler.simulateAllRemainingStepsInPlace(ArenaDialogDelegate.this);
+        } else {
+            pendingSkipToEnd = true;
+            callbacks.dismissDialog();
+        }
+    }
+    
+
+    @Override
+    public void onSuspend() {
+        pendingSuspend = true;
+        callbacks.dismissDialog();
+    }
+    
+    @Override
+    public void onLeave() {
+        pendingLeave = true;
+        callbacks.dismissDialog();
+    }
+    
+    @Override
+    public void onNextGame() {
+        // FIXME handler is always non null. So is the else branch needed?
+        if (handler != null) {
+            handler.startNewArenaMatchInPlace(ArenaDialogDelegate.this);
+        } else {
+            pendingNextGame = true;
+            callbacks.dismissDialog();
+        }
+    }
+    
+    @Override
+    public void onStartBattle() {
+        // FIXME handler is always non null. So is the rest needed?
+        if (handler != null) {
+            handler.startArenaBattleInPlace(ArenaDialogDelegate.this);
+            return;
+        }
+        pendingStartBattle = true;
+        callbacks.dismissDialog();
+    }
 }

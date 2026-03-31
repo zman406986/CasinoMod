@@ -21,7 +21,6 @@ public class BlackjackHandler {
     private BlackjackDialogDelegate currentDelegate;
 
     private static final int COOLDOWN_DAYS = 1;
-    private static final int MIN_HANDS_BEFORE_LEAVE = 3;
 
     private int handsPlayedThisSession = 0;
     private static final String BLACKJACK_COOLDOWN_KEY = "$ipc_blackjack_cooldown_until";

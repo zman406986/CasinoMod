@@ -268,10 +268,6 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
         return new SimulationResult(finalPositions, finalKills);
     }
     
-    private Map<Integer, Integer> runSimulationToCompletionWithPositions(List<SpiralGladiator> simCombatants, Map<Integer, Integer> originalToSimIndex) {
-        return runSimulationToCompletionWithKills(simCombatants, originalToSimIndex).positions;
-    }
-    
     public List<SpiralGladiator> generateCombatants(CasinoGachaManager gacha) {
         List<SpiralGladiator> list = new ArrayList<>();
         List<String> pool = new ArrayList<>();
