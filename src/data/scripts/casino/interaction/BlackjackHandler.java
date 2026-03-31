@@ -148,67 +148,6 @@ public class BlackjackHandler {
         }
     }
 
-    private void handleResult() {
-        if (blackjackGame == null) return;
-
-        BlackjackGame.GameStateData state = blackjackGame.getState();
-        boolean isSplitGame = state.splitHands != null && !state.splitHands.isEmpty();
-
-        if (isSplitGame) {
-            handleSplitResult(state);
-        } else {
-            handleSingleResult(state);
-        }
-    }
-
-    private void handleSplitResult(BlackjackGame.GameStateData state) {
-        boolean dealerBust = state.dealerHand.isBust();
-
-        int wins = 0, losses = 0, pushes = 0;
-        if (state.splitHandResults != null) {
-            for (int result : state.splitHandResults) {
-                if (result > 0) wins++;
-                else if (result < 0) losses++;
-                else pushes++;
-            }
-        }
-
-        int netResult = state.lastPotWon;
-
-        if (wins == 0 && losses > 0 && pushes == 0 && netResult < 0) {
-            main.textPanel.addPara(Strings.format("blackjack_result.split_all_bust", Math.abs(netResult)), Color.RED);
-        } else if (dealerBust && netResult > 0) {
-            main.textPanel.addPara(Strings.get("blackjack_result.split_dealer_bust"), Color.GREEN);
-            main.textPanel.addPara(Strings.format("blackjack_result.split_summary", wins, losses, pushes), Color.YELLOW);
-            main.textPanel.addPara(Strings.format("blackjack_result.win_stargems", netResult), Color.GREEN);
-        } else {
-            main.textPanel.addPara(Strings.format("blackjack_result.split_summary", wins, losses, pushes), Color.CYAN);
-            if (netResult > 0) {
-                main.textPanel.addPara(Strings.format("blackjack_result.win_stargems", netResult), Color.GREEN);
-            } else if (netResult < 0) {
-                main.textPanel.addPara(Strings.format("blackjack_result.lose_stargems", Math.abs(netResult)), Color.RED);
-            } else {
-                main.textPanel.addPara(Strings.get("blackjack_result.push"), Color.YELLOW);
-            }
-        }
-    }
-
-    private void handleSingleResult(BlackjackGame.GameStateData state) {
-        if (state.playerHand.isBlackjack() && !state.dealerHand.isBlackjack()) {
-            main.textPanel.addPara(Strings.get("blackjack_result.blackjack"), Color.CYAN);
-        } else if (state.playerHand.isBust()) {
-            main.textPanel.addPara(Strings.get("blackjack_result.player_bust"), Color.RED);
-        } else if (state.dealerHand.isBust()) {
-            main.textPanel.addPara(Strings.get("blackjack_result.dealer_bust"), Color.GREEN);
-        } else if (state.lastPotWon > 0) {
-            main.textPanel.addPara(Strings.format("blackjack_result.win_stargems", state.lastPotWon), Color.GREEN);
-        } else if (state.lastPotWon < 0) {
-            main.textPanel.addPara(Strings.format("blackjack_result.lose_stargems", Math.abs(state.lastPotWon)), Color.RED);
-        } else {
-            main.textPanel.addPara(Strings.get("blackjack_result.push"), Color.YELLOW);
-        }
-    }
-
     private void startNewHand() {
         showBlackjackConfirm();
     }
@@ -355,11 +294,6 @@ public class BlackjackHandler {
         handsPlayedThisSession++;
 
         delegate.updateGame(blackjackGame);
-    }
-
-    public void showHowToPlay(BlackjackDialogDelegate delegate) {
-        delegate.closeDialog();
-        main.help.showBlackjackHelp();
     }
 
     public void placeBetInPlace(int betSize, BlackjackDialogDelegate delegate) {

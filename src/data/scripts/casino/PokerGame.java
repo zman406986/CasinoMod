@@ -72,6 +72,7 @@ public class PokerGame {
         startNewHand();
     }
     
+    @SuppressWarnings("unused")
     private PokerGame(boolean marker) {
         ai = new SimplePokerAI();
         state = new PokerState();

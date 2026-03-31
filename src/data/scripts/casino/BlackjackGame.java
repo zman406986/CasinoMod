@@ -327,10 +327,6 @@ public class BlackjackGame {
         return state.dealerHand;
     }
 
-    public GameState getGameState() {
-        return state.state;
-    }
-
     public boolean isDealerHoleCardRevealed() {
         return state.dealerHoleCardRevealed;
     }
