@@ -6,6 +6,7 @@ import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.Strings;
+import data.scripts.casino.poker5.PokerAI5;
 import data.scripts.casino.poker5.PokerGame5;
 import data.scripts.casino.poker5.PokerGame5Factory;
 
