@@ -5,9 +5,9 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.shared.CasinoFinancials;
-import data.scripts.casino.PokerDialogDelegate;
-import data.scripts.casino.PokerGame;
-import data.scripts.casino.PokerOpponentAI;
+import data.scripts.casino.poker2.PokerDialogDelegate;
+import data.scripts.casino.poker2.PokerGame;
+import data.scripts.casino.poker2.PokerOpponentAI;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.Strings;
 

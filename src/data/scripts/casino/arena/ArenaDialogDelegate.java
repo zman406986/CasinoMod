@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.arena;
 
 import java.util.List;
 import java.util.Map;
@@ -10,7 +10,7 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.impl.campaign.rulecmd.FireBest;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 
-import data.scripts.casino.ArenaPanelUI.ArenaActionCallback;
+import data.scripts.casino.arena.ArenaPanelUI.ArenaActionCallback;
 import data.scripts.casino.interaction.ArenaHandler;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 

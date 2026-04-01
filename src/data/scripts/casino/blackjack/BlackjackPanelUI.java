@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.blackjack;
 
 import java.awt.Color;
 
@@ -19,9 +19,9 @@ import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
 import data.scripts.casino.shared.BaseCardGamePanelUI;
 import data.scripts.casino.shared.CardRenderingUtils;
-import data.scripts.casino.BlackjackGame.Action;
-import data.scripts.casino.BlackjackGame.GameStateData;
-import data.scripts.casino.BlackjackGame.Hand;
+import data.scripts.casino.blackjack.BlackjackGame.Action;
+import data.scripts.casino.blackjack.BlackjackGame.GameStateData;
+import data.scripts.casino.blackjack.BlackjackGame.Hand;
 
 import static data.scripts.casino.shared.CardRenderingUtils.*;
 

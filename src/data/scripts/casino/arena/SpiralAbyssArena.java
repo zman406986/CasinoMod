@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.arena;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipAPI;

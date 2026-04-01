@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.blackjack;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.gacha;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -22,6 +22,7 @@ import com.fs.starfarer.api.util.Misc;
 import com.fs.starfarer.api.util.Pair;
 
 import data.scripts.casino.shared.GachaUI;
+import data.scripts.casino.Strings;
 
 public class GachaAnimation extends BaseCustomUIPanelPlugin
     implements ActionListenerDelegate

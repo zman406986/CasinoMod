@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.blackjack;
 
 import java.util.Map;
 
@@ -7,7 +7,7 @@ import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 
-import data.scripts.casino.BlackjackPanelUI.BlackjackActionCallback;
+import data.scripts.casino.blackjack.BlackjackPanelUI.BlackjackActionCallback;
 import data.scripts.casino.interaction.BlackjackHandler;
 import data.scripts.casino.shared.BaseGameDelegate;
 

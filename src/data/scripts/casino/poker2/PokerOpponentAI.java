@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.poker2;
 
 import java.util.*;
 

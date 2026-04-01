@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.arena;
 
 import java.awt.Color;
 import java.util.*;
@@ -26,7 +26,7 @@ import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
 import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 
-import data.scripts.casino.SpiralAbyssArena.SpiralGladiator;
+import data.scripts.casino.arena.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 import data.scripts.casino.interaction.ArenaHandler.BetValidationResult;
 

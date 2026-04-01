@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.gacha;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.combat.ShipAPI;
@@ -8,6 +8,10 @@ import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.fleet.FleetMemberType;
 import com.fs.starfarer.api.impl.campaign.ids.Tags;
 import com.fs.starfarer.api.impl.campaign.ids.Items;
+import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.CasinoVIPManager;
+import data.scripts.casino.Strings;
+import data.scripts.casino.shared.CasinoFinancials;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

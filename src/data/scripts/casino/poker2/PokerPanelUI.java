@@ -1,4 +1,4 @@
-package data.scripts.casino;
+package data.scripts.casino.poker2;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -22,9 +22,9 @@ import data.scripts.casino.cards.CardFlipAnimation;
 import data.scripts.casino.cards.RankDisplayUtils;
 import data.scripts.casino.shared.BaseCardGamePanelUI;
 import data.scripts.casino.shared.CardRenderingUtils;
-import data.scripts.casino.PokerGame.PokerState;
-import data.scripts.casino.PokerGame.Round;
-import data.scripts.casino.PokerGame.PokerGameLogic.HandScore;
+import data.scripts.casino.poker2.PokerGame.PokerState;
+import data.scripts.casino.poker2.PokerGame.Round;
+import data.scripts.casino.poker2.PokerGame.PokerGameLogic.HandScore;
 
 import static data.scripts.casino.shared.CardRenderingUtils.*;
 

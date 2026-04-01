@@ -1,12 +1,12 @@
 package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
-import data.scripts.casino.ArenaDialogDelegate;
-import data.scripts.casino.ArenaPanelUI;
+import data.scripts.casino.arena.ArenaDialogDelegate;
+import data.scripts.casino.arena.ArenaPanelUI;
+import data.scripts.casino.arena.SpiralAbyssArena;
 import data.scripts.casino.CasinoConfig;
-import data.scripts.casino.CasinoGachaManager;
+import data.scripts.casino.gacha.CasinoGachaManager;
 import data.scripts.casino.CasinoVIPManager;
-import data.scripts.casino.SpiralAbyssArena;
 import data.scripts.casino.Strings;
 
 import java.awt.Color;
