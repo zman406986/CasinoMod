@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.Deck;
 import data.scripts.casino.cards.GameType;

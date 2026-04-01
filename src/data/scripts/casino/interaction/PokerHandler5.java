@@ -1,4 +1,4 @@
-package data.scripts.casino.poker5;
+package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
@@ -6,7 +6,7 @@ import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.Strings;
-import data.scripts.casino.interaction.CasinoInteraction;
+import data.scripts.casino.poker5.PokerGame5;
 import data.scripts.casino.poker5.PokerGame5Factory;
 
 import java.awt.Color;

@@ -26,6 +26,8 @@ import com.fs.starfarer.api.ui.TooltipMakerAPI.ActionListenerDelegate;
 import com.fs.starfarer.api.ui.UIComponentAPI;
 import com.fs.starfarer.api.util.Misc;
 
+import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.Strings;
 import data.scripts.casino.arena.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 import data.scripts.casino.interaction.ArenaHandler.BetValidationResult;
