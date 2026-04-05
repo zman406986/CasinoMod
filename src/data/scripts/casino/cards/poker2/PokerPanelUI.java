@@ -1,4 +1,4 @@
-package data.scripts.casino.poker2;
+package data.scripts.casino.cards.poker2;
 
 import java.awt.Color;
 import java.util.ArrayList;
@@ -20,12 +20,15 @@ import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
 import data.scripts.casino.Strings;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
-import data.scripts.casino.cards.RankDisplayUtils;
 import data.scripts.casino.shared.BaseCardGamePanelUI;
 import data.scripts.casino.shared.CardRenderingUtils;
-import data.scripts.casino.poker2.PokerGame.PokerState;
-import data.scripts.casino.poker2.PokerGame.Round;
-import data.scripts.casino.poker2.PokerGame.PokerGameLogic.HandScore;
+import data.scripts.casino.cards.poker2.PokerGame.PokerState;
+import data.scripts.casino.cards.pokerShared.PokerAction;
+import data.scripts.casino.cards.pokerShared.PokerHandEvaluator;
+import data.scripts.casino.cards.pokerShared.PokerHandEvaluator.HandScore;
+import data.scripts.casino.cards.pokerShared.PokerUIUtils;
+import data.scripts.casino.cards.pokerShared.PokerUtils;
+import data.scripts.casino.cards.pokerShared.PokerRound;
 
 import static data.scripts.casino.shared.CardRenderingUtils.*;
 
@@ -43,12 +46,6 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     private static final int HAND_SIZE = 2;
     private static final int MAX_COMMUNITY_CARDS = 5;
 
-    private static final Color COLOR_ROUND_PREFLOP = new Color(150, 150, 200);
-    private static final Color COLOR_ROUND_FLOP = new Color(100, 200, 100);
-    private static final Color COLOR_ROUND_TURN = new Color(200, 200, 100);
-    private static final Color COLOR_ROUND_RIVER = new Color(200, 150, 100);
-    private static final Color COLOR_ROUND_SHOWDOWN = new Color(255, 200, 50);
-
     private final PokerActionCallback actionCallback;
 
     private boolean waitingForOpponent = false;
@@ -59,47 +56,43 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     private final CardFlipAnimation[] opponentCardAnimations = new CardFlipAnimation[HAND_SIZE];
     private final CardFlipAnimation[] communityCardAnimations = new CardFlipAnimation[MAX_COMMUNITY_CARDS];
 
-    private Round lastAnimatedRound = null;
+    private PokerRound lastAnimatedRound = null;
     private int lastAnimatedCommunityCount = 0;
     private boolean playerCardsAnimated = false;
 
+    private final int[] raiseOptionsBuffer = new int[MAX_COMMUNITY_CARDS];
+    private int raiseOptionsCount = 0;
+
+    private boolean cachedWasShowdown = false;
+    private int cachedCallAmount = -1;
+    private int cachedPlayerStack = -1;
+    private int cachedOpponentStack = -1;
+    private int cachedPot = -1;
+    private int cachedBigBlind = -1;
+    private int cachedOpponentBet = -1;
+    private int cachedPlayerBet = -1;
+
     public final void resetCardAnimations() {
+        PokerUIUtils.resetAnimations(playerCardAnimations, null, communityCardAnimations);
         for (int i = 0; i < HAND_SIZE; i++) {
-            playerCardAnimations[i].reset();
             opponentCardAnimations[i].reset();
-        }
-        for (int i = 0; i < MAX_COMMUNITY_CARDS; i++) {
-            communityCardAnimations[i].reset();
         }
         lastAnimatedRound = null;
         lastAnimatedCommunityCount = 0;
         playerCardsAnimated = false;
     }
 
-    private void checkAndTriggerAnimations(PokerState state, Round previousRound, int previousCommunityCount) {
+    private void checkAndTriggerAnimations(PokerState state, PokerRound previousRound, int previousCommunityCount) {
         if (!playerCardsAnimated && state.playerHand != null && !state.playerHand.isEmpty()) {
             playerCardsAnimated = true;
-            for (int i = 0; i < state.playerHand.size() && i < HAND_SIZE; i++) {
-                playerCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
-            }
+            PokerUIUtils.triggerPlayerCardAnimations(playerCardAnimations, state.playerHand.size(), CardFlipAnimation.STAGGER_DELAY);
         }
 
         final int currentCommunityCount = state.communityCards != null ? state.communityCards.size() : 0;
-        if (currentCommunityCount > previousCommunityCount) {
-            for (int i = previousCommunityCount; i < currentCommunityCount && i < MAX_COMMUNITY_CARDS; i++) {
-                if (communityCardAnimations[i].phase == CardFlipAnimation.Phase.HIDDEN) {
-                    float staggerDelay = (i - previousCommunityCount) * CardFlipAnimation.STAGGER_DELAY;
-                    communityCardAnimations[i].triggerFlip(staggerDelay);
-                }
-            }
-        }
+        PokerUIUtils.triggerCommunityAnimations(communityCardAnimations, previousCommunityCount, currentCommunityCount, CardFlipAnimation.STAGGER_DELAY);
 
-        if (state.round == Round.SHOWDOWN && previousRound != Round.SHOWDOWN && state.folder == null) {
-            for (int i = 0; i < HAND_SIZE; i++) {
-                if (opponentCardAnimations[i].phase == CardFlipAnimation.Phase.HIDDEN) {
-                    opponentCardAnimations[i].triggerFlip(i * CardFlipAnimation.STAGGER_DELAY);
-                }
-            }
+        if (state.round == PokerRound.SHOWDOWN && previousRound != PokerRound.SHOWDOWN && state.folder == null) {
+            PokerUIUtils.triggerOpponentAnimations(opponentCardAnimations, HAND_SIZE, CardFlipAnimation.STAGGER_DELAY);
         }
     }
 
@@ -109,7 +102,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     private int lastOpponentBet = -1;
     private int lastPot = -1;
     private int lastBigBlind = -1;
-    private Round lastRound = null;
+    private PokerRound lastRound = null;
 
     private boolean resultLblCached = false;
 
@@ -129,7 +122,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     private LabelAPI resultLabel;
 
     public interface PokerActionCallback {
-        void onPlayerAction(PokerGame.Action action, int raiseAmount);
+        void onPlayerAction(PokerAction action, int raiseAmount);
         void onNextHand();
         void onSuspend();
         void onHowToPlay();
@@ -154,13 +147,21 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         super.init(panel, callbacks);
         waitingForOpponent = false;
         opponentThinkTimer = 0f;
+        cachedWasShowdown = false;
+        cachedCallAmount = -1;
+        cachedPlayerStack = -1;
+        cachedOpponentStack = -1;
+        cachedPot = -1;
+        cachedBigBlind = -1;
+        cachedOpponentBet = -1;
+        cachedPlayerBet = -1;
     }
 
     @Override
     protected void createButtonsInInit() {
         if (buttonsCreated) return;
 
-        final PositionAPI pos =panel.getPosition();
+        final PositionAPI pos = panel.getPosition();
         final TooltipMakerAPI btnTp = panel.createUIElement(pos.getWidth(), pos.getHeight(), false);
         btnTp.setActionListenerDelegate(this);
         panel.addUIElement(btnTp).inBL(0f, 0f);
@@ -216,14 +217,17 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         if (game == null) return;
         final PokerState state = game.getState();
 
-        final boolean isShowdown = state.round == Round.SHOWDOWN;
-        final String flipTableLabel = isShowdown ? Strings.get("poker_panel.leave_btn") : Strings.get("poker_panel.run_away");
-        flipTableButton.setText(flipTableLabel);
+        final boolean isShowdown = state.round == PokerRound.SHOWDOWN;
+        if (isShowdown != cachedWasShowdown) {
+            cachedWasShowdown = isShowdown;
+            final String flipTableLabel = isShowdown ? Strings.get("poker_panel.leave_btn") : Strings.get("poker_panel.run_away");
+            flipTableButton.setText(flipTableLabel);
+        }
 
         final int callAmount = state.opponentBet - state.playerBet;
         final boolean opponentEffectivelyAllIn = state.opponentStack <= state.bigBlind || state.opponentDeclaredAllIn;
         final boolean canRaise = state.playerStack > 0 && state.opponentStack > 0 && callAmount < state.playerStack && !opponentEffectivelyAllIn;
-        final boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER && state.round != Round.SHOWDOWN;
+        final boolean isPlayerTurn = state.currentPlayer == PokerGame.CurrentPlayer.PLAYER && state.round != PokerRound.SHOWDOWN;
 
         final float bottomY = PANEL_HEIGHT - BUTTON_HEIGHT - MARGIN;
         final float totalActionWidth = BUTTON_WIDTH * 2 + BUTTON_SPACING;
@@ -233,8 +237,11 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             foldBtn.getPosition().inTL(actionStartX, bottomY);
             foldBtn.setOpacity(1f);
 
-            final String checkCallLabel = callAmount > 0 ? Strings.format("poker_panel.call_btn", callAmount) : Strings.get("poker_panel.check_btn");
-            checkCallBtn.setText(checkCallLabel);
+            if (callAmount != cachedCallAmount) {
+                cachedCallAmount = callAmount;
+                final String checkCallLabel = callAmount > 0 ? Strings.format("poker_panel.call_btn", callAmount) : Strings.get("poker_panel.check_btn");
+                checkCallBtn.setText(checkCallLabel);
+            }
             final float checkCallX = actionStartX + BUTTON_WIDTH + BUTTON_SPACING;
             checkCallBtn.getPosition().inTL(checkCallX, bottomY);
             checkCallBtn.setOpacity(1f);
@@ -244,26 +251,36 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         }
 
         if (canRaise && isPlayerTurn) {
-            final float[] raiseAmounts = getRaiseOptions(state);
+            final boolean stateChanged = state.playerStack != cachedPlayerStack ||
+                state.opponentStack != cachedOpponentStack ||
+                state.pot != cachedPot ||
+                state.bigBlind != cachedBigBlind ||
+                state.opponentBet != cachedOpponentBet ||
+                state.playerBet != cachedPlayerBet;
+
+            if (stateChanged) {
+                cachedPlayerStack = state.playerStack;
+                cachedOpponentStack = state.opponentStack;
+                cachedPot = state.pot;
+                cachedBigBlind = state.bigBlind;
+                cachedOpponentBet = state.opponentBet;
+                cachedPlayerBet = state.playerBet;
+                computeRaiseOptions(state);
+            }
+
             final float raiseOptionsY = bottomY - BUTTON_HEIGHT - BUTTON_SPACING;
-            final float totalRaiseWidth = RAISE_BUTTON_WIDTH * raiseAmounts.length + BUTTON_SPACING * (raiseAmounts.length - 1);
+            final float totalRaiseWidth = RAISE_BUTTON_WIDTH * raiseOptionsCount + BUTTON_SPACING * (raiseOptionsCount - 1);
             final float raiseStartX = (PANEL_WIDTH - totalRaiseWidth) / 2f;
 
             for (int i = 0; i < raiseOptionButtons.size(); i++) {
                 final ButtonAPI btn = raiseOptionButtons.get(i);
-                if (i < raiseAmounts.length) {
-                    final int amt = (int) raiseAmounts[i];
-                    final String label = formatRaiseLabel(amt, state.bigBlind, state.pot, state.playerStack, state.opponentBet, state.playerBet);
+                if (i < raiseOptionsCount) {
+                    final int amt = raiseOptionsBuffer[i];
                     final String btnId = POKER_RAISE_PREFIX + amt;
                     final float btnX = raiseStartX + (RAISE_BUTTON_WIDTH + BUTTON_SPACING) * i;
 
-                    if (amt == state.bigBlind) {
-                        btn.setShortcut(Keyboard.KEY_R, false);
-                    } else {
-                        btn.setShortcut(Keyboard.KEY_NONE, false);
-                    }
-
-                    btn.setText(label);
+                    btn.setShortcut(amt == state.bigBlind ? Keyboard.KEY_R : Keyboard.KEY_NONE, false);
+                    btn.setText(formatRaiseLabel(amt, state.bigBlind, state.pot, state.playerStack, state.opponentBet, state.playerBet));
                     btn.setCustomData(btnId);
                     btn.getPosition().inTL(btnX, raiseOptionsY);
                     btn.setOpacity(1f);
@@ -278,9 +295,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         }
     }
 
-    private float[] getRaiseOptions(PokerState state) {
-        final float[] temp = new float[MAX_COMMUNITY_CARDS];
-        int count = 0;
+    private void computeRaiseOptions(PokerState state) {
+        raiseOptionsCount = 0;
         final int pot = state.pot;
         final int stack = state.playerStack;
         final int bb = state.bigBlind;
@@ -288,40 +304,36 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final int maxBet = state.playerBet + stack;
 
         final int bbTotal = opponentBet + bb;
-        if (bbTotal <= maxBet && notContains(temp, count, bbTotal)) {
-            temp[count++] = bbTotal;
+        if (bbTotal <= maxBet && notContainsRaise(bbTotal)) {
+            raiseOptionsBuffer[raiseOptionsCount++] = bbTotal;
         }
 
         final int halfPot = pot / 2;
         final int halfPotTotal = opponentBet + halfPot;
-        if (halfPot >= bb && halfPotTotal <= maxBet && notContains(temp, count, halfPotTotal)) {
-            temp[count++] = halfPotTotal;
+        if (halfPot >= bb && halfPotTotal <= maxBet && notContainsRaise(halfPotTotal)) {
+            raiseOptionsBuffer[raiseOptionsCount++] = halfPotTotal;
         }
 
         final int potTotal = opponentBet + pot;
-        if (pot >= bb && potTotal <= maxBet && notContains(temp, count, potTotal)) {
-            temp[count++] = potTotal;
+        if (pot >= bb && potTotal <= maxBet && notContainsRaise(potTotal)) {
+            raiseOptionsBuffer[raiseOptionsCount++] = potTotal;
         }
 
         final int twoPot = pot * 2;
         final int twoPotTotal = opponentBet + twoPot;
-        if (twoPot > pot && twoPotTotal <= maxBet && notContains(temp, count, twoPotTotal)) {
-            temp[count++] = twoPotTotal;
+        if (twoPot > pot && twoPotTotal <= maxBet && notContainsRaise(twoPotTotal)) {
+            raiseOptionsBuffer[raiseOptionsCount++] = twoPotTotal;
         }
 
         final int allInTotal = state.playerBet + stack;
-        if (stack > 0 && notContains(temp, count, allInTotal)) {
-            temp[count++] = allInTotal;
+        if (stack > 0 && notContainsRaise(allInTotal)) {
+            raiseOptionsBuffer[raiseOptionsCount++] = allInTotal;
         }
-
-        final float[] result = new float[count];
-        System.arraycopy(temp, 0, result, 0, count);
-        return result;
     }
 
-    private boolean notContains(float[] arr, int len, int val) {
-        for (int i = 0; i < len; i++) {
-            if ((int) arr[i] == val) return false;
+    private boolean notContainsRaise(int value) {
+        for (int i = 0; i < raiseOptionsCount; i++) {
+            if (raiseOptionsBuffer[i] == value) return false;
         }
         return true;
     }
@@ -371,14 +383,12 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         if (playerStack != lastPlayerStack || playerBet != lastPlayerBet) {
             lastPlayerStack = playerStack;
             lastPlayerBet = playerBet;
-            final String txt = Strings.format("poker_panel.player_stack_bet", playerStack, playerBet);
-            playerStackLabel.setText(txt);
+            playerStackLabel.setText(Strings.format("poker_panel.player_stack_bet", playerStack, playerBet));
         }
-        if ((opponentStack != lastOpponentStack || opponentBet != lastOpponentBet)) {
+        if (opponentStack != lastOpponentStack || opponentBet != lastOpponentBet) {
             lastOpponentStack = opponentStack;
             lastOpponentBet = opponentBet;
-            final String txt = Strings.format("poker_panel.opponent_stack_bet", opponentStack, opponentBet);
-            opponentStackLabel.setText(txt);
+            opponentStackLabel.setText(Strings.format("poker_panel.opponent_stack_bet", opponentStack, opponentBet));
         }
     }
 
@@ -396,32 +406,15 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             .setSize(ROUND_LABEL_WIDTH, ROUND_LABEL_HEIGHT);
     }
 
-    private void updateRoundLabel(Round round, int bigBlind, int pot) {
+    private void updateRoundLabel(PokerRound round, int bigBlind, int pot) {
         if (round == lastRound && bigBlind == lastBigBlind && pot == lastPot) return;
 
         lastRound = round;
         lastBigBlind = bigBlind;
         lastPot = pot;
 
-        final String roundName = switch (round) {
-            case PREFLOP -> Strings.get("poker_rounds.preflop");
-            case FLOP -> Strings.get("poker_rounds.flop");
-            case TURN -> Strings.get("poker_rounds.turn");
-            case RIVER -> Strings.get("poker_rounds.river");
-            case SHOWDOWN -> Strings.get("poker_rounds.showdown");
-        };
-
-        final String txt = Strings.format("poker_panel.round_progress", roundName, pot, bigBlind);
-        roundLabel.setText(txt);
-
-        final Color roundColor = switch (round) {
-            case PREFLOP -> COLOR_ROUND_PREFLOP;
-            case FLOP -> COLOR_ROUND_FLOP;
-            case TURN -> COLOR_ROUND_TURN;
-            case RIVER -> COLOR_ROUND_RIVER;
-            case SHOWDOWN -> COLOR_ROUND_SHOWDOWN;
-        };
-        roundLabel.setColor(roundColor);
+        roundLabel.setText(Strings.format("poker_panel.round_progress", PokerUIUtils.getRoundName(round), pot, bigBlind));
+        roundLabel.setColor(PokerUIUtils.getRoundColor(round));
     }
 
     private void createWaitingLabel() {
@@ -514,7 +507,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     }
 
     private void updateResultLabel(PokerState state) {
-        if (state.round != Round.SHOWDOWN) {
+        if (state.round != PokerRound.SHOWDOWN) {
             resultLabel.setOpacity(0f);
             resultLblCached = false;
             return;
@@ -537,8 +530,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             hidePlayerAction();
 
         } else if (state.playerHandRank != null && state.opponentHandRank != null) {
-            final HandScore playerScore = PokerGame.PokerGameLogic.evaluate(state.playerHand, state.communityCards);
-            final HandScore opponentScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
+            final HandScore playerScore = PokerHandEvaluator.evaluate(state.playerHand, state.communityCards);
+            final HandScore opponentScore = PokerHandEvaluator.evaluate(state.opponentHand, state.communityCards);
 
             final String playerHandDesc = formatHandDescription(playerScore);
             final String oppHandDesc = formatHandDescription(opponentScore);
@@ -566,9 +559,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final boolean opponentBust = state.opponentStack < state.bigBlind;
 
         if (playerBust || opponentBust) {
-            resultText += playerBust ?
-                Strings.get("poker_panel.you_bust_leave") :
-                Strings.get("poker_panel.opponent_bust_leave");
+            final String bustMsg = playerBust ? Strings.get("poker_panel.you_bust_leave") : Strings.get("poker_panel.opponent_bust_leave");
+            resultText = Strings.format("poker_panel.result_with_bust", resultText, bustMsg);
         }
 
         resultLblCached = true;
@@ -587,15 +579,15 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             return rankName;
         }
 
-        final String highCard = RankDisplayUtils.getRankName(score.tieBreakers.get(0));
+        final String highCard = PokerUtils.getRankName(score.tieBreakers.get(0));
 
         return switch (score.rank) {
             case HIGH_CARD -> Strings.format("poker_hand_desc.high_card", highCard);
             case PAIR -> Strings.format("poker_hand_desc.pair_of", highCard);
             case TWO_PAIR -> {
                 if (score.tieBreakers.size() >= 2) {
-                    final String firstPair = RankDisplayUtils.getRankName(score.tieBreakers.get(0));
-                    final String secondPair = RankDisplayUtils.getRankName(score.tieBreakers.get(1));
+                    final String firstPair = PokerUtils.getRankName(score.tieBreakers.get(0));
+                    final String secondPair = PokerUtils.getRankName(score.tieBreakers.get(1));
                     yield Strings.format("poker_hand_desc.two_pair_and", firstPair, secondPair);
                 }
                 yield Strings.get("poker_hand_desc.two_pair");
@@ -605,8 +597,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             case FLUSH -> Strings.format("poker_hand_desc.flush_high", highCard);
             case FULL_HOUSE -> {
                 if (score.tieBreakers.size() >= 2) {
-                    final String trips = RankDisplayUtils.getRankName(score.tieBreakers.get(0));
-                    final String pair = RankDisplayUtils.getRankName(score.tieBreakers.get(1));
+                    final String trips = PokerUtils.getRankName(score.tieBreakers.get(0));
+                    final String pair = PokerUtils.getRankName(score.tieBreakers.get(1));
                     yield Strings.format("poker_hand_desc.full_house_full", trips, pair);
                 }
                 yield Strings.get("poker_hand_desc.full_house");
@@ -621,7 +613,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         };
     }
 
-    private String formatHandRank(PokerGame.PokerGameLogic.HandRank rank) {
+    private String formatHandRank(PokerHandEvaluator.HandRank rank) {
         if (rank == null) return Strings.get("poker_hand_desc.unknown");
         return switch (rank) {
             case HIGH_CARD -> Strings.get("poker_hand_rank.high_card");
@@ -649,7 +641,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     }
 
     private void updateNextHandButton(PokerState state) {
-        final boolean atShowdown = state.round == Round.SHOWDOWN;
+        final boolean atShowdown = state.round == PokerRound.SHOWDOWN;
         final boolean canContinue = state.playerStack >= state.bigBlind &&
             state.opponentStack >= state.bigBlind;
 
@@ -689,7 +681,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         renderPlayerHand(cx, y + playerCardBottomY, state.playerHand, alphaMult);
 
         final float opponentCardBottomY = h * 0.75f - CARD_HEIGHT / 2f;
-        final boolean showOpponentCards = state.round == Round.SHOWDOWN && state.folder == null;
+        final boolean showOpponentCards = state.round == PokerRound.SHOWDOWN && state.folder == null;
         renderOpponentHand(cx, y + opponentCardBottomY, state.opponentHand, showOpponentCards, alphaMult);
     }
 
@@ -709,7 +701,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final float totalWidth = HAND_SIZE * CARD_WIDTH + CARD_SPACING;
         final float startX = cx - totalWidth / 2f;
 
-        for (int i = 0; i < cards.size(); i++) {
+        final int count = Math.min(HAND_SIZE, cards.size());
+        for (int i = 0; i < count; i++) {
             final Card card = cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
             CardRenderingUtils.renderCardAnimated(cardX, y, card, playerCardAnimations[i], alphaMult);
@@ -720,7 +713,8 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final float totalWidth = HAND_SIZE * CARD_WIDTH + CARD_SPACING;
         final float startX = cx - totalWidth / 2f;
 
-        for (int i = 0; i < cards.size(); i++) {
+        final int count = Math.min(HAND_SIZE, cards.size());
+        for (int i = 0; i < count; i++) {
             final Card card = cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
             if (showCards) {
@@ -740,12 +734,12 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
             }
         }
 
-        for (int i = 0; i < HAND_SIZE; i++) {
-            playerCardAnimations[i].advance(amount);
-            opponentCardAnimations[i].advance(amount);
-        }
         for (int i = 0; i < MAX_COMMUNITY_CARDS; i++) {
             communityCardAnimations[i].advance(amount);
+            if (i < HAND_SIZE) {
+                playerCardAnimations[i].advance(amount);
+                opponentCardAnimations[i].advance(amount);
+            }
         }
     }
 
@@ -758,11 +752,11 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         this.game = game;
         final PokerState state = game.getState();
 
-        if (state.round == Round.PREFLOP && lastAnimatedRound != Round.PREFLOP) {
+        if (state.round == PokerRound.PREFLOP && lastAnimatedRound != PokerRound.PREFLOP) {
             resetCardAnimations();
         }
 
-        final Round previousRound = lastAnimatedRound;
+        final PokerRound previousRound = lastAnimatedRound;
         int previousCommunityCount = lastAnimatedCommunityCount;
 
         waitingForOpponent = false;
@@ -787,60 +781,46 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     protected void processAction(Object data) {
         if (data == null) return;
 
-        if (POKER_FOLD == data) {
-            handleFoldClick();
-            return;
-        }
-        if (POKER_CHECK_CALL == data) {
-            handleCheckCallClick();
-            return;
-        }
-        if (POKER_NEXT_HAND == data) {
-            final PokerState state = game.getState();
-            final boolean canContinue = state.playerStack >= state.bigBlind &&
-                state.opponentStack >= state.bigBlind;
-            if (canContinue) actionCallback.onNextHand();
-            return;
-        }
-        if (POKER_SUSPEND == data) {
-            actionCallback.onSuspend();
-            return;
-        }
-        if (POKER_HOW_TO_PLAY == data) {
-            actionCallback.onHowToPlay();
-            return;
-        }
-        if (POKER_FLIP_TABLE == data) {
-            actionCallback.onFlipTable();
-            return;
-        }
-        if (data instanceof String strData && strData.startsWith(POKER_RAISE_PREFIX)) {
-            final int amount = Integer.parseInt(strData.substring(POKER_RAISE_PREFIX.length()));
-            handleRaiseAmountClick(amount);
+        final PokerState state = game.getState();
+        switch (data.toString()) {
+            case POKER_FOLD -> handleFoldClick();
+            case POKER_CHECK_CALL -> handleCheckCallClick(state);
+            case POKER_NEXT_HAND -> {
+                if (state.playerStack >= state.bigBlind && state.opponentStack >= state.bigBlind) {
+                    actionCallback.onNextHand();
+                }
+            }
+            case POKER_SUSPEND -> actionCallback.onSuspend();
+            case POKER_HOW_TO_PLAY -> actionCallback.onHowToPlay();
+            case POKER_FLIP_TABLE -> actionCallback.onFlipTable();
+            default -> {
+                if (data instanceof String strData && strData.startsWith(POKER_RAISE_PREFIX)) {
+                    final int amount = Integer.parseInt(strData.substring(POKER_RAISE_PREFIX.length()));
+                    handleRaiseAmountClick(amount);
+                }
+            }
         }
     }
 
     private void handleFoldClick() {
         showPlayerAction(Strings.get("poker_actions.you_fold"));
-        actionCallback.onPlayerAction(PokerGame.Action.FOLD, 0);
+        actionCallback.onPlayerAction(PokerAction.FOLD, 0);
     }
 
-    private void handleCheckCallClick() {
-        final PokerState state = game.getState();
+    private void handleCheckCallClick(PokerState state) {
         final int callAmount = state.opponentBet - state.playerBet;
 
         if (callAmount > 0) {
             showPlayerAction(Strings.format("poker_actions.you_call", callAmount));
-            actionCallback.onPlayerAction(PokerGame.Action.CALL, 0);
-
+            actionCallback.onPlayerAction(PokerAction.CALL, 0);
         } else {
             showPlayerAction(Strings.get("poker_actions.you_check"));
-            actionCallback.onPlayerAction(PokerGame.Action.CHECK, 0);
+            actionCallback.onPlayerAction(PokerAction.CHECK, 0);
         }
     }
 
     private void handleRaiseAmountClick(int amount) {
         showPlayerAction(Strings.format("poker_actions.you_raise_to", amount));
-        actionCallback.onPlayerAction(PokerGame.Action.RAISE, amount);
+        actionCallback.onPlayerAction(PokerAction.RAISE, amount);
     }
 }

@@ -18,7 +18,8 @@
         "balance": "当前余额：%s 星石",
         "vip_status": "VIP状态：剩余 %d 天",
         "btn_gacha": "远神(抽卡)",
-        "btn_poker": "德州扑克",
+        "btn_poker": "德州扑克(2人)",
+        "btn_poker5": "德州扑克(5人)",
         "btn_blackjack": "21点",
         "btn_arena": "深境螺旋(大逃杀竞技场)",
         "btn_topup": "星石充值",
@@ -607,7 +608,24 @@
         "opponent_wins_stargems": "对手赢得 %d 星石",
         "split_pot_each": "平分底池！各得 %d 星石",
         "you_bust_leave": " 您已破产！点击【离开】退出。",
-        "opponent_bust_leave": " 对手已破产！点击【离开】退出。"
+        "opponent_bust_leave": " 对手已破产！点击【离开】退出。",
+        "result_with_bust": "%s%s",
+        "stack": "筹码：%d",
+        "bet": "当前下注：%d"
+    },
+    "poker_panel5": {
+        "player_pos": "%s [%s]",
+        "folded": "(已弃牌)",
+        "all_in": "(全押)",
+        "ai_thinking": "%s [%s] 思考中……",
+        "waiting_for": "等待 %s [%s]……",
+        "winners_take": "%s 赢得 %d 星石！",
+        "hand_complete": "本局结束",
+        "action_fold": "弃牌",
+        "action_check": "过牌",
+        "action_call": "跟注 %d",
+        "action_raise": "加注至 %d",
+        "action_all_in": "全押 %d"
     },
     "poker_rounds": {
         "preflop": "翻牌前",
@@ -781,6 +799,15 @@
         "blackjack_1": "- 21点(A + 10点牌)：赔率3:2",
         "push_1": "- 平局：与庄家点数相同，返还下注",
         "back_to_game": "返回游戏"
+    },
+    "poker5": {
+        "cooldown_active": "5人扑克桌已被占用。",
+        "table_suffix": "（5人桌）",
+        "insufficient_funds": "5人扑克资金不足。",
+        "suspended_msg": "游戏已暂停。您可以稍后继续。",
+        "restore_failed": "恢复游戏失败。",
+        "opponent_name": "对手 %d",
+        "you_name": "您"
     },
     "arena_panel_rewards": {
         "header": "--- 奖励明细 ---",

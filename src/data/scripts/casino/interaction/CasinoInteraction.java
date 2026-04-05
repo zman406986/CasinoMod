@@ -18,6 +18,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
     protected final GachaHandler gacha;
     protected final PokerHandler poker;
+    protected final PokerHandler5 poker5;
     protected final BlackjackHandler blackjack;
     protected final ArenaHandler arena;
     protected final FinHandler financial;
@@ -46,6 +47,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
     public CasinoInteraction() {
         this.gacha = new GachaHandler(this);
         this.poker = new PokerHandler(this);
+        this.poker5 = new PokerHandler5(this);
         this.blackjack = new BlackjackHandler(this);
         this.arena = new ArenaHandler(this);
         this.financial = new FinHandler(this);
@@ -84,6 +86,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
         options.addOption(Strings.get("main_menu.btn_gacha"), "gacha_menu");
         options.addOption(Strings.get("main_menu.btn_poker"), "play");
+        options.addOption(Strings.get("main_menu.btn_poker5"), "play5");
         options.addOption(Strings.get("main_menu.btn_blackjack"), "blackjack_play");
         options.addOption(Strings.get("main_menu.btn_arena"), "arena_visual_panel");
         options.addOption(Strings.get("main_menu.btn_topup"), "topup_menu");
@@ -109,7 +112,9 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         // Route to appropriate handler based on option prefix
         if (option.startsWith("gacha_") || option.startsWith("pull_") || option.startsWith("confirm_pull_") || option.startsWith("auto_convert") || option.startsWith("explain_")) {
             gacha.handle(option);
-        } else if (option.startsWith("play") || option.startsWith("poker_") || option.startsWith("confirm_poker") || option.startsWith("next_hand") || option.equals("confirm_overdraft") || option.equals("cancel_overdraft")) {
+        } else if (option.equals("play5") || option.startsWith("poker5_") || option.startsWith("confirm_poker5") || option.startsWith("next_hand5")) {
+            poker5.handle(option);
+        } else if (option.equals("play") || option.startsWith("poker_") || option.startsWith("confirm_poker") || option.startsWith("next_hand") || option.equals("confirm_overdraft") || option.equals("cancel_overdraft")) {
             poker.handle(option);
         } else if (option.startsWith("blackjack_")) {
             blackjack.handle(option);

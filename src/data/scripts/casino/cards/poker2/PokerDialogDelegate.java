@@ -1,4 +1,4 @@
-package data.scripts.casino.poker2;
+package data.scripts.casino.cards.poker2;
 
 import java.util.Map;
 
@@ -7,8 +7,10 @@ import com.fs.starfarer.api.campaign.InteractionDialogAPI;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
 
-import data.scripts.casino.poker2.PokerPanelUI.PokerActionCallback;
+import data.scripts.casino.cards.poker2.PokerPanelUI.PokerActionCallback;
 import data.scripts.casino.interaction.PokerHandler;
+import data.scripts.casino.cards.pokerShared.PokerAction;
+import data.scripts.casino.cards.pokerShared.PokerRound;
 import data.scripts.casino.shared.BaseGameDelegate;
 
 public class PokerDialogDelegate extends BaseGameDelegate implements PokerActionCallback {
@@ -99,7 +101,7 @@ public class PokerDialogDelegate extends BaseGameDelegate implements PokerAction
         pokerPanel.startOpponentTurn();
     }
 
-    public void onPlayerAction(PokerGame.Action action, int raiseAmount) {
+    public void onPlayerAction(PokerAction action, int raiseAmount) {
         handler.processPlayerActionInPlace(action, raiseAmount, this);
     }
 
@@ -131,7 +133,7 @@ public class PokerDialogDelegate extends BaseGameDelegate implements PokerAction
 
     public void onFlipTable() {
         final boolean isShowdown = game != null && game.getState() != null &&
-            game.getState().round == PokerGame.Round.SHOWDOWN;
+            game.getState().round == PokerRound.SHOWDOWN;
 
         if (isShowdown) {
             handler.handleCleanLeaveInPlace(this);

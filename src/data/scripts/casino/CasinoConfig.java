@@ -35,6 +35,8 @@ public class CasinoConfig {
     public static int POKER_AI_MAX_RAISE_RANDOM_ADDITION;
     public static int POKER_AI_MIN_RAISE_VALUE;
     public static int POKER_MONTE_CARLO_SAMPLES;
+    public static float POKER_BLIND_DEFENSE_THRESHOLD;
+    public static float POKER_BLIND_FOLD_RESISTANCE;
     public static boolean POKER_AI_DEBUG_LOGGING = true;
 
     // Gacha
@@ -159,6 +161,8 @@ public class CasinoConfig {
             POKER_AI_MAX_RAISE_RANDOM_ADDITION = settings.optInt("pokerAIMaxRaiseRandomAddition", 200);
             POKER_AI_MIN_RAISE_VALUE = settings.optInt("pokerAIMinRaiseValue", 200);
             POKER_MONTE_CARLO_SAMPLES = settings.optInt("pokerMonteCarloSamples", 2000);
+            POKER_BLIND_DEFENSE_THRESHOLD = (float) settings.optDouble("pokerBlindDefenseThreshold", 0.05);
+            POKER_BLIND_FOLD_RESISTANCE = (float) settings.optDouble("pokerBlindFoldResistance", 0.12);
 
             // Gacha settings
             GACHA_COST = settings.optInt("gachaCost", 160);

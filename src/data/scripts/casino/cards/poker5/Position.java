@@ -1,4 +1,4 @@
-package data.scripts.casino.poker5;
+package data.scripts.casino.cards.poker5;
 
 public enum Position {
     BUTTON,
@@ -19,16 +19,6 @@ public enum Position {
         return this.actOrderPostflop() > other.actOrderPostflop();
     }
 
-    public int actOrderPreflop() {
-        return switch (this) {
-            case UTG -> 0;
-            case CUT_OFF -> 1;
-            case BUTTON -> 2;
-            case SMALL_BLIND -> 3;
-            case BIG_BLIND -> 4;
-        };
-    }
-
     public int actOrderPostflop() {
         return switch (this) {
             case SMALL_BLIND -> 0;
@@ -42,7 +32,6 @@ public enum Position {
     public static Position fromSeatIndex(int seatIndex, int buttonSeat) {
         int relativePos = (seatIndex - buttonSeat + 5) % 5;
         return switch (relativePos) {
-            case 0 -> BUTTON;
             case 1 -> SMALL_BLIND;
             case 2 -> BIG_BLIND;
             case 3 -> UTG;

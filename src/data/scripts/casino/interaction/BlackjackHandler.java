@@ -4,10 +4,10 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.Strings;
-import data.scripts.casino.blackjack.BlackjackDialogDelegate;
-import data.scripts.casino.blackjack.BlackjackGame;
-import data.scripts.casino.blackjack.BlackjackGame.Action;
-import data.scripts.casino.blackjack.BlackjackGame.GameState;
+import data.scripts.casino.cards.blackjack.BlackjackDialogDelegate;
+import data.scripts.casino.cards.blackjack.BlackjackGame;
+import data.scripts.casino.cards.blackjack.BlackjackGame.Action;
+import data.scripts.casino.cards.blackjack.BlackjackGame.GameState;
 
 import java.awt.Color;
 import java.util.Map;

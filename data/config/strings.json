@@ -18,7 +18,8 @@
         "balance": "Current Balance: %s Stargems",
         "vip_status": "VIP Status: %d days remaining",
         "btn_gacha": "Tachy-Impact (Gacha)",
-        "btn_poker": "Texas Hold'em (Poker)",
+        "btn_poker": "Texas Hold'em (2-Player)",
+        "btn_poker5": "Texas Hold'em (5-Player)",
         "btn_blackjack": "Blackjack",
         "btn_arena": "Spiral Abyss (Battle Royale Arena)",
         "btn_topup": "Stargem Top-up",
@@ -598,7 +599,24 @@
         "opponent_wins_stargems": "Opponent wins %d Stargems",
         "split_pot_each": "Split pot! +%d Stargems each",
         "you_bust_leave": " You went BUST! Click 'Leave' to exit.",
-        "opponent_bust_leave": " Opponent went BUST! Click 'Leave' to exit."
+        "opponent_bust_leave": " Opponent went BUST! Click 'Leave' to exit.",
+        "result_with_bust": "%s%s",
+        "stack": "Stack: %d",
+        "bet": "Current Bet: %d"
+    },
+    "poker_panel5": {
+        "player_pos": "%s [%s]",
+        "folded": "(Folded)",
+        "all_in": "(All-In)",
+        "ai_thinking": "%s [%s] thinking...",
+        "waiting_for": "Waiting for %s [%s]...",
+        "winners_take": "%s win %d Stargems!",
+        "hand_complete": "Hand complete",
+        "action_fold": "Folds",
+        "action_check": "Checks",
+        "action_call": "Calls %d",
+        "action_raise": "Raises to %d",
+        "action_all_in": "All-In %d"
     },
     "poker_rounds": {
         "preflop": "Preflop",
@@ -873,6 +891,15 @@
         "overdraft_balance_change": "Balance: %s → %s SG (using %s SG overdraft)",
         "bet_on": "Bet on %s %s %s [%s]",
         "battle_ended": "Battle has ended. No more bets can be placed."
+    },
+    "poker5": {
+        "cooldown_active": "5-player poker table is occupied.",
+        "table_suffix": " (5-player table)",
+        "insufficient_funds": "Insufficient funds for 5-player poker.",
+        "suspended_msg": "Game suspended. You can resume later.",
+        "restore_failed": "Failed to restore game.",
+        "opponent_name": "Opponent %d",
+        "you_name": "You"
     },
     "arena_panel_rewards": {
         "header": "--- Reward Breakdown ---",

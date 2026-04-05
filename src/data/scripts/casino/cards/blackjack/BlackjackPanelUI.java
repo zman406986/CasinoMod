@@ -1,4 +1,4 @@
-package data.scripts.casino.blackjack;
+package data.scripts.casino.cards.blackjack;
 
 import java.awt.Color;
 
@@ -20,9 +20,9 @@ import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
 import data.scripts.casino.shared.BaseCardGamePanelUI;
 import data.scripts.casino.shared.CardRenderingUtils;
-import data.scripts.casino.blackjack.BlackjackGame.Action;
-import data.scripts.casino.blackjack.BlackjackGame.GameStateData;
-import data.scripts.casino.blackjack.BlackjackGame.Hand;
+import data.scripts.casino.cards.blackjack.BlackjackGame.Action;
+import data.scripts.casino.cards.blackjack.BlackjackGame.GameStateData;
+import data.scripts.casino.cards.blackjack.BlackjackGame.Hand;
 
 import static data.scripts.casino.shared.CardRenderingUtils.*;
 
@@ -338,9 +338,8 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
         hideGameButtons();
     }
 
-    private void updateLabels() {
-        if (game == null) return;
-        final GameStateData state = game.getState();
+    private void updateLabels(GameStateData state) {
+        if (state == null) return;
 
         updatePlayerStackLabel(state);
         final boolean isSplitMode = state.splitHands != null && !state.splitHands.isEmpty();
@@ -353,8 +352,8 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
             default -> hideAllDynaLbls();
         }
 
-        updateDealerTotal();
-        updatePlayerTotal();
+        updateDealerTotal(state);
+        updatePlayerTotal(state);
     }
     
     private void updatePlayerStackLabel(GameStateData state) {
@@ -488,16 +487,16 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
         return Color.YELLOW;
     }
 
-    private void updateDealerTotal() {
-        if (game == null) return;
+    private void updateDealerTotal(GameStateData state) {
+        if (state == null) return;
 
-        final Hand dealerHand = game.getDealerHand();
+        final Hand dealerHand = state.dealerHand;
         if (dealerHand == null || dealerHand.cards.isEmpty()) {
             dealerTotalLabel.setOpacity(0f);
             return;
         }
 
-        final boolean revealed = game.isDealerHoleCardRevealed();
+        final boolean revealed = state.dealerHoleCardRevealed;
         if (revealed) {
             final int total = dealerHand.getValue();
             final String totalText = Strings.format("blackjack.dealer_total", total);
@@ -511,16 +510,15 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
         }
     }
 
-    private void updatePlayerTotal() {
-        if (game == null) return;
+    private void updatePlayerTotal(GameStateData state) {
+        if (state == null) return;
 
-        final GameStateData state = game.getState();
-        if (state != null && state.splitHands != null && !state.splitHands.isEmpty()) {
+        if (state.splitHands != null && !state.splitHands.isEmpty()) {
             playerTotalLabel.setOpacity(0f);
             return;
         }
 
-        final Hand playerHand = game.getPlayerHand();
+        final Hand playerHand = state.playerHand;
         if (playerHand == null || playerHand.cards.isEmpty()) {
             playerTotalLabel.setOpacity(0f);
             return;
@@ -547,21 +545,28 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
 
         if (game == null) return;
 
-        updateLabels();
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        final GameStateData state = game.getState();
+        updateLabels(state);
         updateButtonVisibility();
 
         final float playerCardBottomY = h * 0.25f - CARD_HEIGHT / 2f;
         final float dealerCardBottomY = h * 0.75f - CARD_HEIGHT / 2f;
 
-        if (game.getDealerHand() != null && !game.getDealerHand().cards.isEmpty()) {
-            renderDealerCards(cx, y + dealerCardBottomY, game.getDealerHand(), alphaMult);
+        final Hand dealerHand = game.getDealerHand();
+        if (dealerHand != null && !dealerHand.cards.isEmpty()) {
+            renderDealerCards(cx, y + dealerCardBottomY, dealerHand, alphaMult);
         }
 
-        final GameStateData state = game.getState();
         if (state != null && !state.splitHands.isEmpty()) {
             renderSplitHands(cx, y + playerCardBottomY, state, alphaMult);
-        } else if (game.getPlayerHand() != null && !game.getPlayerHand().cards.isEmpty()) {
-            renderPlayerCards(cx, y + playerCardBottomY, game.getPlayerHand(), alphaMult);
+        } else {
+            final Hand playerHand = game.getPlayerHand();
+            if (playerHand != null && !playerHand.cards.isEmpty()) {
+                renderPlayerCards(cx, y + playerCardBottomY, playerHand, alphaMult);
+            }
         }
     }
 
@@ -572,21 +577,14 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
         final float totalWidth = numCards * CARD_WIDTH + (numCards - 1) * CARD_SPACING;
         final float startX = cx - totalWidth / 2f;
 
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
         for (int i = 0; i < numCards; i++) {
             final Card card = hand.cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
-            final CardFlipAnimation anim = i < playerCardAnimations.length ? playerCardAnimations[i] : null;
-            CardRenderingUtils.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+            CardRenderingUtils.renderCardAnimated(cardX, cardY, card, playerCardAnimations[i], alphaMult);
         }
     }
 
     private void renderSplitHands(float cx, float cardY, GameStateData state, float alphaMult) {
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
         final int numHands = state.splitHands.size();
         if (numHands == 0) return;
 
@@ -604,8 +602,7 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
                 final Card card = hand.cards.get(i);
                 final float cardX = handX + i * (CARD_WIDTH + CARD_SPACING / 2f);
                 final int animIndex = h * 5 + i;
-                final CardFlipAnimation anim = animIndex < playerCardAnimations.length ? playerCardAnimations[animIndex] : null;
-                CardRenderingUtils.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+                CardRenderingUtils.renderCardAnimated(cardX, cardY, card, playerCardAnimations[animIndex], alphaMult);
             }
         }
     }
@@ -619,16 +616,12 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
 
         final boolean revealed = game.isDealerHoleCardRevealed();
 
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
         for (int i = 0; i < numCards; i++) {
             final Card card = hand.cards.get(i);
             final float cardX = startX + i * (CARD_WIDTH + CARD_SPACING);
 
             if (revealed || i > 0) {
-                CardFlipAnimation anim = i < dealerCardAnimations.length ? dealerCardAnimations[i] : null;
-                CardRenderingUtils.renderCardAnimated(cardX, cardY, card, anim, alphaMult);
+                CardRenderingUtils.renderCardAnimated(cardX, cardY, card, dealerCardAnimations[i], alphaMult);
             } else {
                 CardRenderingUtils.renderCardFaceDown(cardX, cardY, alphaMult);
             }
@@ -769,8 +762,8 @@ public class BlackjackPanelUI extends BaseCardGamePanelUI<BlackjackGame> {
             return;
         }
 
-        if (data instanceof String strData && strData.contains(BJ_BET) && game != null) {
-            final int amount = Integer.parseInt(strData.replaceAll(".*?(\\d+)$", "$1"));
+        if (data instanceof String strData && strData.startsWith(BJ_BET) && game != null) {
+            final int amount = Integer.parseInt(strData.substring(BJ_BET.length()));
             final GameStateData state = game.getState();
             
             final int effectiveBalance = state.overdraftEnabled ? state.playerStack : state.originalBalance;

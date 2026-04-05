@@ -5,9 +5,14 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.shared.CasinoFinancials;
-import data.scripts.casino.poker2.PokerDialogDelegate;
-import data.scripts.casino.poker2.PokerGame;
-import data.scripts.casino.poker2.PokerOpponentAI;
+import data.scripts.casino.cards.poker2.PokerDialogDelegate;
+import data.scripts.casino.cards.poker2.PokerGame;
+import data.scripts.casino.cards.poker2.PokerOpponentAI;
+import static data.scripts.casino.cards.pokerShared.PokerAICommon.InternalAction;
+import data.scripts.casino.cards.pokerShared.PokerAction;
+import data.scripts.casino.cards.pokerShared.PokerAICommon;
+import data.scripts.casino.cards.pokerShared.PokerHandEvaluator;
+import data.scripts.casino.cards.pokerShared.PokerRound;
 import data.scripts.casino.cards.Card;
 import data.scripts.casino.Strings;
 
@@ -300,7 +305,7 @@ private String formatBB(int amount, int bigBlind) {
         main.options.clearOptions();
         PokerGame.PokerState state = pokerGame.getState();
         
-        if (state.playerStack < state.bigBlind && state.pot == 0 && state.round != PokerGame.Round.SHOWDOWN) {
+        if (state.playerStack < state.bigBlind && state.pot == 0 && state.round != PokerRound.SHOWDOWN) {
             endHand();
             return;
         }
@@ -346,7 +351,7 @@ private String formatBB(int amount, int bigBlind) {
     public void updateUI() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
-        if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerGame.Round.SHOWDOWN)) {
+        if (state.playerStack <= 0 && (state.pot == 0 || state.round == PokerRound.SHOWDOWN)) {
             endHand();
             return;
         }
@@ -409,21 +414,21 @@ private void startNextHand() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
-        pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
+        pokerGame.processPlayerAction(PokerAction.CALL, 0);
         main.getTextPanel().addPara(Strings.format("poker_actions.you_call_stargems", callAmount), Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerCheck() {
         if (pokerGame == null) return;
-        pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
+        pokerGame.processPlayerAction(PokerAction.CHECK, 0);
         main.getTextPanel().addPara(Strings.get("poker_actions.you_check_dot"), Color.CYAN);
         updateGameState();
     }
 
     public void handlePokerFold() {
         if (pokerGame == null) return;
-        pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
+        pokerGame.processPlayerAction(PokerAction.FOLD, 0);
         main.getTextPanel().addPara(Strings.get("poker_actions.you_fold_dot"), Color.GRAY);
         updateGameState();
     }
@@ -439,13 +444,13 @@ private void startNextHand() {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         
-        if (state.round == PokerGame.Round.SHOWDOWN) {
+        if (state.round == PokerRound.SHOWDOWN) {
             determineWinner();
             return;
         }
         
         if (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
-PokerOpponentAI.AIResponse response = pokerGame.getOpponentAction();
+PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
              
 switch(response.action) {
                   case CALL: 
@@ -458,14 +463,14 @@ switch(response.action) {
                       main.getTextPanel().addPara(Strings.get("poker_actions.opponent_folds_dot"), Color.CYAN); break;
               }
              
-if (response.action == PokerOpponentAI.Action.FOLD && state.playerBet > state.opponentBet) {
+if (response.action == InternalAction.FOLD && state.playerBet > state.opponentBet) {
                   pokerGame.getAI().trackAIFoldedToPlayerBet();
               }
              
              pokerGame.processOpponentAction(response);
              
 state = pokerGame.getState();
-             if (state.round == PokerGame.Round.SHOWDOWN) {
+             if (state.round == PokerRound.SHOWDOWN) {
                  determineWinner();
                  return;
              }
@@ -520,7 +525,7 @@ state = pokerGame.getState();
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         int totalBet = state.playerBet + amt;
-        pokerGame.processPlayerAction(PokerGame.Action.RAISE, amt);
+        pokerGame.processPlayerAction(PokerAction.RAISE, amt);
         main.getTextPanel().addPara(Strings.format("poker_actions.you_raise_stargems", totalBet), Color.CYAN);
         updateGameState();
     }
@@ -646,10 +651,10 @@ state = pokerGame.getState();
             handsPlayedThisSession = 0;
         }
 
-        PokerGame.Round round = PokerGame.Round.PREFLOP;
+        PokerRound round = PokerRound.PREFLOP;
         if (mem.contains("$ipc_poker_round")) {
             try {
-                round = PokerGame.Round.valueOf(mem.getString("$ipc_poker_round"));
+                round = PokerRound.valueOf(mem.getString("$ipc_poker_round"));
             } catch (Exception ignored) {}
         }
         
@@ -798,14 +803,14 @@ state = pokerGame.getState();
             main.getTextPanel().addPara(Strings.get("poker_result.hand_ended_early"), Color.GRAY);
         }
 
-        PokerGame.PokerGameLogic.HandScore playerScore = PokerGame.PokerGameLogic.evaluate(state.playerHand, state.communityCards);
-        PokerGame.PokerGameLogic.HandScore oppScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
+        PokerHandEvaluator.HandScore playerScore = PokerHandEvaluator.evaluate(state.playerHand, state.communityCards);
+        PokerHandEvaluator.HandScore oppScore = PokerHandEvaluator.evaluate(state.opponentHand, state.communityCards);
 
         int cmp = playerScore.compareTo(oppScore);
 
         boolean playerWasBluffing = false;  // anti-gullibility AI tracking
         if (cmp < 0) {
-            playerWasBluffing = playerScore.rank.value <= PokerGame.PokerGameLogic.HandRank.PAIR.value;
+            playerWasBluffing = playerScore.rank.value <= PokerHandEvaluator.HandRank.PAIR.value;
         }
         pokerGame.getAI().trackPlayerShowdown(playerWasBluffing);
 
@@ -984,14 +989,14 @@ private void endHand() {
         }
     }
     
-    public void processPlayerActionInPlace(PokerGame.Action action, int raiseAmount, PokerDialogDelegate delegate) {
+    public void processPlayerActionInPlace(PokerAction action, int raiseAmount, PokerDialogDelegate delegate) {
         if (pokerGame == null) return;
         
         PokerGame.PokerState state = pokerGame.getState();
         
         switch (action) {
             case FOLD -> {
-                pokerGame.processPlayerAction(PokerGame.Action.FOLD, 0);
+                pokerGame.processPlayerAction(PokerAction.FOLD, 0);
                 delegate.setLastPlayerAction(Strings.get("poker_actions.you_fold"));
                 if (state.folder != null) {
                     state.lastPotWon = state.pot;
@@ -1004,16 +1009,16 @@ private void endHand() {
                 }
             }
             case CHECK -> {
-                pokerGame.processPlayerAction(PokerGame.Action.CHECK, 0);
+                pokerGame.processPlayerAction(PokerAction.CHECK, 0);
                 delegate.setLastPlayerAction(Strings.get("poker_actions.you_check"));
             }
             case CALL -> {
                 int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
-                pokerGame.processPlayerAction(PokerGame.Action.CALL, 0);
+                pokerGame.processPlayerAction(PokerAction.CALL, 0);
                 delegate.setLastPlayerAction(Strings.format("poker_actions.you_call", callAmount));
             }
             case RAISE -> {
-                pokerGame.processPlayerAction(PokerGame.Action.RAISE, raiseAmount);
+                pokerGame.processPlayerAction(PokerAction.RAISE, raiseAmount);
                 delegate.setLastPlayerAction(Strings.format("poker_actions.you_raise_to", raiseAmount));
             }
             case ALL_IN -> throw new IllegalArgumentException();
@@ -1029,7 +1034,7 @@ private void endHand() {
         
         PokerGame.PokerState state = pokerGame.getState();
         
-        if (state.round == PokerGame.Round.SHOWDOWN) {
+        if (state.round == PokerRound.SHOWDOWN) {
             determineWinnerInPlace(delegate);
             return;
         }
@@ -1037,21 +1042,21 @@ private void endHand() {
         while (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
             delegate.startOpponentTurn();
             
-            PokerOpponentAI.AIResponse response = pokerGame.getOpponentAction();
+PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
             pokerGame.processOpponentAction(response);
             
             String actionText = formatOpponentActionText(response);
             delegate.setLastOpponentAction(actionText);
             
             state = pokerGame.getState();
-            if (state.round == PokerGame.Round.SHOWDOWN) {
+            if (state.round == PokerRound.SHOWDOWN) {
                 determineWinnerInPlace(delegate);
                 return;
             }
         }
     }
     
-    private String formatOpponentActionText(PokerOpponentAI.AIResponse response) {
+    private String formatOpponentActionText(PokerAICommon.AIResponse response) {
         return switch (response.action) {
             case CALL -> Strings.get("poker_actions.opponent_calls");
             case RAISE -> Strings.format("poker_actions.opponent_raises_by", response.raiseAmount);
@@ -1077,8 +1082,8 @@ private void endHand() {
             return;
         }
         
-        PokerGame.PokerGameLogic.HandScore playerScore = PokerGame.PokerGameLogic.evaluate(state.playerHand, state.communityCards);
-        PokerGame.PokerGameLogic.HandScore oppScore = PokerGame.PokerGameLogic.evaluate(state.opponentHand, state.communityCards);
+        PokerHandEvaluator.HandScore playerScore = PokerHandEvaluator.evaluate(state.playerHand, state.communityCards);
+        PokerHandEvaluator.HandScore oppScore = PokerHandEvaluator.evaluate(state.opponentHand, state.communityCards);
         
         state.lastPotWon = state.pot;
         

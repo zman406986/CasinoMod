@@ -1,6 +1,7 @@
-package data.scripts.casino.blackjack;
+package data.scripts.casino.cards.blackjack;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import data.scripts.casino.cards.Card;
@@ -16,7 +17,7 @@ public class BlackjackGame {
     private static final float BLACKJACK_PAYOUT = 2.5f; // 3:2 payout for blackjack
 
     public static class Hand {
-        public final List<Card> cards = new ArrayList<>();
+        public final List<Card> cards = new ArrayList<>(12);
         public int betAmount;
 
         public Hand() {}
@@ -29,13 +30,18 @@ public class BlackjackGame {
             cards.add(card);
         }
 
-        public int getValue() {
-            int total = 0;
-            int aces = 0;
+        private int[] computeValueAndAces() {
+            int total = 0, aces = 0;
             for (Card c : cards) {
                 total += c.value();
                 if (c.isAce()) aces++;
             }
+            return new int[]{total, aces};
+        }
+
+        public int getValue() {
+            int[] result = computeValueAndAces();
+            int total = result[0], aces = result[1];
             while (total > 21 && aces > 0) {
                 total -= 10;
                 aces--;
@@ -44,12 +50,8 @@ public class BlackjackGame {
         }
 
         public boolean isSoft() {
-            int total = 0;
-            int aces = 0;
-            for (Card c : cards) {
-                total += c.value();
-                if (c.isAce()) aces++;
-            }
+            int[] result = computeValueAndAces();
+            int total = result[0], aces = result[1];
             int reducedAces = 0;
             while (total > 21 && aces > reducedAces) {
                 total -= 10;
@@ -62,7 +64,6 @@ public class BlackjackGame {
 
         public boolean isBlackjack() { return cards.size() == 2 && getValue() == 21; }
 
-        // Can split if two cards of same rank
         public boolean canSplit() {
             return cards.size() == 2 &&
                    cards.get(0).rank() == cards.get(1).rank();
@@ -105,15 +106,7 @@ public class BlackjackGame {
         handsSinceShuffle = 0;
     }
 
-    public void startNewHand() {
-        handsSinceShuffle++;
-        if (handsSinceShuffle >= RESHUFFLE_INTERVAL) {
-            deck = new Deck(GameType.BLACKJACK);
-            deck.shuffle();
-            handsSinceShuffle = 0;
-        }
-
-        // Reset state for new hand
+    private void resetHandState() {
         state.playerHand = new Hand();
         state.dealerHand = new Hand();
         state.splitHands = new ArrayList<>();
@@ -125,7 +118,16 @@ public class BlackjackGame {
         state.currentBet = 0;
     }
 
-    // Deals initial cards and sets up game state
+    public void startNewHand() {
+        handsSinceShuffle++;
+        if (handsSinceShuffle >= RESHUFFLE_INTERVAL) {
+            deck = new Deck(GameType.BLACKJACK);
+            deck.shuffle();
+            handsSinceShuffle = 0;
+        }
+        resetHandState();
+    }
+
     public boolean placeBet(int betAmount) {
         if (state.state != GameState.BETTING) return false;
         if (state.playerStack < betAmount) return false;
@@ -147,8 +149,7 @@ public class BlackjackGame {
 
         state.pot += betAmount;
 
-        boolean isBlackjack = state.playerHand.isBlackjack();
-        if (isBlackjack) {
+        if (state.playerHand.isBlackjack()) {
             revealDealerHoleCard();
             evaluateDealerHand();
         } else {
@@ -171,14 +172,12 @@ public class BlackjackGame {
         }
     }
 
-    // Advances to next split hand or triggers dealer turn
     public void playerStand() {
         if (state.state != GameState.PLAYER_TURN) return;
 
         if (!state.splitHands.isEmpty()) {
             state.currentSplitIndex++;
             if (state.currentSplitIndex < state.splitHands.size()) {
-                state.playerHand = getCurrentHand();
                 state.dealerHoleCardRevealed = false;
                 return;
             }
@@ -210,7 +209,6 @@ public class BlackjackGame {
         }
     }
 
-    // Creates two hands from paired cards, doubles pot
     public void playerSplit() {
         if (state.state != GameState.PLAYER_TURN) return;
 
@@ -237,16 +235,14 @@ public class BlackjackGame {
 
         state.splitHands.add(hand1);
         state.splitHands.add(hand2);
-        state.playerHand = hand1;
         state.currentSplitIndex = 0;
+        state.dealerHoleCardRevealed = false;
     }
 
-    // Handles bust: advance to next split hand or end game
     private void handleBust(Hand hand) {
         state.pot -= hand.betAmount;
         if (!state.splitHands.isEmpty() && state.currentSplitIndex < state.splitHands.size() - 1) {
             state.currentSplitIndex++;
-            state.playerHand = state.splitHands.get(state.currentSplitIndex);
             state.dealerHoleCardRevealed = false;
         } else {
             revealDealerHoleCard();
@@ -255,7 +251,6 @@ public class BlackjackGame {
         }
     }
 
-    // Dealer draws until 17 or higher
     private void evaluateDealerHand() {
         while (state.dealerHand.getValue() < 17) {
             state.dealerHand.addCard(deck.draw());
@@ -263,7 +258,6 @@ public class BlackjackGame {
         determineWinners();
     }
 
-    // Calculates winnings for each hand against dealer
     private void determineWinners() {
         int dealerValue = state.dealerHand.getValue();
         boolean dealerBust = state.dealerHand.isBust();
@@ -275,9 +269,9 @@ public class BlackjackGame {
 
         state.splitHandResults = new ArrayList<>();
 
-        List<Hand> handsToEvaluate = !state.splitHands.isEmpty() 
+        List<Hand> handsToEvaluate = isSplitGame 
             ? state.splitHands 
-            : List.of(state.playerHand);
+            : Collections.singletonList(state.playerHand);
 
         for (Hand hand : handsToEvaluate) {
             int handProfit = 0;
