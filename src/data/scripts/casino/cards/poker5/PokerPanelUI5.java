@@ -373,7 +373,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int playerBet = state.bets[PokerGame5.HUMAN_PLAYER_INDEX];
         final int maxBet = playerBet + stack;
 
-        final int minRaise = game.getMinRaiseAmount(PokerGame5.HUMAN_PLAYER_INDEX);
+        final int minRaise = game.getMinRaiseAmount();
         if (minRaise <= maxBet && PokerUIUtils.notContainsInt(raiseOptionsBuffer, count, minRaise)) {
             raiseOptionsBuffer[count++] = minRaise;
         }

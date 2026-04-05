@@ -262,7 +262,7 @@ public class PokerGame5 {
         return getCurrentBet() - state.bets[playerIndex];
     }
 
-    public int getMinRaiseAmount(int playerIndex) {
+    public int getMinRaiseAmount() {
         int currentBet = getCurrentBet();
         int minRaiseIncrement = Math.max(state.lastRaiseAmount, bigBlindAmount);
         return currentBet + minRaiseIncrement;
