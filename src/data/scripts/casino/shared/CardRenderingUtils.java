@@ -49,8 +49,7 @@ public final class CardRenderingUtils {
     public static final float CHIP_HEIGHT = 4f;
     public static final float CHIP_GAP = 1f;
     public static final float CHIP_SEGMENT_HEIGHT = CHIP_HEIGHT + CHIP_GAP;
-    public static final float CHIP_SIDE_WIDTH = 2f;
-    public static final float CHIP_MIDDLE_OFFSET = 1f;
+    public static final float SMILE_CURVE_DEPTH = 1.5f;
 
     public static void renderTableBackground(float x, float y, float w, float h, float alphaMult) {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
@@ -171,7 +170,7 @@ public final class CardRenderingUtils {
         renderCardHighlightBorder(x, y, CARD_WIDTH, CARD_HEIGHT, color, alphaMult);
     }
 
-    public static void renderStackBars(float cardStartX, float cardY, int stack, int bet, int maxStack, float alphaMult) {
+    public static void renderStackBars(float cardsRightEdge, float cardY, int stack, int bet, int maxStack, float alphaMult) {
         if (maxStack <= 0) return;
 
         int totalEffective = stack + bet;
@@ -194,8 +193,8 @@ public final class CardRenderingUtils {
             remainingBet -= deduct;
         }
         
-        float totalWidth = numBars * STACK_BAR_WIDTH + (numBars - 1) * STACK_BAR_GAP;
-        float barX = cardStartX - STACK_BAR_CARD_GAP - totalWidth;
+        float totalBarWidth = numBars * STACK_BAR_WIDTH + (numBars - 1) * STACK_BAR_GAP;
+        float barX = cardsRightEdge - STACK_BAR_CARD_GAP - totalBarWidth;
         
         for (int i = 0; i < numBars; i++) {
             Color fillColor = (i == numBars - 1) ? getStackColor(stack, stack, maxStack) : STACK_BAR_GREEN;
@@ -204,13 +203,13 @@ public final class CardRenderingUtils {
             
             float coloredHeight = (coloredAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
             if (coloredHeight > 0) {
-                renderChipStack(barX, cardY, coloredHeight, fillColor, alphaMult);
+                renderChipStackWithSmile(barX, cardY, coloredHeight, fillColor, alphaMult);
             }
             
             float whiteHeight = (whiteAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
             if (whiteHeight > 0) {
                 float whiteY = cardY + coloredHeight;
-                renderChipStack(barX, whiteY, whiteHeight, STACK_BAR_BET, alphaMult);
+                renderChipStackWithSmile(barX, whiteY, whiteHeight, STACK_BAR_BET, alphaMult);
             }
             
             barX += STACK_BAR_WIDTH + STACK_BAR_GAP;
@@ -240,95 +239,49 @@ public final class CardRenderingUtils {
         return STACK_BAR_RED;
     }
 
-    private static void renderChipStack(float x, float y, float height, Color color, float alphaMult) {
+    private static void renderChipStackWithSmile(float x, float y, float height, Color color, float alphaMult) {
         if (height <= 0) return;
 
-        int numFullChips = (int) (height / CHIP_SEGMENT_HEIGHT);
-        float partialChipHeight = height - numFullChips * CHIP_SEGMENT_HEIGHT;
-
-        float chipY = y;
-        for (int i = 0; i < numFullChips; i++) {
-            renderFullChip(x, chipY, color, alphaMult);
-            chipY += CHIP_SEGMENT_HEIGHT;
-        }
-
-        if (partialChipHeight > 0) {
-            renderPartialChip(x, chipY, partialChipHeight, color, alphaMult);
-        }
-    }
-
-    private static void renderFullChip(float x, float y, Color color, float alphaMult) {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        setColorGL(color, alphaMult);
-
-        float middleX = x + CHIP_SIDE_WIDTH;
-        float middleWidth = STACK_BAR_WIDTH - CHIP_SIDE_WIDTH * 2f;
-        float rightX = x + STACK_BAR_WIDTH - CHIP_SIDE_WIDTH;
 
         GL11.glBegin(GL11.GL_QUADS);
-
+        setColorGL(color, alphaMult);
         GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y);
-        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y + CHIP_HEIGHT);
-        GL11.glVertex2f(x, y + CHIP_HEIGHT);
-
-        GL11.glVertex2f(rightX, y);
-        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y);
-        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y + CHIP_HEIGHT);
-        GL11.glVertex2f(rightX, y + CHIP_HEIGHT);
-
-        GL11.glVertex2f(middleX, y + CHIP_MIDDLE_OFFSET);
-        GL11.glVertex2f(middleX + middleWidth, y + CHIP_MIDDLE_OFFSET);
-        GL11.glVertex2f(middleX + middleWidth, y + CHIP_HEIGHT - CHIP_MIDDLE_OFFSET);
-        GL11.glVertex2f(middleX, y + CHIP_HEIGHT - CHIP_MIDDLE_OFFSET);
-
+        GL11.glVertex2f(x + STACK_BAR_WIDTH, y);
+        GL11.glVertex2f(x + STACK_BAR_WIDTH, y + height);
+        GL11.glVertex2f(x, y + height);
         GL11.glEnd();
+
+        int numGaps = (int) (height / CHIP_SEGMENT_HEIGHT);
+        setColorGL(STACK_BAR_BG, alphaMult);
+        for (int i = 0; i < numGaps; i++) {
+            float gapY = y + CHIP_HEIGHT + i * CHIP_SEGMENT_HEIGHT;
+            renderSmileCurvedGap(x, gapY, STACK_BAR_WIDTH, CHIP_GAP, SMILE_CURVE_DEPTH);
+        }
+
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
-    private static void renderPartialChip(float x, float y, float visibleHeight, Color color, float alphaMult) {
-        if (visibleHeight <= 0) return;
-
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        setColorGL(color, alphaMult);
-
-        float middleX = x + CHIP_SIDE_WIDTH;
-        float middleWidth = STACK_BAR_WIDTH - CHIP_SIDE_WIDTH * 2f;
-        float rightX = x + STACK_BAR_WIDTH - CHIP_SIDE_WIDTH;
-
-        GL11.glBegin(GL11.GL_QUADS);
-
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y);
-        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y + visibleHeight);
-        GL11.glVertex2f(x, y + visibleHeight);
-
-        GL11.glVertex2f(rightX, y);
-        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y);
-        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y + visibleHeight);
-        GL11.glVertex2f(rightX, y + visibleHeight);
-
-        float middleStart = CHIP_MIDDLE_OFFSET;
-        float middleEnd = CHIP_HEIGHT - CHIP_MIDDLE_OFFSET;
-        if (visibleHeight > middleStart && visibleHeight <= middleEnd) {
-            float middleHeight = visibleHeight - middleStart;
-            GL11.glVertex2f(middleX, y + middleStart);
-            GL11.glVertex2f(middleX + middleWidth, y + middleStart);
-            GL11.glVertex2f(middleX + middleWidth, y + middleStart + middleHeight);
-            GL11.glVertex2f(middleX, y + middleStart + middleHeight);
-        } else if (visibleHeight > middleEnd) {
-            GL11.glVertex2f(middleX, y + middleStart);
-            GL11.glVertex2f(middleX + middleWidth, y + middleStart);
-            GL11.glVertex2f(middleX + middleWidth, y + middleEnd);
-            GL11.glVertex2f(middleX, y + middleEnd);
+    private static void renderSmileCurvedGap(float x, float y, float width, float gapHeight, float curveDepth) {
+        int segments = 10;
+        float segmentWidth = width / segments;
+        
+        for (int i = 0; i < segments; i++) {
+            float segX = x + i * segmentWidth;
+            float normalizedPos = (i + 0.5f) / segments;
+            float curveOffset = curveDepth * 4f * normalizedPos * (1f - normalizedPos);
+            float segY = y + curveOffset;
+            float segHeight = gapHeight;
+            
+            GL11.glBegin(GL11.GL_QUADS);
+            GL11.glVertex2f(segX, segY);
+            GL11.glVertex2f(segX + segmentWidth, segY);
+            GL11.glVertex2f(segX + segmentWidth, segY + segHeight);
+            GL11.glVertex2f(segX, segY + segHeight);
+            GL11.glEnd();
         }
-
-        GL11.glEnd();
-        GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
     private static void setColorGL(Color color, float alphaMult) {

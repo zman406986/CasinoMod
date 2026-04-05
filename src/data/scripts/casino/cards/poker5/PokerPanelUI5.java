@@ -659,7 +659,8 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int bet = state.displayBets[playerIdx];
         final int maxStack = state.maxStack;
 
-        CardRenderingUtils.renderStackBars(cachedPlayerStartX, cachedPlayerY, stack, bet, maxStack, alphaMult);
+        final float cardsRightEdge = cachedPlayerStartX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
+        CardRenderingUtils.renderStackBars(cardsRightEdge, cachedPlayerY, stack, bet, maxStack, alphaMult);
 
         final boolean isPlayerTurn = state.currentPlayerIndex == PokerGame5.HUMAN_PLAYER_INDEX &&
                                        state.round != PokerRound.SHOWDOWN;
@@ -714,7 +715,8 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final int bet = state.displayBets[playerIdx];
             final int maxStack = state.maxStack;
 
-            CardRenderingUtils.renderStackBars(startX, handY, stack, bet, maxStack, alphaMult);
+            final float cardsRightEdge = startX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
+            CardRenderingUtils.renderStackBars(cardsRightEdge, handY, stack, bet, maxStack, alphaMult);
 
             final boolean showCards = state.round == PokerRound.SHOWDOWN && !state.foldedPlayers.contains(playerIdx);
             final boolean isOpponentTurn = currentActor == playerIdx && state.round != PokerRound.SHOWDOWN;
