@@ -31,10 +31,6 @@ public class PokerHandler {
     private static final int COOLDOWN_DAYS = 1;
     private static final int MIN_HANDS_BEFORE_LEAVE = 3;
 
-    public PokerGame getPokerGame() {
-        return pokerGame;
-    }
-
     protected int playerWallet;
 
     private int pendingStackSize = 0;
@@ -57,7 +53,7 @@ private int handsPlayedThisSession = 0;
         handlers.put("play", option -> showPokerConfirm());
         handlers.put("confirm_poker_ante", option -> setupGame());
         handlers.put("next_hand", option -> startNextHand());
-        handlers.put("how_to_poker", option -> main.help.showPokerHelp());
+        handlers.put("how_to_poker", option -> main.help.showPokerHelp("poker_back_action"));
         handlers.put("poker_call", option -> handlePokerCall());
         handlers.put("poker_check", option -> handlePokerCheck());
         handlers.put("poker_fold", option -> handlePokerFold());
@@ -333,7 +329,7 @@ private String formatBB(int amount, int bigBlind) {
         }
         
         if (currentDelegate.getPendingHowToPlay()) {
-            main.help.showPokerHelp();
+            main.help.showPokerHelp("poker_back_action");
             return;
         }
         

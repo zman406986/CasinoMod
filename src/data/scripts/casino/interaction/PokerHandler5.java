@@ -40,7 +40,9 @@ public class PokerHandler5 {
 
     private void initializeHandlers() {
         handlers.put("play5", option -> showPoker5Confirm());
-        handlers.put("how_to_poker5", option -> main.help.showPokerHelp());
+        handlers.put("poker5_back_action", option -> showPoker5VisualPanel());
+        handlers.put("how_to_poker5", option -> main.help.showPokerHelp("poker5_back_action"));
+        handlers.put("how_to_poker5_menu", option -> main.help.showPokerHelp("play5"));
         handlers.put("poker5_resume_continue", option -> {
             clearSuspendedGameMemory();
             showPoker5VisualPanel();
@@ -120,7 +122,7 @@ public class PokerHandler5 {
             }
         }
 
-        main.options.addOption(Strings.get("poker.how_to_play"), "how_to_poker5");
+        main.options.addOption(Strings.get("poker.how_to_play"), "how_to_poker5_menu");
         main.options.addOption(Strings.get("common.back"), "back_menu5");
         main.setState(CasinoInteraction.State.POKER);
     }
@@ -177,7 +179,7 @@ public class PokerHandler5 {
         }
 
         if (currentDelegate.getPendingHowToPlay()) {
-            main.help.showPokerHelp();
+            main.help.showPokerHelp("poker5_back_action");
             return;
         }
 

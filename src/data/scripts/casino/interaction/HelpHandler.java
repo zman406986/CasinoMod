@@ -27,6 +27,8 @@ public class HelpHandler {
         handlers.put("back_menu", option -> main.showMenu());
         handlers.put("gacha_menu", main.gacha::handle);
         handlers.put("play", main.poker::handle);
+        handlers.put("play5", main.poker5::handle);
+        handlers.put("poker5_back_action", option -> main.poker5.handle("poker5_back_action"));
         handlers.put("arena_lobby", main.arena::handle);
         handlers.put("financial_menu", main.financial::handle);
         handlers.put("topup_menu", main.topup::handle);
@@ -78,6 +80,10 @@ public class HelpHandler {
     }
 
     public void showPokerHelp() {
+        showPokerHelp("play");
+    }
+
+    public void showPokerHelp(String returnTo) {
         main.options.clearOptions();
         main.textPanel.addPara(Strings.get("poker_help.title"), Color.CYAN);
         main.textPanel.addPara(Strings.get("poker_help.intro"));
@@ -102,14 +108,10 @@ public class HelpHandler {
         main.textPanel.addPara("");
         main.textPanel.addPara(Strings.get("poker_help.leave_warning"), Color.RED);
 
-        if (main.poker.getPokerGame() != null &&
-            main.poker.getPokerGame().getState() != null &&
-            main.poker.getPokerGame().getState().playerStack > 0 &&
-            main.poker.getPokerGame().getState().playerHand != null &&
-            !main.poker.getPokerGame().getState().playerHand.isEmpty()) {
-            main.options.addOption(Strings.get("poker_help.back_to_game"), "poker_back_action");
+        if ("poker_back_action".equals(returnTo) || "poker5_back_action".equals(returnTo)) {
+            main.options.addOption(Strings.get("poker_help.back_to_game"), returnTo);
         } else {
-            main.options.addOption(Strings.get("common.back"), "play");
+            main.options.addOption(Strings.get("common.back"), returnTo);
         }
     }
 

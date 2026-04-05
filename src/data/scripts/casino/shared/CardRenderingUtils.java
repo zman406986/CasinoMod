@@ -35,6 +35,23 @@ public final class CardRenderingUtils {
     public static final Color COLOR_BG_DARK = new Color(15, 15, 20);
     public static final Color COLOR_CARD_SHADOW = new Color(0, 0, 0, 150);
 
+    public static final float STACK_BAR_WIDTH = 10f;
+    public static final float STACK_BAR_MAX_HEIGHT = CARD_HEIGHT;
+    public static final float STACK_BAR_GAP = 2f;
+    public static final float STACK_BAR_CARD_GAP = 4f;
+
+    public static final Color STACK_BAR_BG = new Color(40, 40, 50);
+    public static final Color STACK_BAR_BET = new Color(255, 255, 255);
+    public static final Color STACK_BAR_GREEN = new Color(100, 200, 100);
+    public static final Color STACK_BAR_YELLOW = new Color(255, 200, 50);
+    public static final Color STACK_BAR_RED = new Color(255, 80, 80);
+
+    public static final float CHIP_HEIGHT = 4f;
+    public static final float CHIP_GAP = 1f;
+    public static final float CHIP_SEGMENT_HEIGHT = CHIP_HEIGHT + CHIP_GAP;
+    public static final float CHIP_SIDE_WIDTH = 2f;
+    public static final float CHIP_MIDDLE_OFFSET = 1f;
+
     public static void renderTableBackground(float x, float y, float w, float h, float alphaMult) {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         Misc.renderQuad(x, y, w, h, COLOR_BG_DARK, alphaMult);
@@ -153,4 +170,168 @@ public final class CardRenderingUtils {
     public static void renderCardHighlightBorder(float x, float y, Color color, float alphaMult) {
         renderCardHighlightBorder(x, y, CARD_WIDTH, CARD_HEIGHT, color, alphaMult);
     }
+
+    public static void renderStackBars(float cardStartX, float cardY, int stack, int bet, int maxStack, float alphaMult) {
+        if (maxStack <= 0) return;
+
+        int totalEffective = stack + bet;
+        int numBars = Math.max(1, (int) Math.ceil(totalEffective / (float) maxStack));
+        
+        int[] fillAmounts = new int[numBars];
+        for (int i = 0; i < numBars; i++) {
+            fillAmounts[i] = Math.min(Math.max(0, totalEffective - i * maxStack), maxStack);
+        }
+        
+        int[] whiteAmounts = new int[numBars];
+        int[] coloredAmounts = new int[numBars];
+        System.arraycopy(fillAmounts, 0, coloredAmounts, 0, numBars);
+        
+        int remainingBet = bet;
+        for (int i = 0; i < numBars && remainingBet > 0; i++) {
+            int deduct = Math.min(remainingBet, coloredAmounts[i]);
+            whiteAmounts[i] = deduct;
+            coloredAmounts[i] -= deduct;
+            remainingBet -= deduct;
+        }
+        
+        float totalWidth = numBars * STACK_BAR_WIDTH + (numBars - 1) * STACK_BAR_GAP;
+        float barX = cardStartX - STACK_BAR_CARD_GAP - totalWidth;
+        
+        for (int i = 0; i < numBars; i++) {
+            Color fillColor = (i == numBars - 1) ? getStackColor(stack, stack, maxStack) : STACK_BAR_GREEN;
+            
+            renderSingleBarBg(barX, cardY, alphaMult);
+            
+            float coloredHeight = (coloredAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+            if (coloredHeight > 0) {
+                renderChipStack(barX, cardY, coloredHeight, fillColor, alphaMult);
+            }
+            
+            float whiteHeight = (whiteAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+            if (whiteHeight > 0) {
+                float whiteY = cardY + coloredHeight;
+                renderChipStack(barX, whiteY, whiteHeight, STACK_BAR_BET, alphaMult);
+            }
+            
+            barX += STACK_BAR_WIDTH + STACK_BAR_GAP;
+        }
     }
+
+    private static void renderSingleBarBg(float x, float y, float alphaMult) {
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(STACK_BAR_BG.getRed() / 255f, STACK_BAR_BG.getGreen() / 255f,
+                       STACK_BAR_BG.getBlue() / 255f, alphaMult);
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x + STACK_BAR_WIDTH, y);
+        GL11.glVertex2f(x + STACK_BAR_WIDTH, y + STACK_BAR_MAX_HEIGHT);
+        GL11.glVertex2f(x, y + STACK_BAR_MAX_HEIGHT);
+        GL11.glEnd();
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    private static Color getStackColor(int stack, int remaining, int maxStack) {
+        if (stack > maxStack) return STACK_BAR_GREEN;
+        float ratio = remaining / (float) maxStack;
+        if (ratio > 0.5f) return STACK_BAR_GREEN;
+        if (ratio > 0.25f) return STACK_BAR_YELLOW;
+        return STACK_BAR_RED;
+    }
+
+    private static void renderChipStack(float x, float y, float height, Color color, float alphaMult) {
+        if (height <= 0) return;
+
+        int numFullChips = (int) (height / CHIP_SEGMENT_HEIGHT);
+        float partialChipHeight = height - numFullChips * CHIP_SEGMENT_HEIGHT;
+
+        float chipY = y;
+        for (int i = 0; i < numFullChips; i++) {
+            renderFullChip(x, chipY, color, alphaMult);
+            chipY += CHIP_SEGMENT_HEIGHT;
+        }
+
+        if (partialChipHeight > 0) {
+            renderPartialChip(x, chipY, partialChipHeight, color, alphaMult);
+        }
+    }
+
+    private static void renderFullChip(float x, float y, Color color, float alphaMult) {
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        setColorGL(color, alphaMult);
+
+        float middleX = x + CHIP_SIDE_WIDTH;
+        float middleWidth = STACK_BAR_WIDTH - CHIP_SIDE_WIDTH * 2f;
+        float rightX = x + STACK_BAR_WIDTH - CHIP_SIDE_WIDTH;
+
+        GL11.glBegin(GL11.GL_QUADS);
+
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y);
+        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y + CHIP_HEIGHT);
+        GL11.glVertex2f(x, y + CHIP_HEIGHT);
+
+        GL11.glVertex2f(rightX, y);
+        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y);
+        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y + CHIP_HEIGHT);
+        GL11.glVertex2f(rightX, y + CHIP_HEIGHT);
+
+        GL11.glVertex2f(middleX, y + CHIP_MIDDLE_OFFSET);
+        GL11.glVertex2f(middleX + middleWidth, y + CHIP_MIDDLE_OFFSET);
+        GL11.glVertex2f(middleX + middleWidth, y + CHIP_HEIGHT - CHIP_MIDDLE_OFFSET);
+        GL11.glVertex2f(middleX, y + CHIP_HEIGHT - CHIP_MIDDLE_OFFSET);
+
+        GL11.glEnd();
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    private static void renderPartialChip(float x, float y, float visibleHeight, Color color, float alphaMult) {
+        if (visibleHeight <= 0) return;
+
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        setColorGL(color, alphaMult);
+
+        float middleX = x + CHIP_SIDE_WIDTH;
+        float middleWidth = STACK_BAR_WIDTH - CHIP_SIDE_WIDTH * 2f;
+        float rightX = x + STACK_BAR_WIDTH - CHIP_SIDE_WIDTH;
+
+        GL11.glBegin(GL11.GL_QUADS);
+
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y);
+        GL11.glVertex2f(x + CHIP_SIDE_WIDTH, y + visibleHeight);
+        GL11.glVertex2f(x, y + visibleHeight);
+
+        GL11.glVertex2f(rightX, y);
+        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y);
+        GL11.glVertex2f(rightX + CHIP_SIDE_WIDTH, y + visibleHeight);
+        GL11.glVertex2f(rightX, y + visibleHeight);
+
+        float middleStart = CHIP_MIDDLE_OFFSET;
+        float middleEnd = CHIP_HEIGHT - CHIP_MIDDLE_OFFSET;
+        if (visibleHeight > middleStart && visibleHeight <= middleEnd) {
+            float middleHeight = visibleHeight - middleStart;
+            GL11.glVertex2f(middleX, y + middleStart);
+            GL11.glVertex2f(middleX + middleWidth, y + middleStart);
+            GL11.glVertex2f(middleX + middleWidth, y + middleStart + middleHeight);
+            GL11.glVertex2f(middleX, y + middleStart + middleHeight);
+        } else if (visibleHeight > middleEnd) {
+            GL11.glVertex2f(middleX, y + middleStart);
+            GL11.glVertex2f(middleX + middleWidth, y + middleStart);
+            GL11.glVertex2f(middleX + middleWidth, y + middleEnd);
+            GL11.glVertex2f(middleX, y + middleEnd);
+        }
+
+        GL11.glEnd();
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    private static void setColorGL(Color color, float alphaMult) {
+        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
+    }
+}

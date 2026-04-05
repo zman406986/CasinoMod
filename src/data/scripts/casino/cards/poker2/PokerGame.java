@@ -35,6 +35,7 @@ public class PokerGame {
         public int bigBlind;
         public CurrentPlayer folder;
         public int lastPotWon;
+        public int maxStack;
         public boolean playerHasActed;
         public boolean opponentHasActed;
         public boolean playerDeclaredAllIn;
@@ -64,6 +65,7 @@ public class PokerGame {
         state.playerStack = playerStack;
         state.opponentStack = opponentStack;
         state.bigBlind = bigBlindAmount;
+        state.maxStack = Math.max(playerStack, opponentStack);
 
         startNewHand();
     }
@@ -101,6 +103,7 @@ public class PokerGame {
         game.state.playerStack = playerStack;
         game.state.opponentStack = opponentStack;
         game.state.bigBlind = bigBlind;
+        game.state.maxStack = Math.max(playerStack, opponentStack);
         game.state.pot = pot;
         game.state.playerBet = playerBet;
         game.state.opponentBet = opponentBet;

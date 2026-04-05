@@ -48,6 +48,7 @@ public class PokerGame5 {
         public int lastRaisePlayerIndex;
         public int lastPotWon;
         public int bigBlind;
+        public int maxStack;
         public PokerHandEvaluator.HandRank[] handRanks;
         public int[] winners;
         public String[] lastPokerActions;
@@ -99,6 +100,7 @@ public class PokerGame5 {
 
         System.arraycopy(startingStacks, 0, state.stacks, 0, NUM_PLAYERS);
         state.bigBlind = bigBlindAmount;
+        state.maxStack = startingStacks[HUMAN_PLAYER_INDEX];
         state.buttonPosition = NUM_PLAYERS - 1;
 
         if (!suspendedGameMarker) {

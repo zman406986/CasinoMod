@@ -25,6 +25,7 @@ import data.scripts.casino.shared.BaseCardGamePanelUI;
 import data.scripts.casino.shared.CardRenderingUtils;
 import data.scripts.casino.cards.poker5.PokerGame5.PokerState5;
 import data.scripts.casino.cards.pokerShared.PokerAction;
+import data.scripts.casino.cards.pokerShared.PokerHandEvaluator;
 import data.scripts.casino.cards.pokerShared.PokerUIUtils;
 import data.scripts.casino.cards.pokerShared.PokerRound;
 
@@ -85,6 +86,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
     private final LabelAPI[] opponentBetLabels = new LabelAPI[NUM_OPPONENTS];
     private LabelAPI playerStackLabel;
     private LabelAPI playerBetLabel;
+    private LabelAPI playerHandRankLabel;
 
     private int lastPot = -1;
     private PokerRound lastRound = null;
@@ -218,15 +220,16 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
     private void createOpponentLabels() {
         final float centerX = PANEL_WIDTH / 2f;
         final float arcRadiusX = PANEL_WIDTH * 0.38f;
-        final float arcTopY = PANEL_HEIGHT * 0.12f;
-        final float arcBottomY = PANEL_HEIGHT * 0.22f;
+        final float arcLabelTopY = PANEL_HEIGHT * 0.12f;
+        final float arcLabelBottomY = PANEL_HEIGHT * 0.22f;
+        final float cornerLabelY = PANEL_HEIGHT * 0.455f;
 
         for (int i = 0; i < NUM_OPPONENTS; i++) {
             final float t = (float) i / (NUM_OPPONENTS - 1);
             final float angle = (float) (Math.PI * (0.15 + 0.7 * t));
 
             final float x = centerX - arcRadiusX * (float) Math.cos(angle);
-            final float y = (i == 0 || i == 3) ? PANEL_HEIGHT * 0.35f : arcBottomY - (arcBottomY - arcTopY) * (1f - (float) Math.sin(angle));
+            final float y = (i == 0 || i == 3) ? cornerLabelY : arcLabelBottomY - (arcLabelBottomY - arcLabelTopY) * (1f - (float) Math.sin(angle));
 
             playerNameLabels[i] = settings.createLabel("", Fonts.DEFAULT_SMALL);
             playerNameLabels[i].setColor(COLOR_OPPONENT);
@@ -260,21 +263,31 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
 
     private void createPlayerStackLabel() {
         final float centerX = PANEL_WIDTH / 2f;
-        final float y = PANEL_HEIGHT * 0.82f;
+        final float cardRightEdge = centerX + (HAND_SIZE * CARD_WIDTH + CARD_SPACING) / 2f;
+        final float labelX = cardRightEdge + 10f;
+        final float cardCenterY = PANEL_HEIGHT * 0.75f;
+
+        playerHandRankLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        playerHandRankLabel.setColor(Color.WHITE);
+        playerHandRankLabel.setAlignment(Alignment.LMID);
+        panel.addComponent((UIComponentAPI) playerHandRankLabel)
+            .inTL(labelX, cardCenterY - 32f)
+            .setSize(150f, 18f);
+        playerHandRankLabel.setOpacity(0f);
 
         playerStackLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         playerStackLabel.setColor(COLOR_PLAYER);
-        playerStackLabel.setAlignment(Alignment.MID);
+        playerStackLabel.setAlignment(Alignment.LMID);
         panel.addComponent((UIComponentAPI) playerStackLabel)
-            .inTL(centerX - 100f, y)
-            .setSize(200f, 20f);
+            .inTL(labelX, cardCenterY - 10f)
+            .setSize(150f, 20f);
 
         playerBetLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
         playerBetLabel.setColor(Color.YELLOW);
-        playerBetLabel.setAlignment(Alignment.MID);
+        playerBetLabel.setAlignment(Alignment.LMID);
         panel.addComponent((UIComponentAPI) playerBetLabel)
-            .inTL(centerX - 100f, y + 20f)
-            .setSize(200f, 16f);
+            .inTL(labelX, cardCenterY + 12f)
+            .setSize(150f, 16f);
     }
 
     private void createNextHandButton() {
@@ -286,7 +299,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         tp.setActionListenerDelegate(this);
         nextHandBtn = tp.addButton(Strings.get("poker_panel.next_hand_btn"), POKER_NEXT_HAND, BUTTON_W, BUTTON_H, 0f);
         nextHandBtn.setQuickMode(true);
-        panel.addUIElement(tp).inTL(centerX - BUTTON_W / 2f, PANEL_HEIGHT * 0.28f);
+        panel.addUIElement(tp).inTL(centerX - BUTTON_W / 2f, PANEL_HEIGHT - BUTTON_H - MARGIN);
         nextHandBtn.setOpacity(0f);
     }
 
@@ -479,6 +492,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int playerIdx = PokerGame5.HUMAN_PLAYER_INDEX;
         final int stack = state.stacks[playerIdx];
         final int bet = state.displayBets[playerIdx];
+        final boolean isFolded = state.foldedPlayers.contains(playerIdx);
 
         final String playerName = Strings.get("poker5.you_name");
         playerStackLabel.setText(Strings.format("poker_panel5.player_pos", playerName, game.getPositionName(playerIdx)) + " | " + Strings.format("poker_panel.stack", stack));
@@ -490,8 +504,33 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             playerBetLabel.setOpacity(0f);
         }
 
+        final PokerHandEvaluator.HandRank handRank = state.handRanks != null ? state.handRanks[playerIdx] : null;
+        if (!isFolded && state.round == PokerRound.SHOWDOWN && handRank != null) {
+            playerHandRankLabel.setText(formatHandRank(handRank));
+            final boolean isWinner = isPlayerWinner(state.winners, playerIdx);
+            playerHandRankLabel.setColor(isWinner ? Color.GREEN : Color.WHITE);
+            playerHandRankLabel.setOpacity(1f);
+        } else {
+            playerHandRankLabel.setOpacity(0f);
+        }
+
         final boolean isCurrentTurn = state.currentPlayerIndex == playerIdx && state.round != PokerRound.SHOWDOWN;
-        playerStackLabel.setColor(getPlayerColor(state.foldedPlayers.contains(playerIdx), isCurrentTurn, state.declaredAllIn[playerIdx], COLOR_PLAYER));
+        playerStackLabel.setColor(getPlayerColor(isFolded, isCurrentTurn, state.declaredAllIn[playerIdx], COLOR_PLAYER));
+    }
+
+    private String formatHandRank(PokerHandEvaluator.HandRank rank) {
+        if (rank == null) return "";
+        return switch (rank) {
+            case HIGH_CARD -> Strings.get("poker_hand_rank.high_card");
+            case PAIR -> Strings.get("poker_hand_rank.pair");
+            case TWO_PAIR -> Strings.get("poker_hand_rank.two_pair");
+            case THREE_OF_A_KIND -> Strings.get("poker_hand_rank.three_of_a_kind");
+            case STRAIGHT -> Strings.get("poker_hand_rank.straight");
+            case FLUSH -> Strings.get("poker_hand_rank.flush");
+            case FULL_HOUSE -> Strings.get("poker_hand_rank.full_house");
+            case FOUR_OF_A_KIND -> Strings.get("poker_hand_rank.four_of_a_kind");
+            case STRAIGHT_FLUSH -> Strings.get("poker_hand_rank.straight_flush");
+        };
     }
 
     private void updateOpponentLabels(PokerState5 state) {
@@ -501,6 +540,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final boolean isAllIn = state.declaredAllIn[playerIdx];
             final boolean isCurrentTurn = state.currentPlayerIndex == playerIdx && state.round != PokerRound.SHOWDOWN;
             final int bet = state.displayBets[playerIdx];
+            final PokerHandEvaluator.HandRank handRank = state.handRanks != null ? state.handRanks[playerIdx] : null;
 
             final String oppNameLabel = Strings.format("poker5.opponent_name", i + 1);
             playerNameLabels[i].setText(oppNameLabel + " [" + game.getPositionName(playerIdx) + "]");
@@ -513,6 +553,11 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             if (isFolded) {
                 opponentActionLabels[i].setText(Strings.get("poker_panel5.action_fold"));
                 opponentActionLabels[i].setColor(COLOR_FOLDED);
+                opponentActionLabels[i].setOpacity(1f);
+            } else if (state.round == PokerRound.SHOWDOWN && handRank != null) {
+                opponentActionLabels[i].setText(formatHandRank(handRank));
+                final boolean isWinner = isPlayerWinner(state.winners, playerIdx);
+                opponentActionLabels[i].setColor(isWinner ? Color.GREEN : Color.YELLOW);
                 opponentActionLabels[i].setOpacity(1f);
             } else if (state.lastPokerActions != null && state.lastPokerActions[playerIdx] != null) {
                 opponentActionLabels[i].setText(state.lastPokerActions[playerIdx]);
@@ -609,17 +654,39 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         }
 
         final PokerState5 state = game.getState();
+        final int playerIdx = PokerGame5.HUMAN_PLAYER_INDEX;
+        final int stack = state.stacks[playerIdx];
+        final int bet = state.displayBets[playerIdx];
+        final int maxStack = state.maxStack;
+
+        CardRenderingUtils.renderStackBars(cachedPlayerStartX, cachedPlayerY, stack, bet, maxStack, alphaMult);
+
         final boolean isPlayerTurn = state.currentPlayerIndex == PokerGame5.HUMAN_PLAYER_INDEX &&
                                        state.round != PokerRound.SHOWDOWN;
+        final boolean isWinner = state.round == PokerRound.SHOWDOWN && isPlayerWinner(state.winners);
 
         for (int i = 0; i < cards.size() && i < HAND_SIZE; i++) {
             final Card card = cards.get(i);
             final float cardX = cachedPlayerStartX + i * (CARD_WIDTH + CARD_SPACING);
-            if (isPlayerTurn) {
+            if (isPlayerTurn || isWinner) {
                 CardRenderingUtils.renderCardHighlightBorder(cardX, cachedPlayerY, COLOR_HIGHLIGHT, alphaMult * 0.8f);
             }
             CardRenderingUtils.renderCardAnimated(cardX, cachedPlayerY, card, playerCardAnimations[i], alphaMult);
         }
+    }
+
+    private boolean isPlayerWinner(int[] winners) {
+        for (int w : winners) {
+            if (w == PokerGame5.HUMAN_PLAYER_INDEX) return true;
+        }
+        return false;
+    }
+
+    private boolean isPlayerWinner(int[] winners, int playerIdx) {
+        for (int w : winners) {
+            if (w == playerIdx) return true;
+        }
+        return false;
     }
 
     private void renderOpponentHands(float panelY, float panelW, float panelH, float cx, PokerState5 state, float alphaMult) {
@@ -643,13 +710,20 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final float totalWidth = HAND_SIZE * CARD_WIDTH + CARD_SPACING;
             final float startX = handX - totalWidth / 2f;
 
+            final int stack = state.stacks[playerIdx];
+            final int bet = state.displayBets[playerIdx];
+            final int maxStack = state.maxStack;
+
+            CardRenderingUtils.renderStackBars(startX, handY, stack, bet, maxStack, alphaMult);
+
             final boolean showCards = state.round == PokerRound.SHOWDOWN && !state.foldedPlayers.contains(playerIdx);
             final boolean isOpponentTurn = currentActor == playerIdx && state.round != PokerRound.SHOWDOWN;
 
             for (int j = 0; j < cards.size() && j < HAND_SIZE; j++) {
                 final Card card = cards.get(j);
                 final float cardX = startX + j * (CARD_WIDTH + CARD_SPACING);
-                if (isOpponentTurn) {
+                final boolean isOpponentWinner = state.round == PokerRound.SHOWDOWN && isPlayerWinner(state.winners, playerIdx);
+                if (isOpponentTurn || isOpponentWinner) {
                     CardRenderingUtils.renderCardHighlightBorder(cardX, handY, COLOR_HIGHLIGHT, alphaMult * 0.8f);
                 }
                 if (showCards) {
