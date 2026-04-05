@@ -435,19 +435,32 @@ public class PokerGame5 {
     }
 
     private boolean checkBettingRoundComplete() {
-        int targetBet = -1;
+        int maxBetAmongActors = 0;
+        int activeActorCount = 0;
 
         for (int i = 0; i < NUM_PLAYERS; i++) {
             if (state.foldedPlayers.contains(i)) continue;
-
-            if (targetBet == -1) {
-                targetBet = state.bets[i];
-            } else if (state.bets[i] != targetBet) {
-                return false;
+            if (canAct(i)) {
+                activeActorCount++;
+                if (state.bets[i] > maxBetAmongActors) {
+                    maxBetAmongActors = state.bets[i];
+                }
             }
+        }
 
-            if (canAct(i) && !state.hasActed[i]) {
-                return false;
+        if (activeActorCount == 0) {
+            return true;
+        }
+
+        for (int i = 0; i < NUM_PLAYERS; i++) {
+            if (state.foldedPlayers.contains(i)) continue;
+            if (canAct(i)) {
+                if (state.bets[i] != maxBetAmongActors) {
+                    return false;
+                }
+                if (!state.hasActed[i]) {
+                    return false;
+                }
             }
         }
 

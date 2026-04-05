@@ -41,6 +41,10 @@ public final class PokerUIUtils {
         };
     }
 
+    public static String formatRoundProgress(PokerRound round, int pot, int bigBlind) {
+        return Strings.format("poker_panel.round_progress", getRoundName(round), pot, bigBlind);
+    }
+
     public static void resetAnimations(CardFlipAnimation[] playerAnimations,
                                         CardFlipAnimation[][] opponentAnimations,
                                         CardFlipAnimation[] communityAnimations) {

@@ -399,7 +399,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final float x = (PANEL_WIDTH - ROUND_LABEL_WIDTH) / 2f;
         final float y = PANEL_HEIGHT * 0.40f;
 
-        roundLabel = settings.createLabel(Strings.format("poker_panel.round_progress", Strings.get("poker_rounds.preflop"), 0, 50), Fonts.DEFAULT_SMALL);
+        roundLabel = settings.createLabel(PokerUIUtils.formatRoundProgress(PokerRound.PREFLOP, 0, 50), Fonts.DEFAULT_SMALL);
         roundLabel.setColor(new Color(150, 200, 255));
         roundLabel.setAlignment(Alignment.MID);
         panel.addComponent((UIComponentAPI) roundLabel).inTL(x, y)
@@ -413,7 +413,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         lastBigBlind = bigBlind;
         lastPot = pot;
 
-        roundLabel.setText(Strings.format("poker_panel.round_progress", PokerUIUtils.getRoundName(round), pot, bigBlind));
+        roundLabel.setText(PokerUIUtils.formatRoundProgress(round, pot, bigBlind));
         roundLabel.setColor(PokerUIUtils.getRoundColor(round));
     }
 

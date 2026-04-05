@@ -116,4 +116,41 @@ public final class CardRenderingUtils {
         renderCardAnimated(x, y, CARD_WIDTH, CARD_HEIGHT, cardSprite, anim, alphaMult);
     }
 
+    public static void renderCardHighlightBorder(float x, float y, float cardWidth, float cardHeight,
+            Color color, float alphaMult) {
+        float borderThickness = 4f;
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
+
+        GL11.glBegin(GL11.GL_QUADS);
+
+        GL11.glVertex2f(x - borderThickness, y);
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x, y + cardHeight);
+        GL11.glVertex2f(x - borderThickness, y + cardHeight);
+
+        GL11.glVertex2f(x + cardWidth, y);
+        GL11.glVertex2f(x + cardWidth + borderThickness, y);
+        GL11.glVertex2f(x + cardWidth + borderThickness, y + cardHeight);
+        GL11.glVertex2f(x + cardWidth, y + cardHeight);
+
+        GL11.glVertex2f(x, y - borderThickness);
+        GL11.glVertex2f(x + cardWidth, y - borderThickness);
+        GL11.glVertex2f(x + cardWidth, y);
+        GL11.glVertex2f(x, y);
+
+        GL11.glVertex2f(x, y + cardHeight);
+        GL11.glVertex2f(x + cardWidth, y + cardHeight);
+        GL11.glVertex2f(x + cardWidth, y + cardHeight + borderThickness);
+        GL11.glVertex2f(x, y + cardHeight + borderThickness);
+
+        GL11.glEnd();
+        GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+
+    public static void renderCardHighlightBorder(float x, float y, Color color, float alphaMult) {
+        renderCardHighlightBorder(x, y, CARD_WIDTH, CARD_HEIGHT, color, alphaMult);
+    }
     }
