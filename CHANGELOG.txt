@@ -1,7 +1,6 @@
 Version 1.5.0
 - Added 5-player Texas Hold'em poker minigame.
-- Added chip stack visualization bar to poker games.
-- Improved poker UI with turn highlights.
+- Added chip stack visualization bar and turn highlights to poker.
 - Code optimizations.
 
 Version 1.4.0
