@@ -702,8 +702,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final float startX = cx - totalWidth / 2f;
 
         final PokerState state = game.getState();
-        final float cardsRightEdge = startX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
-        CardRenderingUtils.renderStackBars(cardsRightEdge, y, state.playerStack, state.displayPlayerBet, state.maxStack, alphaMult);
+        CardRenderingUtils.renderStackBars(startX, y, state.playerStack, state.displayPlayerBet, state.maxStack, alphaMult);
 
         final int count = Math.min(HAND_SIZE, cards.size());
         for (int i = 0; i < count; i++) {
@@ -718,8 +717,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         final float startX = cx - totalWidth / 2f;
 
         final PokerState state = game.getState();
-        final float cardsRightEdge = startX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
-        CardRenderingUtils.renderStackBars(cardsRightEdge, y, state.opponentStack, state.displayOpponentBet, state.maxStack, alphaMult);
+        CardRenderingUtils.renderStackBars(startX, y, state.opponentStack, state.displayOpponentBet, state.maxStack, alphaMult);
 
         final int count = Math.min(HAND_SIZE, cards.size());
         for (int i = 0; i < count; i++) {

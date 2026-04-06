@@ -529,7 +529,7 @@ state = pokerGame.getState();
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        mem.set("$ipc_suspended_game_type", "Poker");
+        mem.set("$ipc_poker_suspended", true);
 
         mem.set("$ipc_poker_pot_size", state.pot);
         mem.set("$ipc_poker_player_bet", state.playerBet);
@@ -734,13 +734,12 @@ state = pokerGame.getState();
 
     public boolean hasSuspendedPoker() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        String suspendedGameType = mem.getString("$ipc_suspended_game_type");
-        return "Poker".equals(suspendedGameType);
+        return mem.getBoolean("$ipc_poker_suspended");
     }
 
     private void clearSuspendedGameMemory() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        mem.unset("$ipc_suspended_game_type");
+        mem.unset("$ipc_poker_suspended");
         mem.unset("$ipc_poker_pot_size");
         mem.unset("$ipc_poker_player_bet");
         mem.unset("$ipc_poker_opponent_bet");

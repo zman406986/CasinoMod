@@ -87,7 +87,8 @@ public class PokerGame5Factory {
 
             if (folded[i]) {
                 state.foldedPlayers.add(i);
-                state.activePlayers.remove(i);
+            } else if (stacks[i] > 0) {
+                state.activePlayers.add(i);
             }
         }
 

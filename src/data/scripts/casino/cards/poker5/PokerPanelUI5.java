@@ -414,7 +414,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
 
     private void updateNextHandButton(PokerState5 state) {
         final boolean atShowdown = state.round == PokerRound.SHOWDOWN;
-        final boolean canContinue = state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] >= game.getBigBlindAmount();
+        final boolean canContinue = state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] > 0;
 
         nextHandBtn.setOpacity(atShowdown && canContinue ? 1f : 0f);
         nextHandBtn.setClickable(atShowdown && canContinue);
@@ -468,7 +468,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
 
     private void updateWaitingLabel(PokerState5 state) {
         final int turnIdx = waitingForAI ? currentAITurn : state.currentPlayerIndex;
-        final boolean shouldShow = turnIdx >= 0 && turnIdx != PokerGame5.HUMAN_PLAYER_INDEX && state.round != PokerRound.SHOWDOWN;
+        final boolean shouldShow = turnIdx >= 0 && turnIdx != PokerGame5.HUMAN_PLAYER_INDEX && state.round != PokerRound.SHOWDOWN && game.canPlay(turnIdx);
         
         if (shouldShow) {
             final String baseStr = waitingForAI ? "poker_panel5.ai_thinking" : "poker_panel5.waiting_for";
@@ -493,9 +493,15 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int stack = state.stacks[playerIdx];
         final int bet = state.displayBets[playerIdx];
         final boolean isFolded = state.foldedPlayers.contains(playerIdx);
+        final boolean isBust = !game.canPlay(playerIdx);
 
         final String playerName = Strings.get("poker5.you_name");
-        playerStackLabel.setText(Strings.format("poker_panel5.player_pos", playerName, game.getPositionName(playerIdx)) + " | " + Strings.format("poker_panel.stack", stack));
+        final String posName = game.getPositionName(playerIdx);
+        if (isBust) {
+            playerStackLabel.setText(playerName + " [" + Strings.get("poker5.bust") + "] | " + Strings.format("poker_panel.stack", stack));
+        } else {
+            playerStackLabel.setText(Strings.format("poker_panel5.player_pos", playerName, posName) + " | " + Strings.format("poker_panel.stack", stack));
+        }
 
         if (bet > 0) {
             playerBetLabel.setText(Strings.format("poker_panel.bet", bet));
@@ -515,7 +521,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         }
 
         final boolean isCurrentTurn = state.currentPlayerIndex == playerIdx && state.round != PokerRound.SHOWDOWN;
-        playerStackLabel.setColor(getPlayerColor(isFolded, isCurrentTurn, state.declaredAllIn[playerIdx], COLOR_PLAYER));
+        playerStackLabel.setColor(isBust ? COLOR_FOLDED : getPlayerColor(isFolded, isCurrentTurn, state.declaredAllIn[playerIdx], COLOR_PLAYER));
     }
 
     private String formatHandRank(PokerHandEvaluator.HandRank rank) {
@@ -541,16 +547,27 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final boolean isCurrentTurn = state.currentPlayerIndex == playerIdx && state.round != PokerRound.SHOWDOWN;
             final int bet = state.displayBets[playerIdx];
             final PokerHandEvaluator.HandRank handRank = state.handRanks != null ? state.handRanks[playerIdx] : null;
+            final boolean isBust = !game.canPlay(playerIdx);
 
             final String oppNameLabel = Strings.format("poker5.opponent_name", i + 1);
-            playerNameLabels[i].setText(oppNameLabel + " [" + game.getPositionName(playerIdx) + "]");
-            playerNameLabels[i].setColor(getPlayerColor(isFolded, isCurrentTurn, isAllIn, COLOR_OPPONENT));
+            final String posName = game.getPositionName(playerIdx);
+            if (isBust) {
+                playerNameLabels[i].setText(oppNameLabel + " [" + Strings.get("poker5.bust") + "]");
+                playerNameLabels[i].setColor(COLOR_FOLDED);
+            } else {
+                playerNameLabels[i].setText(oppNameLabel + " [" + posName + "]");
+                playerNameLabels[i].setColor(getPlayerColor(isFolded, isCurrentTurn, isAllIn, COLOR_OPPONENT));
+            }
 
             final int stack = state.stacks[playerIdx];
             opponentStackLabels[i].setText(Strings.format("poker_panel.stack", stack));
-            opponentStackLabels[i].setColor(isFolded ? COLOR_FOLDED : playerNameLabels[i].getColor());
+            opponentStackLabels[i].setColor(isBust || isFolded ? COLOR_FOLDED : playerNameLabels[i].getColor());
 
-            if (isFolded) {
+            if (isBust) {
+                opponentActionLabels[i].setText(Strings.get("poker5.bust"));
+                opponentActionLabels[i].setColor(COLOR_FOLDED);
+                opponentActionLabels[i].setOpacity(1f);
+            } else if (isFolded) {
                 opponentActionLabels[i].setText(Strings.get("poker_panel5.action_fold"));
                 opponentActionLabels[i].setColor(COLOR_FOLDED);
                 opponentActionLabels[i].setOpacity(1f);
@@ -571,7 +588,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
                 opponentActionLabels[i].setOpacity(0f);
             }
 
-            if (bet > 0 && !isFolded) {
+            if (bet > 0 && !isFolded && !isBust) {
                 opponentBetLabels[i].setText(Strings.format("poker_panel.bet", bet));
                 opponentBetLabels[i].setOpacity(1f);
             } else {
@@ -593,7 +610,16 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         Color resultColor = Color.WHITE;
         String resultText;
 
-        if (state.winners.length > 0) {
+        if (state.foldWinner >= 0) {
+            boolean playerWon = state.foldWinner == PokerGame5.HUMAN_PLAYER_INDEX;
+            if (playerWon) {
+                resultText = Strings.format("poker_panel5.fold_win", potWon);
+                resultColor = Color.GREEN;
+            } else {
+                resultText = Strings.format("poker_panel5.fold_lose", Strings.format("poker5.opponent_name", state.foldWinner), potWon);
+                resultColor = COLOR_OPPONENT;
+            }
+        } else if (state.winners.length > 0) {
             boolean playerWon = false;
             for (int i = 0; i < state.winners.length && !playerWon; i++) {
                 playerWon = state.winners[i] == PokerGame5.HUMAN_PLAYER_INDEX;
@@ -616,7 +642,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             resultText = Strings.get("poker_panel5.hand_complete");
         }
 
-        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] < game.getBigBlindAmount()) {
+        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] <= 0) {
             resultText += Strings.get("poker_panel.you_bust_leave");
         }
 
@@ -659,8 +685,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int bet = state.displayBets[playerIdx];
         final int maxStack = state.maxStack;
 
-        final float cardsRightEdge = cachedPlayerStartX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
-        CardRenderingUtils.renderStackBars(cardsRightEdge, cachedPlayerY, stack, bet, maxStack, alphaMult);
+        CardRenderingUtils.renderStackBars(cachedPlayerStartX, cachedPlayerY, stack, bet, maxStack, alphaMult);
 
         final boolean isPlayerTurn = state.currentPlayerIndex == PokerGame5.HUMAN_PLAYER_INDEX &&
                                        state.round != PokerRound.SHOWDOWN;
@@ -699,6 +724,8 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
 
         for (int i = 0; i < NUM_OPPONENTS; i++) {
             final int playerIdx = i + 1;
+            if (!game.canPlay(playerIdx)) continue;
+
             final List<Card> cards = state.hands[playerIdx];
             if (cards == null || cards.isEmpty()) continue;
 
@@ -715,8 +742,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final int bet = state.displayBets[playerIdx];
             final int maxStack = state.maxStack;
 
-            final float cardsRightEdge = startX + HAND_SIZE * CARD_WIDTH + (HAND_SIZE - 1) * CARD_SPACING;
-            CardRenderingUtils.renderStackBars(cardsRightEdge, handY, stack, bet, maxStack, alphaMult);
+            CardRenderingUtils.renderStackBars(startX, handY, stack, bet, maxStack, alphaMult);
 
             final boolean showCards = state.round == PokerRound.SHOWDOWN && !state.foldedPlayers.contains(playerIdx);
             final boolean isOpponentTurn = currentActor == playerIdx && state.round != PokerRound.SHOWDOWN;
@@ -857,7 +883,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         }
         if (POKER_NEXT_HAND == data) {
             final PokerState5 state = game.getState();
-            final boolean canContinue = state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] >= game.getBigBlindAmount();
+            final boolean canContinue = state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] > 0;
             if (canContinue) actionCallback.onNextHand();
             return;
         }

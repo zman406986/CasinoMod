@@ -36,7 +36,7 @@ public final class CardRenderingUtils {
     public static final Color COLOR_CARD_SHADOW = new Color(0, 0, 0, 150);
 
     public static final float STACK_BAR_WIDTH = 10f;
-    public static final float STACK_BAR_MAX_HEIGHT = CARD_HEIGHT;
+    public static final float STACK_BAR_MAX_HEIGHT = 90f;
     public static final float STACK_BAR_GAP = 2f;
     public static final float STACK_BAR_CARD_GAP = 4f;
 
@@ -170,7 +170,7 @@ public final class CardRenderingUtils {
         renderCardHighlightBorder(x, y, CARD_WIDTH, CARD_HEIGHT, color, alphaMult);
     }
 
-    public static void renderStackBars(float cardsRightEdge, float cardY, int stack, int bet, int maxStack, float alphaMult) {
+    public static void renderStackBars(float cardStartX, float cardY, int stack, int bet, int maxStack, float alphaMult) {
         if (maxStack <= 0) return;
 
         int totalEffective = stack + bet;
@@ -193,26 +193,31 @@ public final class CardRenderingUtils {
             remainingBet -= deduct;
         }
         
-        float totalBarWidth = numBars * STACK_BAR_WIDTH + (numBars - 1) * STACK_BAR_GAP;
-        float barX = cardsRightEdge - STACK_BAR_CARD_GAP - totalBarWidth;
+        float primaryBarX = cardStartX - STACK_BAR_CARD_GAP - STACK_BAR_WIDTH;
         
-        for (int i = 0; i < numBars; i++) {
-            Color fillColor = (i == numBars - 1) ? getStackColor(stack, stack, maxStack) : STACK_BAR_GREEN;
+        Color primaryColor = getStackColor(stack, stack, maxStack);
+        renderSingleBarBg(primaryBarX, cardY, alphaMult);
+        float primaryColoredHeight = (coloredAmounts[0] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+        if (primaryColoredHeight > 0) {
+            renderChipStackWithSmile(primaryBarX, cardY, primaryColoredHeight, primaryColor, alphaMult);
+        }
+        float primaryWhiteHeight = (whiteAmounts[0] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+        if (primaryWhiteHeight > 0) {
+            renderChipStackWithSmile(primaryBarX, cardY + primaryColoredHeight, primaryWhiteHeight, STACK_BAR_BET, alphaMult);
+        }
+        
+        for (int i = 1; i < numBars; i++) {
+            float overflowBarX = primaryBarX - i * (STACK_BAR_WIDTH + STACK_BAR_GAP);
             
-            renderSingleBarBg(barX, cardY, alphaMult);
-            
-            float coloredHeight = (coloredAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
-            if (coloredHeight > 0) {
-                renderChipStackWithSmile(barX, cardY, coloredHeight, fillColor, alphaMult);
+            renderSingleBarBg(overflowBarX, cardY, alphaMult);
+            float overflowColoredHeight = (coloredAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+            if (overflowColoredHeight > 0) {
+                renderChipStackWithSmile(overflowBarX, cardY, overflowColoredHeight, STACK_BAR_GREEN, alphaMult);
             }
-            
-            float whiteHeight = (whiteAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
-            if (whiteHeight > 0) {
-                float whiteY = cardY + coloredHeight;
-                renderChipStackWithSmile(barX, whiteY, whiteHeight, STACK_BAR_BET, alphaMult);
+            float overflowWhiteHeight = (whiteAmounts[i] / (float) maxStack) * STACK_BAR_MAX_HEIGHT;
+            if (overflowWhiteHeight > 0) {
+                renderChipStackWithSmile(overflowBarX, cardY + overflowColoredHeight, overflowWhiteHeight, STACK_BAR_BET, alphaMult);
             }
-            
-            barX += STACK_BAR_WIDTH + STACK_BAR_GAP;
         }
     }
 
@@ -220,15 +225,29 @@ public final class CardRenderingUtils {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f(STACK_BAR_BG.getRed() / 255f, STACK_BAR_BG.getGreen() / 255f,
-                       STACK_BAR_BG.getBlue() / 255f, alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + STACK_BAR_WIDTH, y);
-        GL11.glVertex2f(x + STACK_BAR_WIDTH, y + STACK_BAR_MAX_HEIGHT);
-        GL11.glVertex2f(x, y + STACK_BAR_MAX_HEIGHT);
-        GL11.glEnd();
+        setColorGL(STACK_BAR_BG, alphaMult);
+        
+        renderCurvedBarShape(x, y, STACK_BAR_MAX_HEIGHT);
+        
         GL11.glColor4f(1f, 1f, 1f, 1f);
+    }
+    
+    private static void renderCurvedBarShape(float x, float y, float height) {
+        int segments = 10;
+        float segmentWidth = STACK_BAR_WIDTH / segments;
+        
+        GL11.glBegin(GL11.GL_TRIANGLE_STRIP);
+        for (int i = 0; i <= segments; i++) {
+            float segX = x + i * segmentWidth;
+            float normalizedPos = i / (float) segments;
+            float curveOffset = SMILE_CURVE_DEPTH * 4f * normalizedPos * (1f - normalizedPos);
+            float topY = y - curveOffset;
+            float bottomY = y + height + curveOffset;
+            
+            GL11.glVertex2f(segX, topY);
+            GL11.glVertex2f(segX, bottomY);
+        }
+        GL11.glEnd();
     }
 
     private static Color getStackColor(int stack, int remaining, int maxStack) {
@@ -245,14 +264,9 @@ public final class CardRenderingUtils {
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        GL11.glBegin(GL11.GL_QUADS);
         setColorGL(color, alphaMult);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + STACK_BAR_WIDTH, y);
-        GL11.glVertex2f(x + STACK_BAR_WIDTH, y + height);
-        GL11.glVertex2f(x, y + height);
-        GL11.glEnd();
+        
+        renderCurvedFillShape(x, y, height);
 
         int numGaps = (int) (height / CHIP_SEGMENT_HEIGHT);
         setColorGL(STACK_BAR_BG, alphaMult);
@@ -263,6 +277,24 @@ public final class CardRenderingUtils {
 
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
+    
+    private static void renderCurvedFillShape(float x, float y, float height) {
+        int segments = 10;
+        float segmentWidth = STACK_BAR_WIDTH / segments;
+        
+        GL11.glBegin(GL11.GL_TRIANGLE_STRIP);
+        for (int i = 0; i <= segments; i++) {
+            float segX = x + i * segmentWidth;
+            float normalizedPos = i / (float) segments;
+            float curveOffset = SMILE_CURVE_DEPTH * 4f * normalizedPos * (1f - normalizedPos);
+            float topY = y - curveOffset;
+            float bottomY = y + height + curveOffset;
+            
+            GL11.glVertex2f(segX, topY);
+            GL11.glVertex2f(segX, bottomY);
+        }
+        GL11.glEnd();
+    }
 
     private static void renderSmileCurvedGap(float x, float y, float width, float gapHeight, float curveDepth) {
         int segments = 10;
@@ -272,7 +304,7 @@ public final class CardRenderingUtils {
             float segX = x + i * segmentWidth;
             float normalizedPos = (i + 0.5f) / segments;
             float curveOffset = curveDepth * 4f * normalizedPos * (1f - normalizedPos);
-            float segY = y + curveOffset;
+            float segY = y - curveOffset;
             float segHeight = gapHeight;
             
             GL11.glBegin(GL11.GL_QUADS);

@@ -616,7 +616,9 @@
         "action_check": "Checks",
         "action_call": "Calls %d",
         "action_raise": "Raises to %d",
-        "action_all_in": "All-In %d"
+        "action_all_in": "All-In %d",
+        "fold_win": "All opponents folded! You win %d Stargems!",
+        "fold_lose": "%s wins %d Stargems (everyone else folded)"
     },
     "poker_rounds": {
         "preflop": "Preflop",
@@ -899,7 +901,8 @@
         "suspended_msg": "Game suspended. You can resume later.",
         "restore_failed": "Failed to restore game.",
         "opponent_name": "Opponent %d",
-        "you_name": "You"
+        "you_name": "You",
+        "bust": "OUT"
     },
     "arena_panel_rewards": {
         "header": "--- Reward Breakdown ---",

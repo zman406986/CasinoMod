@@ -52,6 +52,7 @@ public class PokerGame5 {
         public PokerHandEvaluator.HandRank[] handRanks;
         public int[] winners;
         public String[] lastPokerActions;
+        public int foldWinner;
 
         @SuppressWarnings("unchecked")
         public PokerState5() {
@@ -72,6 +73,7 @@ public class PokerGame5 {
             handRanks = new PokerHandEvaluator.HandRank[NUM_PLAYERS];
             winners = new int[0];
             lastPokerActions = new String[NUM_PLAYERS];
+            foldWinner = -1;
         }
     }
 
@@ -129,6 +131,7 @@ public class PokerGame5 {
     }
 
     public String getPositionName(int playerIndex) {
+        if (!canPlay(playerIndex)) return "";
         int pos = getPlayerPosition(playerIndex);
         return switch (pos) {
             case 0 -> "BTN";
@@ -149,10 +152,14 @@ public class PokerGame5 {
         deck.shuffle();
 
         for (int i = 0; i < NUM_PLAYERS; i++) {
-            List<Card> hand = new ArrayList<>(2);
-            hand.add(deck.draw());
-            hand.add(deck.draw());
-            state.hands[i] = hand;
+            if (canPlay(i)) {
+                List<Card> hand = new ArrayList<>(2);
+                hand.add(deck.draw());
+                hand.add(deck.draw());
+                state.hands[i] = hand;
+            } else {
+                state.hands[i] = new ArrayList<>();
+            }
         }
 
         state.communityCards = new ArrayList<>();
@@ -177,8 +184,9 @@ public class PokerGame5 {
         state.winners = new int[0];
         state.lastRaiseAmount = 0;
         state.lastRaisePlayerIndex = -1;
+        state.foldWinner = -1;
 
-        state.buttonPosition = (state.buttonPosition + 1) % NUM_PLAYERS;
+        state.buttonPosition = findNextButtonPosition();
 
         postBlinds();
 
@@ -196,28 +204,55 @@ public class PokerGame5 {
         int sbPos = getSBPosition();
         int bbPos = getBBPosition();
 
+        if (!canPlay(sbPos)) {
+            for (int i = 1; i <= NUM_PLAYERS; i++) {
+                int candidate = (state.buttonPosition + 1 + i) % NUM_PLAYERS;
+                if (canPlay(candidate) && candidate != bbPos) {
+                    sbPos = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (!canPlay(bbPos)) {
+            for (int i = 1; i <= NUM_PLAYERS; i++) {
+                int candidate = (sbPos + i) % NUM_PLAYERS;
+                if (canPlay(candidate)) {
+                    bbPos = candidate;
+                    break;
+                }
+            }
+        }
+
         int sbAmount = Math.min(bigBlindAmount / 2, state.stacks[sbPos]);
-        state.bets[sbPos] = sbAmount;
-        state.displayBets[sbPos] = sbAmount;
-        state.stacks[sbPos] -= sbAmount;
-        state.totalContributions[sbPos] += sbAmount;
+        if (sbAmount > 0) {
+            state.bets[sbPos] = sbAmount;
+            state.displayBets[sbPos] = sbAmount;
+            state.stacks[sbPos] -= sbAmount;
+            state.totalContributions[sbPos] += sbAmount;
+            state.activePlayers.add(sbPos);
+
+            if (state.stacks[sbPos] <= 0) {
+                state.declaredAllIn[sbPos] = true;
+            }
+        }
 
         int bbAmount = Math.min(bigBlindAmount, state.stacks[bbPos]);
-        state.bets[bbPos] = bbAmount;
-        state.displayBets[bbPos] = bbAmount;
-        state.stacks[bbPos] -= bbAmount;
-        state.totalContributions[bbPos] += bbAmount;
+        if (bbAmount > 0) {
+            state.bets[bbPos] = bbAmount;
+            state.displayBets[bbPos] = bbAmount;
+            state.stacks[bbPos] -= bbAmount;
+            state.totalContributions[bbPos] += bbAmount;
+            state.activePlayers.add(bbPos);
+
+            if (state.stacks[bbPos] <= 0) {
+                state.declaredAllIn[bbPos] = true;
+            }
+        }
 
         state.pot = sbAmount + bbAmount;
         state.lastRaiseAmount = bigBlindAmount;
         state.lastRaisePlayerIndex = bbPos;
-
-        if (state.stacks[sbPos] <= 0) {
-            state.declaredAllIn[sbPos] = true;
-        }
-        if (state.stacks[bbPos] <= 0) {
-            state.declaredAllIn[bbPos] = true;
-        }
     }
 
     public int getFirstToAct() {
@@ -243,6 +278,32 @@ public class PokerGame5 {
                !state.declaredAllIn[playerIndex] &&
                state.stacks[playerIndex] > 0 &&
                state.activePlayers.contains(playerIndex);
+    }
+
+    public boolean canPlay(int playerIndex) {
+        return state.stacks[playerIndex] > 0;
+    }
+
+    public int countPlayablePlayers() {
+        int count = 0;
+        for (int i = 0; i < NUM_PLAYERS; i++) {
+            if (canPlay(i)) count++;
+        }
+        return count;
+    }
+
+    public boolean canStartNewHand() {
+        return countPlayablePlayers() >= 2;
+    }
+
+    private int findNextButtonPosition() {
+        for (int i = 1; i <= NUM_PLAYERS; i++) {
+            int nextPos = (state.buttonPosition + i) % NUM_PLAYERS;
+            if (canPlay(nextPos)) {
+                return nextPos;
+            }
+        }
+        return state.buttonPosition;
     }
 
     public boolean isActive(int playerIndex) {
@@ -302,6 +363,16 @@ public class PokerGame5 {
     private void processFold(int playerIndex) {
         state.foldedPlayers.add(playerIndex);
         state.activePlayers.remove(playerIndex);
+
+        if (state.activePlayers.size() == 1) {
+            int winner = state.activePlayers.iterator().next();
+            state.stacks[winner] += state.pot;
+            state.lastPotWon = state.pot;
+            state.pot = 0;
+            state.winners = new int[]{winner};
+            state.foldWinner = winner;
+            state.round = PokerRound.SHOWDOWN;
+        }
     }
 
     @SuppressWarnings("unused")
@@ -524,6 +595,7 @@ public class PokerGame5 {
 
     public void determineWinners() {
         if (state.round != PokerRound.SHOWDOWN) return;
+        if (state.foldWinner >= 0) return;
 
         List<PokerHandEvaluator.PlayerScore> scores = new ArrayList<>();
         for (int i = 0; i < NUM_PLAYERS; i++) {

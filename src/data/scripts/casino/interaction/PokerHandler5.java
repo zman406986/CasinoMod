@@ -159,7 +159,7 @@ public class PokerHandler5 {
 
         PokerGame5.PokerState5 state = pokerGame.getState();
 
-        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] < pokerGame.getBigBlindAmount() &&
+        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] <= 0 &&
             state.pot == 0 && state.round != PokerRound.SHOWDOWN) {
             endHandInPlace();
             return;
@@ -261,7 +261,13 @@ public class PokerHandler5 {
 
         PokerGame5.PokerState5 state = pokerGame.getState();
 
-        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] <= pokerGame.getBigBlindAmount()) {
+        if (!pokerGame.canStartNewHand()) {
+            delegate.closeDialog();
+            handleLeaveTable();
+            return;
+        }
+
+        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] <= 0) {
             delegate.closeDialog();
             handleLeaveTable();
             return;
@@ -294,7 +300,7 @@ public class PokerHandler5 {
 
         PokerGame5.PokerState5 state = pokerGame.getState();
 
-        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] < pokerGame.getBigBlindAmount()) {
+        if (state.stacks[PokerGame5.HUMAN_PLAYER_INDEX] <= 0) {
             main.getTextPanel().addPara(Strings.get("poker_result.out_of_chips"), Color.RED);
             returnRemainingStack();
             clearSuspendedGameMemory();
@@ -318,7 +324,7 @@ public class PokerHandler5 {
         if (pokerGame == null) return;
         PokerGame5.PokerState5 state = pokerGame.getState();
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        mem.set("$ipc_suspended_game_type", "Poker5");
+        mem.set("$ipc_poker5_suspended", true);
 
         mem.set("$ipc_poker5_button_position", state.buttonPosition);
         mem.set("$ipc_poker5_big_blind", state.bigBlind);
@@ -392,13 +398,12 @@ public class PokerHandler5 {
 
     public boolean hasSuspendedPoker5() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        String suspendedGameType = mem.getString("$ipc_suspended_game_type");
-        return "Poker5".equals(suspendedGameType);
+        return mem.getBoolean("$ipc_poker5_suspended");
     }
 
     private void clearSuspendedGameMemory() {
         MemoryAPI mem = Global.getSector().getMemoryWithoutUpdate();
-        mem.unset("$ipc_suspended_game_type");
+        mem.unset("$ipc_poker5_suspended");
         mem.unset("$ipc_poker5_button_position");
         mem.unset("$ipc_poker5_big_blind");
         mem.unset("$ipc_poker5_round");
