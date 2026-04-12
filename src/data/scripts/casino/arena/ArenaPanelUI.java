@@ -717,6 +717,18 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
         }
     }
 
+    public boolean isAnimating() {
+        return isAnimating;
+    }
+
+    public void stopAnimation() {
+        isAnimating = false;
+        pendingEntries.clear();
+        displayedLogIndex = 0;
+        skipRequested = false;
+        finalizeAnimationState();
+    }
+
     public void startLogAnimation(List<String> newLogEntries) {
         pendingEntries.clear();
         if (newLogEntries != null) {

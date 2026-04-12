@@ -869,12 +869,41 @@ private boolean simulateArenaStep() {
 
         battleLog.addAll(logEntries);
 
+        delegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
+        delegate.getArenaPanel().startLogAnimation(logEntries);
+        
         if (aliveCount <= 1) {
-            finishArenaBattle();
-        } else {
-            delegate.updateForBattle(arenaCombatants, currentRound, getCurrentTotalBet(), arenaBets, battleLog);
-            delegate.getArenaPanel().startLogAnimation(logEntries);
+            delegate.setPendingBattleEnd(true);
         }
+    }
+    
+    public void finishArenaBattleInPlace(ArenaDialogDelegate delegate) {
+        if (delegate == null) {
+            finishArenaBattle();
+            return;
+        }
+        
+        SpiralAbyssArena.SpiralGladiator actualWinner = findWinner();
+        calculateFinalPositions(actualWinner);
+        Set<SpiralAbyssArena.SpiralGladiator> betShips = collectBetShips();
+        RewardCalculation rewards = calculateRewards(betShips);
+        CasinoVIPManager.addToBalance(rewards.totalWinReward + rewards.totalConsolationReward);
+        
+        int winnerIndex = -1;
+        for (int i = 0; i < arenaCombatants.size(); i++) {
+            if (arenaCombatants.get(i) == actualWinner) {
+                winnerIndex = i;
+                break;
+            }
+        }
+        
+        battleEnded = true;
+        finalWinnerIndex = winnerIndex;
+        finalReward = rewards.totalWinReward + rewards.totalConsolationReward;
+        
+        ArenaPanelUI.RewardBreakdown breakdown = buildRewardBreakdown(betShips, rewards);
+        delegate.setBattleEnded(winnerIndex, finalReward, breakdown, currentRound);
+        delegate.setPendingBattleEnd(false);
     }
     
     public void simulateAllRemainingStepsInPlace(ArenaDialogDelegate delegate) {
@@ -908,7 +937,10 @@ private boolean simulateArenaStep() {
             result = aliveCount > 1;
         } while (result);
         
-        finishArenaBattle();
+        delegate.setPendingBattleEnd(false);
+        delegate.getArenaPanel().stopAnimation();
+        
+        finishArenaBattleInPlace(delegate);
     }
     
     public void startNewArenaMatchInPlace(ArenaDialogDelegate delegate) {

@@ -35,6 +35,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
     
     protected boolean pendingLeave = false;
     protected boolean pendingSuspend = false;
+    protected boolean pendingBattleEnd = false;
     
     protected int winnerIndex = -1;
     protected int totalReward = 0;
@@ -87,12 +88,8 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
         
         arenaPanel.advance(amount);
         
-        if (battleEnded) {
-            callbacks.getPanelFader().fadeOut();
-            if (callbacks.getPanelFader().isFadedOut()) {
-                callbacks.dismissDialog();
-                finished = true;
-            }
+        if (pendingBattleEnd && !arenaPanel.isAnimating()) {
+            handler.finishArenaBattleInPlace(this);
         }
     }
     
@@ -163,6 +160,7 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
         this.winnerIndex = -1;
         this.totalReward = 0;
         this.finished = false;
+        this.pendingBattleEnd = false;
         
         this.combatants = combatants;
         this.currentRound = currentRound;
@@ -181,6 +179,14 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
     
     public boolean getPendingSuspend() {
         return pendingSuspend;
+    }
+    
+    public void setPendingBattleEnd(boolean pending) {
+        this.pendingBattleEnd = pending;
+    }
+    
+    public boolean getPendingBattleEnd() {
+        return pendingBattleEnd;
     }
     
     public void clearPendingActions() {
