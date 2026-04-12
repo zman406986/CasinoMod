@@ -309,13 +309,20 @@ public class GachaHandler {
     private void showGachaAnimation(List<String> pullResults, List<FleetMemberAPI> obtainedShips) {
         List<GachaAnimation.GachaItem> itemsToAnimate = new ArrayList<>();
 
-        for (String result : pullResults) {
+        for (int i = 0; i < pullResults.size(); i++) {
+            String result = pullResults.get(i);
             int rarity = getRarityFromResult(result);
             GachaAnimation.GachaItem item = new GachaAnimation.GachaItem(
-                "item_" + System.currentTimeMillis() + "_" + itemsToAnimate.size(),
+                "item_" + System.currentTimeMillis() + "_" + i,
                 result,
                 rarity
             );
+
+            if (i < obtainedShips.size() && obtainedShips.get(i) != null) {
+                FleetMemberAPI ship = obtainedShips.get(i);
+                item.setHullId(ship.getHullId());
+            }
+
             itemsToAnimate.add(item);
         }
 

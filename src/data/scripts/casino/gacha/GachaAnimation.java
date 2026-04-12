@@ -2,7 +2,9 @@ package data.scripts.casino.gacha;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.input.Keyboard;
@@ -10,6 +12,7 @@ import org.lwjgl.input.Keyboard;
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
+import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.ui.ButtonAPI;
@@ -21,7 +24,6 @@ import com.fs.starfarer.api.util.FaderUtil;
 import com.fs.starfarer.api.util.Misc;
 import com.fs.starfarer.api.util.Pair;
 
-import data.scripts.casino.shared.GachaUI;
 import data.scripts.casino.Strings;
 
 public class GachaAnimation extends BaseCustomUIPanelPlugin
@@ -50,6 +52,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin
 
     // Particle burst effects for reveal
     protected List<ParticleBurst> activeBursts = new ArrayList<>();
+
+    protected Map<String, SpriteAPI> spriteCache = new HashMap<>();
 
     // Layout constants
     protected static final int COLUMNS = 2;
@@ -201,6 +205,26 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin
         }
     }
 
+    private SpriteAPI getShipSprite(String hullId) {
+        if (hullId == null || hullId.isEmpty()) return null;
+        if (spriteCache.containsKey(hullId)) return spriteCache.get(hullId);
+
+        try {
+            ShipHullSpecAPI spec = Global.getSettings().getHullSpec(hullId);
+            if (spec == null) {
+                spriteCache.put(hullId, null);
+                return null;
+            }
+
+            SpriteAPI sprite = Global.getSettings().getSprite(spec.getSpriteName());
+            spriteCache.put(hullId, sprite);
+            return sprite;
+        } catch (Exception e) {
+            spriteCache.put(hullId, null);
+            return null;
+        }
+    }
+
     public GachaAnimation(List<GachaItem> itemsToAnimate, GachaAnimationCallback callback) {
         this.allItems.addAll(itemsToAnimate);
         this.callback = callback;
@@ -318,7 +342,6 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin
         float w = ITEM_WIDTH;
         float h = ITEM_HEIGHT;
 
-        // Calculate reveal scale animation
         float revealScale = 1f;
         if (item.isFixed && item.spinTimer <= SPIN_DURATION + 0.3f) {
             float revealProgress = (item.spinTimer - SPIN_DURATION) / 0.3f;
@@ -327,74 +350,70 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin
             }
         }
 
-        // Determine colors based on phase
-        Color displayColor;
-        Color borderColor;
-        float bgAlpha;
+        SpriteAPI sprite = getShipSprite(item.hullId);
 
-        if (!item.isFixed) {
-            displayColor = item.getDarkColor();
-            borderColor = new Color(150, 150, 150);
-            bgAlpha = 0.4f;
+        if (sprite != null) {
+            float fadeProgress;
+
+            if (!item.isFixed) {
+                fadeProgress = 0f;
+            } else if (item.spinTimer > SPIN_DURATION) {
+                float revealTime = item.spinTimer - SPIN_DURATION;
+                fadeProgress = Math.min(1f, revealTime / 0.3f);
+            } else {
+                fadeProgress = 1f;
+            }
+
+            float spriteW = sprite.getWidth();
+            float spriteH = sprite.getHeight();
+            float scale = Math.min(w / spriteW, h / spriteH) * revealScale;
+            float scaledW = spriteW * scale;
+            float scaledH = spriteH * scale;
+
+            sprite.setSize(scaledW, scaledH);
+
+            float brightness = 0.15f + 0.85f * fadeProgress;
+            sprite.setColor(new Color(brightness, brightness, brightness, 1f));
+            sprite.setAlphaMult(alphaMult);
+            sprite.setNormalBlend();
+
+            if (!item.isFixed) {
+                GL11.glPushMatrix();
+                GL11.glTranslatef(x, y, 0);
+                GL11.glRotatef((float)Math.toDegrees(rotation), 0, 0, 1);
+                GL11.glTranslatef(-x, -y, 0);
+                sprite.renderAtCenter(x, y);
+                GL11.glPopMatrix();
+            } else {
+                sprite.renderAtCenter(x, y);
+            }
+
+            sprite.setColor(Color.WHITE);
+            GL11.glColor4f(1f, 1f, 1f, 1f);
         } else {
-            displayColor = item.color;
-            borderColor = item.rarity >= 4 ? new Color(255, 215, 0) : Color.WHITE;
-            bgAlpha = item.getBackgroundAlpha();
+            Color displayColor = !item.isFixed ? item.getDarkColor() : item.color;
+            float bgAlpha = !item.isFixed ? 0.4f : item.getBackgroundAlpha();
+
+            if (!item.isFixed) {
+                GL11.glPushMatrix();
+                GL11.glTranslatef(x, y, 0);
+                GL11.glRotatef((float)Math.toDegrees(rotation), 0, 0, 1);
+                GL11.glTranslatef(-x, -y, 0);
+                Misc.renderQuad(x - w/2, y - h/2, w, h, displayColor, alphaMult * bgAlpha);
+                GL11.glPopMatrix();
+            } else {
+                Misc.renderQuad(x - w/2, y - h/2, w, h, displayColor, alphaMult * bgAlpha);
+            }
+            GL11.glColor4f(1f, 1f, 1f, 1f);
         }
 
-        if (!item.isFixed) {
-            GL11.glPushMatrix();
-            GL11.glTranslatef(x, y, 0);
-            GL11.glRotatef((float)Math.toDegrees(rotation), 0, 0, 1);
-            GL11.glTranslatef(-x, -y, 0);
-        } else if (revealScale != 1f) {
-            GL11.glPushMatrix();
-            GL11.glTranslatef(x, y, 0);
-            GL11.glScalef(revealScale, revealScale, 1f);
-            GL11.glTranslatef(-x, -y, 0);
-        }
-
-        // Draw glow effect for higher rarity items
-        if (item.isFixed && item.rarity >= 3) {
-            drawItemGlow(item, x, y, w, h, alphaMult);
-        }
-
-        // Draw star-shaped item background
-GachaUI.drawStarShape(x, y, w, h, displayColor, alphaMult * bgAlpha);
-
-        GachaUI.drawStarShapeBorder(x, y, w, h, borderColor, alphaMult);
-
-        if (!item.isFixed) {
-            GL11.glPopMatrix();
-        } else if (revealScale != 1f) {
-            GL11.glPopMatrix();
-        }
-
-        // Draw decorative particles for 3*, 4* and 5* items only when fixed
         if (item.isFixed && item.rarity >= 3) {
             drawItemRarityEffect(item, x, y, alphaMult);
         }
 
-        // Draw stars only when item is fixed (bright phase)
         if (item.isFixed) {
             drawStars(item, x, y + h/2 + 18, alphaMult);
         }
-    }
-
-    private void drawItemGlow(GachaItem item, float x, float y, float w, float h, float alphaMult) {
-        float glowSize = 1.2f + (item.rarity - 3) * 0.15f;
-        float glowW = w * glowSize;
-        float glowH = h * glowSize;
-        float glowAlpha = 0.3f + (item.rarity - 3) * 0.1f;
-
-        Color glowColor = new Color(
-            item.color.getRed(),
-            item.color.getGreen(),
-            item.color.getBlue(),
-            (int)(255 * glowAlpha * alphaMult)
-        );
-
-        GachaUI.drawStarShape(x, y, glowW, glowH, glowColor, alphaMult);
     }
 
     private void drawItemRarityEffect(GachaItem item, float x, float y, float alphaMult) {
@@ -438,13 +457,17 @@ GachaUI.drawStarShape(x, y, w, h, displayColor, alphaMult * bgAlpha);
 
     private void drawStars(GachaItem item, float x, float y, float alphaMult) {
         Color starColor = item.rarity >= 4 ? new Color(255, 215, 0) : Color.YELLOW;
+        float starSize = 5f;
         float starSpacing = 12f;
         float totalWidth = (item.rarity - 1) * starSpacing;
         float startX = x - totalWidth / 2f;
 
         for (int i = 0; i < item.rarity; i++) {
             float starX = startX + i * starSpacing;
-            GachaUI.drawRatingStar(starX, y, 5f, starColor, alphaMult);
+            float halfSize = starSize / 2f;
+            float quarterSize = starSize / 4f;
+            Misc.renderQuad(starX - quarterSize, y - halfSize, quarterSize * 2, starSize, starColor, alphaMult);
+            Misc.renderQuad(starX - halfSize, y - quarterSize, starSize, quarterSize * 2, starColor, alphaMult);
         }
     }
 
