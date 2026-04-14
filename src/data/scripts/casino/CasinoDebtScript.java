@@ -289,10 +289,6 @@ public class CasinoDebtScript implements EveryFrameScript {
         }
     }
     
-    /**
-     * Check if enough time has passed to spawn a new collector
-     * Uses proper timestamp-based calculation following CasinoVIPManager pattern
-     */
     private boolean canSpawnCollector() {
         MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
         
@@ -300,7 +296,7 @@ public class CasinoDebtScript implements EveryFrameScript {
             return true;
         }
         
-        Long lastSpawnTimestamp = memory.getLong(MEM_LAST_SPAWN_TIMESTAMP);
+        long lastSpawnTimestamp = memory.getLong(MEM_LAST_SPAWN_TIMESTAMP);
         if (lastSpawnTimestamp == 0) {
             return true;
         }
@@ -316,9 +312,6 @@ public class CasinoDebtScript implements EveryFrameScript {
                 Global.getSector().getClock().getTimestamp());
     }
     
-    /**
-     * Get current collector state from memory
-     */
     private String getCollectorState() {
         String state = Global.getSector().getMemoryWithoutUpdate().getString(MEM_COLLECTOR_STATE);
         if (state == null || state.isEmpty()) {
@@ -327,61 +320,42 @@ public class CasinoDebtScript implements EveryFrameScript {
         return state;
     }
     
-    /**
-     * Set collector state in memory
-     */
     private void setCollectorState(String state) {
         Global.getSector().getMemoryWithoutUpdate().set(MEM_COLLECTOR_STATE, state);
     }
     
-    /**
-     * Spawn the debt collector fleet
-     * @param spawnLocation The location to spawn near (from the system player exited)
-     * @return true if spawn was successful
-     */
     private boolean spawnDebtCollector(Vector2f spawnLocation) {
         CampaignFleetAPI playerFleet = Global.getSector().getPlayerFleet();
         if (playerFleet == null) {
             return false;
         }
         
-        // Create and send the debt collector fleet
         CampaignFleetAPI debtCollectorFleet = createDebtCollectorFleet();
         if (debtCollectorFleet == null) {
             return false;
         }
         
-        // Add the fleet to hyperspace
         Global.getSector().getHyperspace().addEntity(debtCollectorFleet);
         
-        // Position the fleet near the spawn location (following TriTachLoanIncentiveScript pattern)
         Vector2f spawnLoc;
         if (spawnLocation != null) {
-            // Spawn near the stored system location
             spawnLoc = Misc.getPointAtRadius(spawnLocation, 500f);
         } else {
-            // Fallback: spawn near player
             spawnLoc = Misc.getPointAtRadius(playerFleet.getLocationInHyperspace(), 500f);
         }
         debtCollectorFleet.setLocation(spawnLoc.x, spawnLoc.y);
         
-        // Set the fleet to intercept the player
         debtCollectorFleet.getAI().addAssignmentAtStart(FleetAssignment.INTERCEPT, playerFleet, 1000f, null);
         
-        // Give standard return to source assignments
         Misc.giveStandardReturnToSourceAssignments(debtCollectorFleet, false);
         
-        // Set memory flags to identify this as a debt collector fleet
         debtCollectorFleet.getMemoryWithoutUpdate().set("$ipc_debt_collector", true);
         
-        // Track the fleet by ID (survives save/load)
         Global.getSector().getMemoryWithoutUpdate().set(MEM_COLLECTOR_FLEET_ID, debtCollectorFleet.getId());
         
-        // Activate emergency burn (following TriTachLoanIncentiveScript)
         AbilityPlugin eb = debtCollectorFleet.getAbility(Abilities.EMERGENCY_BURN);
         if (eb != null) eb.activate();
         
-        // Send notification to player
         Global.getSector().getCampaignUI().addMessage(
             Strings.get("debt.arrived"),
             Misc.getNegativeHighlightColor()
@@ -392,56 +366,45 @@ public class CasinoDebtScript implements EveryFrameScript {
     }
 
     private CampaignFleetAPI createDebtCollectorFleet() {
-        // Create a bounty hunter style fleet for collecting debt
-        // Following TriTachLoanIncentiveScript pattern
         FleetParamsV3 params = createDebtCollectorFleetParams();
         
-        // Create the fleet using the factory
         CampaignFleetAPI fleet = FleetFactoryV3.createFleet(params);
         if (fleet == null || fleet.isEmpty()) {
             return null;
         }
         
-        // Set the fleet to independent faction so it can be hostile (following TriTach pattern)
         fleet.setFaction(Factions.INDEPENDENT, true);
         Misc.makeLowRepImpact(fleet, "ipc_debt");
         
-        // Make the fleet despawn after some time if not engaged
         fleet.addScript(new AutoDespawnScript(fleet));
         
-        // Set memory flags to make the fleet hostile
         MemoryAPI memory = fleet.getMemoryWithoutUpdate();
         memory.set(MemFlags.MEMORY_KEY_MAKE_HOSTILE, true);
         
         return fleet;
     }
     
-    /**
-     * Create fleet parameters for debt collector fleet
-     */
     private FleetParamsV3 createDebtCollectorFleetParams() {
-        float fleetPoints = 200f; // Size of the fleet (matching TriTach)
+        float fleetPoints = 200f;
         
         FleetParamsV3 params = new FleetParamsV3(
-                null, // market
-                Global.getSector().getPlayerFleet().getLocationInHyperspace(), // location
-                Factions.TRITACHYON, // faction to create the fleet for initially
-                1f, // qualityMod
-                FleetTypes.MERC_BOUNTY_HUNTER, // fleetType
-                fleetPoints, // combatPts
-                0f, // freighterPts 
-                fleetPoints * 0.1f, // tankerPts
-                0f, // transportPts
-                0f, // linerPts
-                0f, // utilityPts
-                0f // qualityMod
+                null,
+                Global.getSector().getPlayerFleet().getLocationInHyperspace(),
+                Factions.TRITACHYON,
+                1f,
+                FleetTypes.MERC_BOUNTY_HUNTER,
+                fleetPoints,
+                0f, 
+                fleetPoints * 0.1f,
+                0f,
+                0f,
+                0f,
+                0f
         );
         
-        // Configure officer settings (matching TriTachLoanIncentiveScript)
         params.officerNumberBonus = 4;
         params.officerLevelBonus = 3;
         
-        // Set doctrine override for more aggressive behavior
         params.doctrineOverride = Global.getSector().getFaction(Factions.TRITACHYON).getDoctrine().clone();
         params.doctrineOverride.setWarships(3);
         params.doctrineOverride.setPhaseShips(3);
@@ -452,30 +415,16 @@ public class CasinoDebtScript implements EveryFrameScript {
         return params;
     }
     
-    /**
-     * Check if a debt collector is currently active (for external queries)
-     */
     public static boolean isCollectorActive() {
         String state = Global.getSector().getMemoryWithoutUpdate().getString(MEM_COLLECTOR_STATE);
         return STATE_ACTIVE.equals(state);
     }
     
-    /**
-     * Check if a debt collector is pending spawn
-     */
     public static boolean isCollectorPending() {
         String state = Global.getSector().getMemoryWithoutUpdate().getString(MEM_COLLECTOR_STATE);
         return STATE_PENDING.equals(state);
     }
     
-    /**
-     * Force reset the debt collector system (for admin/debug purposes)
-     * This is a public API method intended for:
-     * - Console commands (if mod has console integration)
-     * - Debug/testing scenarios
-     * - External mod integration
-     * Similar public reset methods exist in base game for various systems.
-     */
     @SuppressWarnings("unused")
     public static void resetCollectorSystem() {
         Global.getSector().getMemoryWithoutUpdate().set(MEM_COLLECTOR_STATE, STATE_NONE);
@@ -484,13 +433,6 @@ public class CasinoDebtScript implements EveryFrameScript {
         Global.getLogger(CasinoDebtScript.class).info("Debt collector system manually reset");
     }
     
-    /**
-     * Initialize the debt collector system for a new player or save.
-     * Sets default values for all memory keys if not already present.
-     * Called from CasinoModPlugin.onGameLoad().
-     * This ensures proper handling when loading the mod onto an existing game
-     * where the player may already have debt exceeding the threshold.
-     */
     public static void initializeSystem() {
         MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
         
@@ -499,7 +441,7 @@ public class CasinoDebtScript implements EveryFrameScript {
         }
         
         if (!memory.contains(MEM_LAST_SPAWN_TIMESTAMP)) {
-            memory.set(MEM_LAST_SPAWN_TIMESTAMP, Long.valueOf(0L));
+            memory.set(MEM_LAST_SPAWN_TIMESTAMP, 0L);
         }
         
         if (!memory.contains(MEM_WARNED_90_PERCENT)) {

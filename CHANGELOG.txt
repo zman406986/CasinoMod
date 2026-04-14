@@ -1,3 +1,8 @@
+Version 1.5.1
+- Added slot reel animation to gacha pulls.
+- Fixed arena result terminating prematurely.
+- Code clean up.
+
 Version 1.5.0
 - Added 5-player Texas Hold'em poker minigame.
 - Added chip stack visualization bar to poker games.
