@@ -2,6 +2,7 @@ package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.FleetMemberPickerListener;
+import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import data.scripts.casino.CasinoConfig;
@@ -12,9 +13,11 @@ import data.scripts.casino.gacha.GachaAnimationDialogDelegate;
 import data.scripts.casino.Strings;
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class GachaHandler {
 
@@ -31,6 +34,25 @@ public class GachaHandler {
     private static final int RARITY_4_STAR = 4;
     private static final int RARITY_3_STAR = 3;
     private static final int RARITY_2_STAR = 2;
+
+    private static final String MEMORY_KEY_AUTO_CONVERT = "$ipc_gacha_auto_convert";
+
+    private Set<String> getAutoConvertHullIds() {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        Set<String> hullIds = new HashSet<>();
+        if (memory.contains(MEMORY_KEY_AUTO_CONVERT)) {
+            Object data = memory.get(MEMORY_KEY_AUTO_CONVERT);
+            if (data instanceof Set) {
+                hullIds.addAll((Set<String>) data);
+            }
+        }
+        return hullIds;
+    }
+
+    private void saveAutoConvertHullIds(Set<String> hullIds) {
+        MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
+        memory.set(MEMORY_KEY_AUTO_CONVERT, hullIds);
+    }
 
     private final CasinoInteraction main;
     private final Map<String, OptionHandler> handlers = new HashMap<>();
@@ -140,10 +162,15 @@ public class GachaHandler {
         main.textPanel.addPara(Strings.format("gacha.pity_5star", data.pity5, CasinoConfig.PITY_HARD_5));
         main.textPanel.addPara(Strings.format("gacha.pity_4star", data.pity4, CasinoConfig.PITY_HARD_4));
 
+        Set<String> autoConvertHullIds = getAutoConvertHullIds();
+        if (!autoConvertHullIds.isEmpty()) {
+            main.textPanel.addPara(Strings.format("gacha.auto_convert_count", autoConvertHullIds.size()), Color.GRAY);
+        }
+
         displayFinancialInfo();
         addPullOptions();
 
-        main.options.addOption(Strings.get("gacha.view_pool"), OPTION_AUTO_CONVERT);
+        main.options.addOption(Strings.get("gacha.auto_convert_menu"), OPTION_AUTO_CONVERT);
         main.options.addOption(Strings.get("gacha.handbook"), OPTION_HOW_TO_GACHA);
         main.options.addOption(Strings.get("common.back"), OPTION_BACK_MENU);
         main.setState(CasinoInteraction.State.GACHA);
@@ -364,6 +391,9 @@ public class GachaHandler {
     }
 
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {
+        Set<String> autoConvertHullIds = getAutoConvertHullIds();
+        int autoConvertCount = 0;
+
         main.getDialog().showFleetMemberPickerDialog(
             Strings.get("gacha.select_convert"),
             Strings.get("gacha.convert"),
@@ -376,37 +406,64 @@ public class GachaHandler {
             obtainedShips,
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> selectedMembers) {
-                    List<String> selectedHullIds = new ArrayList<>();
+                    Set<String> convertHullIds = new HashSet<>();
                     if (selectedMembers != null) {
                         for (FleetMemberAPI member : selectedMembers) {
                             if (member != null && member.getHullId() != null) {
-                                selectedHullIds.add(member.getHullId());
+                                convertHullIds.add(member.getHullId());
                             }
                         }
                     }
+                    convertHullIds.addAll(autoConvertHullIds);
 
+                    int autoAppliedCount = 0;
                     for (FleetMemberAPI ship : obtainedShips) {
                         if (ship == null) continue;
 
-                        if (selectedHullIds.contains(ship.getHullId())) {
+                        if (convertHullIds.contains(ship.getHullId())) {
                             int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
                             CasinoVIPManager.addToBalance(val);
                             String shipName = ship.getShipName() != null ? ship.getShipName() : Strings.get("gacha.unknown_ship");
                             main.textPanel.addPara(Strings.format("gacha.converted", shipName, val), Color.GREEN);
+                            
+                            if (autoConvertHullIds.contains(ship.getHullId()) && 
+                                (selectedMembers == null || !selectedMembers.contains(ship))) {
+                                autoAppliedCount++;
+                            }
                         } else {
                             Global.getSector().getPlayerFleet().getFleetData().addFleetMember(ship);
                         }
+                    }
+
+                    if (autoAppliedCount > 0) {
+                        main.textPanel.addPara(Strings.format("gacha.auto_convert_applied", autoAppliedCount), Color.CYAN);
                     }
 
                     showPostPullOptions();
                 }
 
                 public void cancelledFleetMemberPicking() {
+                    Set<String> convertHullIds = new HashSet<>(autoConvertHullIds);
+                    int autoAppliedCount = 0;
+
                     for (FleetMemberAPI ship : obtainedShips) {
-                        if (ship != null) {
+                        if (ship == null) continue;
+
+                        if (convertHullIds.contains(ship.getHullId())) {
+                            int val = (int)(ship.getHullSpec().getBaseValue() / CasinoConfig.SHIP_TRADE_RATE * CasinoConfig.SHIP_SELL_MULTIPLIER);
+                            CasinoVIPManager.addToBalance(val);
+                            String shipName = ship.getShipName() != null ? ship.getShipName() : Strings.get("gacha.unknown_ship");
+                            main.textPanel.addPara(Strings.format("gacha.converted", shipName, val), Color.GREEN);
+                            autoAppliedCount++;
+                        } else {
                             Global.getSector().getPlayerFleet().getFleetData().addFleetMember(ship);
                         }
                     }
+
+                    if (autoAppliedCount > 0) {
+                        main.textPanel.addPara(Strings.format("gacha.auto_convert_applied", autoAppliedCount), Color.CYAN);
+                    }
+
                     showPostPullOptions();
                 }
             });
@@ -423,14 +480,35 @@ public class GachaHandler {
         List<FleetMemberAPI> potentialDrops = manager.getPotentialDrops();
 
         main.textPanel.addPara(Strings.format("gacha.current_pool", potentialDrops.size()), Color.CYAN);
-        main.textPanel.addPara(Strings.get("gacha.pool_desc"), Color.GRAY);
+        main.textPanel.addPara(Strings.get("gacha.auto_convert_desc"), Color.GRAY);
 
-        main.getDialog().showFleetMemberPickerDialog(Strings.get("gacha.pool_title"), Strings.get("common.ok"), Strings.get("common.close"), 8, 7, 80, false, false, potentialDrops,
+        main.getDialog().showFleetMemberPickerDialog(
+            Strings.get("gacha.auto_convert_title"),
+            Strings.get("gacha.auto_convert_save"),
+            Strings.get("common.cancel"),
+            8,
+            7,
+            80,
+            true,
+            false,
+            potentialDrops,
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
-                     showGachaMenu();
+                    Set<String> hullIds = new HashSet<>();
+                    if (members != null) {
+                        for (FleetMemberAPI member : members) {
+                            if (member != null && member.getHullId() != null) {
+                                hullIds.add(member.getHullId());
+                            }
+                        }
+                    }
+                    saveAutoConvertHullIds(hullIds);
+                    main.textPanel.addPara(Strings.format("gacha.auto_convert_saved", hullIds.size()), Color.GREEN);
+                    showGachaMenu();
                 }
-                public void cancelledFleetMemberPicking() { showGachaMenu(); }
+                public void cancelledFleetMemberPicking() {
+                    showGachaMenu();
+                }
             });
     }
 

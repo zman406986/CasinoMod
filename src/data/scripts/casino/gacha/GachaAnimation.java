@@ -58,6 +58,31 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final Color BG_COLOR = new Color(25, 25, 35);
     protected static final Color FRAME_BG = new Color(40, 35, 50);
 
+    public static Color getRarityColor(int rarity) {
+        return switch(rarity) {
+            case 5 -> new Color(255, 215, 0);
+            case 4 -> new Color(200, 100, 255);
+            case 3 -> new Color(100, 150, 255);
+            case 2 -> new Color(100, 200, 100);
+            case 1 -> new Color(150, 150, 150);
+            default -> Color.WHITE;
+        };
+    }
+
+    public static float[] toGLComponents(Color color) {
+        return new float[] { color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f };
+    }
+
+    private static void renderQuad(float x, float y, float w, float h, float r, float g, float b, float a) {
+        GL11.glColor4f(r, g, b, a);
+        GL11.glBegin(GL11.GL_QUADS);
+        GL11.glVertex2f(x, y);
+        GL11.glVertex2f(x + w, y);
+        GL11.glVertex2f(x + w, y + h);
+        GL11.glVertex2f(x, y + h);
+        GL11.glEnd();
+    }
+
     public interface GachaAnimationCallback {
         void onAnimationComplete(List<GachaItem> results);
     }
@@ -78,14 +103,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
 
         private void setColorForRarity() {
-            color = switch(rarity) {
-                case 1 -> new Color(150, 150, 150);
-                case 2 -> new Color(100, 200, 100);
-                case 3 -> new Color(100, 150, 255);
-                case 4 -> new Color(200, 100, 255);
-                case 5 -> new Color(255, 215, 0);
-                default -> Color.WHITE;
-            };
+            color = GachaAnimation.getRarityColor(rarity);
         }
 
         public void setHullId(String hullId) {
@@ -93,24 +111,25 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
     }
 
-    public class SlotReel {
+public class SlotReel {
         public int index;
-        public String resultHullId;
-        public int rarity;
-        public Color rarityColor;
-        public float reelCenterX;
-        public float reelWidth;
-        public float scrollOffset = 0f;
-        public float scrollSpeed;
-        public List<String> visibleHullIds = new ArrayList<>();
-        public int resultShipIndex;
-        public boolean isSpinning = true;
-        public boolean isStopping = false;
-        public boolean isStopped = false;
-        public float stopTimer = 0f;
-        public float revealTimer = 0f;
-        public boolean showStars = false;
-        public float starAnimTimer = 0f;
+            public String resultHullId;
+            public int rarity;
+            public Color rarityColor;
+            public float reelCenterX;
+            public float reelWidth;
+            public float scrollOffset = 0f;
+            public float scrollSpeed;
+            public List<String> visibleHullIds = new ArrayList<>();
+            public int resultShipIndex;
+            public boolean isSpinning = true;
+            public boolean isStopping = false;
+            public boolean isStopped = false;
+            public float stopTimer = 0f;
+            public float revealTimer = 0f;
+            public boolean showStars = false;
+            public float starAnimTimer = 0f;
+            public int shiftsToReachCenter = 0;
 
         public SlotReel(int index, String resultHullId, int rarity, float reelCenterX, float reelWidth) {
             this.index = index;
@@ -126,22 +145,13 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
 
         private Color getRarityColor(int r) {
-            return switch(r) {
-                case 5 -> new Color(255, 215, 0);
-                case 4 -> new Color(200, 100, 255);
-                case 3 -> new Color(100, 150, 255);
-                case 2 -> new Color(100, 200, 100);
-                default -> new Color(150, 150, 150);
-            };
+            return GachaAnimation.getRarityColor(r);
         }
 
         private void populateVisibleShips() {
             visibleHullIds.clear();
             for (int i = 0; i < VISIBLE_SHIP_COUNT + 6; i++) {
                 visibleHullIds.add(getRandomPoolHullId());
-            }
-            if (resultHullId != null) {
-                visibleHullIds.set(resultShipIndex, resultHullId);
             }
         }
 
@@ -161,23 +171,25 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             if (isStopping) {
                 stopTimer += amount;
                 float progress = Math.min(1f, stopTimer / STOP_DECEL_DURATION);
+                float remaining = 1f - progress;
+                float speedFactor = remaining * remaining * remaining;
                 
-                if (progress < 1f) {
-                    float remaining = 1f - progress;
-                    float speedFactor = remaining * remaining * remaining;
-                    float currentSpeed = scrollSpeed * speedFactor;
-                    scrollOffset += currentSpeed * amount;
-                    
-                    while (scrollOffset >= SHIP_SLOT_HEIGHT) {
-                        scrollOffset -= SHIP_SLOT_HEIGHT;
-                        shiftShips();
-                    }
+                if (shiftsToReachCenter <= 0) {
+                    speedFactor *= 0.3f;
                 }
                 
-                if (progress >= 1f) {
+                float currentSpeed = scrollSpeed * speedFactor;
+                scrollOffset += currentSpeed * amount;
+                
+                while (scrollOffset >= SHIP_SLOT_HEIGHT) {
+                    scrollOffset -= SHIP_SLOT_HEIGHT;
+                    shiftShipsForStopping();
+                }
+                
+                if (shiftsToReachCenter <= 0 && scrollOffset < 3f) {
                     isStopping = false;
                     isStopped = true;
-                    alignToResult();
+                    scrollOffset = 0f;
                     triggerRevealBurst(this);
                 }
                 return;
@@ -192,18 +204,15 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             }
         }
 
-        private void alignToResult() {
-            scrollOffset = 0f;
-            if (resultHullId != null) {
-                visibleHullIds.set(resultShipIndex, resultHullId);
-            }
-        }
-
         private void shiftShips() {
-            if (!visibleHullIds.isEmpty()) {
-                visibleHullIds.remove(0);
-            }
+            visibleHullIds.remove(0);
             visibleHullIds.add(getRandomPoolHullId());
+        }
+        
+        private void shiftShipsForStopping() {
+            visibleHullIds.remove(0);
+            visibleHullIds.add(getRandomPoolHullId());
+            shiftsToReachCenter--;
         }
 
         public void stop() {
@@ -211,8 +220,13 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             isSpinning = false;
             isStopping = true;
             stopTimer = 0f;
-            scrollOffset = 0f;
-            populateVisibleShips();
+            
+            int resultPosition = visibleHullIds.size() - 1;
+            shiftsToReachCenter = resultPosition - resultShipIndex;
+            
+            if (resultHullId != null) {
+                visibleHullIds.set(resultPosition, resultHullId);
+            }
         }
 
         public void instantStop() {
@@ -220,6 +234,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             isStopping = false;
             isStopped = true;
             scrollOffset = 0f;
+            shiftsToReachCenter = 0;
             revealTimer = 0.2f;
             showStars = true;
             starAnimTimer = 0.15f;
@@ -263,10 +278,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
             float progress = lifetime / maxLifetime;
             float alpha = (1f - progress) * alphaMult;
-            
-            float r = color.getRed() / 255f;
-            float g = color.getGreen() / 255f;
-            float b = color.getBlue() / 255f;
+            float[] c = toGLComponents(color);
 
             for (Pair<Float, Float> particle : particles) {
                 float angle = particle.one;
@@ -274,16 +286,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
                 float dist = speed * lifetime;
                 float px = x + (float)Math.cos(angle) * dist;
                 float py = y + (float)Math.sin(angle) * dist;
-
                 float size = 4f * (1f - progress * 0.5f);
-                
-                GL11.glColor4f(r, g, b, alpha);
-                GL11.glBegin(GL11.GL_QUADS);
-                GL11.glVertex2f(px - size/2, py - size/2);
-                GL11.glVertex2f(px + size/2, py - size/2);
-                GL11.glVertex2f(px + size/2, py + size/2);
-                GL11.glVertex2f(px - size/2, py + size/2);
-                GL11.glEnd();
+                renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
             }
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -330,23 +334,13 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             
-            float r = color.getRed() / 255f;
-            float g = color.getGreen() / 255f;
-            float b = color.getBlue() / 255f;
+            float[] c = toGLComponents(color);
 
             float flashProgress = flashLifetime / flashMaxLifetime;
             if (flashProgress < 1f) {
                 float flashAlpha = (1f - flashProgress) * alphaMult * 0.7f;
                 float currentFlashSize = flashSize * (1f + flashProgress * 1.5f);
-                float halfSize = currentFlashSize / 2f;
-                
-                GL11.glColor4f(r, g, b, flashAlpha);
-                GL11.glBegin(GL11.GL_QUADS);
-                GL11.glVertex2f(x - halfSize, y - halfSize);
-                GL11.glVertex2f(x + halfSize, y - halfSize);
-                GL11.glVertex2f(x + halfSize, y + halfSize);
-                GL11.glVertex2f(x - halfSize, y + halfSize);
-                GL11.glEnd();
+                renderQuad(x - currentFlashSize/2, y - currentFlashSize/2, currentFlashSize, currentFlashSize, c[0], c[1], c[2], flashAlpha);
             }
 
             float progress = lifetime / maxLifetime;
@@ -358,17 +352,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
                 float dist = speed * lifetime;
                 float px = x + (float)Math.cos(angle) * dist;
                 float py = y + (float)Math.sin(angle) * dist;
-
                 float size = 6f * (1f - progress * 0.6f);
-                float halfSize = size / 2f;
-                
-                GL11.glColor4f(r, g, b, alpha);
-                GL11.glBegin(GL11.GL_QUADS);
-                GL11.glVertex2f(px - halfSize, py - halfSize);
-                GL11.glVertex2f(px + halfSize, py - halfSize);
-                GL11.glVertex2f(px + halfSize, py + halfSize);
-                GL11.glVertex2f(px - halfSize, py + halfSize);
-                GL11.glEnd();
+                renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
             }
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -446,8 +431,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         
         renderColorQuad(panelX, panelY, panelW, panelH, BG_COLOR, alphaMult);
 
-        float windowCenterY = panelCenterY;
-        float windowBottom = windowCenterY - WINDOW_HEIGHT / 2f;
+        float windowBottom = panelCenterY - WINDOW_HEIGHT / 2f;
 
         float frameY = windowBottom - FRAME_BORDER;
         float frameH = WINDOW_HEIGHT + FRAME_BORDER * 2;
@@ -470,11 +454,11 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
             renderColorQuad(reelLeft, windowBottom, reelContentWidth, WINDOW_HEIGHT, WINDOW_BG, alphaMult);
 
-            renderReelContent(reel, reelLeft, reelRight, windowCenterY, alphaMult);
+            renderReelContent(reel, reelLeft, reelRight, panelCenterY, alphaMult);
 
             GL11.glDisable(GL11.GL_SCISSOR_TEST);
 
-            renderReelFrame(reel, panelCenterX, windowBottom, WINDOW_HEIGHT, alphaMult);
+            renderReelFrame(reel, panelCenterX, windowBottom, alphaMult);
         }
 
         GL11.glEnable(GL11.GL_TEXTURE_2D);
@@ -488,18 +472,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     }
 
     private void renderColorQuad(float x, float y, float w, float h, Color color, float alphaMult) {
-        float r = color.getRed() / 255f;
-        float g = color.getGreen() / 255f;
-        float b = color.getBlue() / 255f;
-        float a = alphaMult;
-        
-        GL11.glColor4f(r, g, b, a);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glEnd();
+        float[] c = toGLComponents(color);
+        renderQuad(x, y, w, h, c[0], c[1], c[2], alphaMult);
     }
 
     private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, float windowCenterY, float alphaMult) {
@@ -507,104 +481,59 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         float reelCenterX = reelLeft + reelWidth / 2f;
         float maxShipWidth = reelWidth * 0.95f;
         float maxShipHeight = SHIP_SLOT_HEIGHT * 0.85f;
+        float windowHalfHeight = WINDOW_HEIGHT / 2f;
 
         GL11.glEnable(GL11.GL_TEXTURE_2D);
 
         for (int i = 0; i < reel.visibleHullIds.size(); i++) {
             float shipCenterY = windowCenterY + (i - reel.resultShipIndex) * SHIP_SLOT_HEIGHT - reel.scrollOffset;
+            float distanceFromCenter = Math.abs(shipCenterY - windowCenterY);
+            
+            if (distanceFromCenter > windowHalfHeight + SHIP_SLOT_HEIGHT) continue;
 
-            if (shipCenterY < windowCenterY - WINDOW_HEIGHT / 2f - SHIP_SLOT_HEIGHT ||
-                shipCenterY > windowCenterY + WINDOW_HEIGHT / 2f + SHIP_SLOT_HEIGHT) {
-                continue;
-            }
+            float fadeAlpha = Math.max(0.7f, 1f - Math.min(1f, distanceFromCenter / windowHalfHeight)) * alphaMult;
+
+            boolean isResultShip = (i == reel.resultShipIndex);
+            float spriteAlpha = isResultShip && !reel.isStopped ? fadeAlpha * 0.9f : fadeAlpha;
 
             String hullId = reel.visibleHullIds.get(i);
             SpriteAPI sprite = getShipSprite(hullId);
-
-            float distanceFromCenter = Math.abs(shipCenterY - windowCenterY);
-            float fadeAlpha = 1f - Math.min(1f, distanceFromCenter / (WINDOW_HEIGHT / 2f));
-            fadeAlpha = Math.max(0.7f, fadeAlpha);
-            fadeAlpha *= alphaMult;
-
-            boolean isResultShip = (i == reel.resultShipIndex);
-
-            float dimAlpha = fadeAlpha;
-            if (isResultShip && !reel.isStopped) {
-                dimAlpha = fadeAlpha * 0.9f;
-            }
-            renderShipSprite(sprite, reelCenterX, shipCenterY, maxShipWidth, maxShipHeight, Color.WHITE, dimAlpha);
+            renderShipSprite(sprite, reelCenterX, shipCenterY, maxShipWidth, maxShipHeight, spriteAlpha);
         }
 
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-        for (int i = 0; i < reel.visibleHullIds.size(); i++) {
-            float shipCenterY = windowCenterY + (i - reel.resultShipIndex) * SHIP_SLOT_HEIGHT - reel.scrollOffset;
+        if (reel.isStopped) {
+            float shipCenterY = windowCenterY;
+            float glowIntensity = Math.min(1f, reel.revealTimer * 2.5f);
+            
+            if (glowIntensity > 0f && reel.rarity >= 3) {
+                float[] c = toGLComponents(reel.rarityColor);
+                float fadeAlpha = alphaMult;
 
-            if (shipCenterY < windowCenterY - WINDOW_HEIGHT / 2f - SHIP_SLOT_HEIGHT ||
-                shipCenterY > windowCenterY + WINDOW_HEIGHT / 2f + SHIP_SLOT_HEIGHT) {
-                continue;
+                for (int gl = 0; gl < 3; gl++) {
+                    float glowSize = 65f + gl * 25f;
+                    float glowA = glowIntensity * fadeAlpha * 0.18f * (1f - gl * 0.25f);
+                    renderQuad(reelCenterX - glowSize/2, shipCenterY - glowSize/2, glowSize, glowSize, c[0], c[1], c[2], glowA);
+                }
             }
 
-            boolean isResultShip = (i == reel.resultShipIndex);
-
-            if (reel.isStopped && isResultShip) {
-                float glowIntensity = Math.min(1f, reel.revealTimer * 2.5f);
-                
-                if (glowIntensity > 0f && reel.rarity >= 3) {
-                    float r = reel.rarityColor.getRed() / 255f;
-                    float g = reel.rarityColor.getGreen() / 255f;
-                    float b = reel.rarityColor.getBlue() / 255f;
-                    
-                    float distanceFromCenter = Math.abs(shipCenterY - windowCenterY);
-                    float fadeAlpha = 1f - Math.min(1f, distanceFromCenter / (WINDOW_HEIGHT / 2f));
-                    fadeAlpha = Math.max(0.7f, fadeAlpha);
-                    fadeAlpha *= alphaMult;
-
-                    for (int gl = 0; gl < 3; gl++) {
-                        float glowSize = 65f + gl * 25f;
-                        float glowA = glowIntensity * fadeAlpha * 0.18f * (1f - gl * 0.25f);
-                        float halfSize = glowSize / 2f;
-                        
-                        GL11.glColor4f(r, g, b, glowA);
-                        GL11.glBegin(GL11.GL_QUADS);
-                        GL11.glVertex2f(reelCenterX - halfSize, shipCenterY - halfSize);
-                        GL11.glVertex2f(reelCenterX + halfSize, shipCenterY - halfSize);
-                        GL11.glVertex2f(reelCenterX + halfSize, shipCenterY + halfSize);
-                        GL11.glVertex2f(reelCenterX - halfSize, shipCenterY + halfSize);
-                        GL11.glEnd();
-                    }
-                }
-
-                if (reel.showStars) {
-                    float starsY = shipCenterY + SHIP_SLOT_HEIGHT * 0.3f;
-                    renderStars(reelCenterX, starsY, reel.rarity, reel.starAnimTimer, alphaMult);
-                }
+            if (reel.showStars) {
+                float starsY = shipCenterY + SHIP_SLOT_HEIGHT * 0.3f;
+                renderStars(reelCenterX, starsY, reel.rarity, reel.starAnimTimer, alphaMult);
             }
         }
         
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
-    private void renderShipSprite(SpriteAPI sprite, float centerX, float centerY, float maxWidth, float maxHeight, Color color, float alphaMult) {
+    private void renderShipSprite(SpriteAPI sprite, float centerX, float centerY, float maxWidth, float maxHeight, float alphaMult) {
         if (sprite == null) {
-            Color placeholderColor = new Color(80, 80, 100);
-            float r = placeholderColor.getRed() / 255f;
-            float g = placeholderColor.getGreen() / 255f;
-            float b = placeholderColor.getBlue() / 255f;
-            float a = alphaMult * 0.5f;
-            float halfW = maxWidth / 2f;
-            float halfH = maxHeight / 2f;
-            
+            float[] c = toGLComponents(new Color(80, 80, 100));
             GL11.glDisable(GL11.GL_TEXTURE_2D);
-            GL11.glColor4f(r, g, b, a);
-            GL11.glBegin(GL11.GL_QUADS);
-            GL11.glVertex2f(centerX - halfW, centerY - halfH);
-            GL11.glVertex2f(centerX + halfW, centerY - halfH);
-            GL11.glVertex2f(centerX + halfW, centerY + halfH);
-            GL11.glVertex2f(centerX - halfW, centerY + halfH);
-            GL11.glEnd();
+            renderQuad(centerX - maxWidth/2, centerY - maxHeight/2, maxWidth, maxHeight, c[0], c[1], c[2], alphaMult * 0.5f);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
             return;
         }
@@ -616,18 +545,14 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         float scaledH = spriteH * scale;
 
         sprite.setSize(scaledW, scaledH);
-        sprite.setColor(color);
+        sprite.setColor(Color.WHITE);
         sprite.setAlphaMult(alphaMult);
         sprite.setNormalBlend();
         sprite.renderAtCenter(centerX, centerY);
-        sprite.setColor(Color.WHITE);
     }
 
     private void renderStars(float centerX, float centerY, int rarity, float animTimer, float alphaMult) {
-        Color starColor = rarity >= 4 ? new Color(255, 215, 0) : new Color(255, 255, 120);
-        float r = starColor.getRed() / 255f;
-        float g = starColor.getGreen() / 255f;
-        float b = starColor.getBlue() / 255f;
+        float[] c = toGLComponents(rarity >= 4 ? new Color(255, 215, 0) : new Color(255, 255, 120));
         
         float baseSize = 6f;
         float spacing = 10f;
@@ -636,21 +561,17 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
         for (int i = 0; i < rarity; i++) {
             float appearTime = i * 0.04f;
-            float starScale = 1f;
+            if (animTimer < appearTime) continue;
 
-            if (animTimer >= appearTime) {
-                float starProgress = Math.min(1f, (animTimer - appearTime) / 0.1f);
-                starScale = 1.3f - 0.3f * starProgress;
-            } else {
-                continue;
-            }
+            float starProgress = Math.min(1f, (animTimer - appearTime) / 0.1f);
+            float starScale = 1.3f - 0.3f * starProgress;
 
             float starX = startX + i * spacing;
             float size = baseSize * starScale;
             float half = size / 2f;
             float quarter = size / 4f;
 
-            GL11.glColor4f(r, g, b, alphaMult);
+            GL11.glColor4f(c[0], c[1], c[2], alphaMult);
             
             GL11.glBegin(GL11.GL_QUADS);
             GL11.glVertex2f(starX - quarter, centerY - half);
@@ -668,47 +589,21 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         }
     }
 
-    private void renderReelFrame(SlotReel reel, float panelCenterX, float windowBottom, float windowHeight, float alphaMult) {
+    private void renderReelFrame(SlotReel reel, float panelCenterX, float windowBottom, float alphaMult) {
         float reelLeft = panelCenterX + reel.reelCenterX - reel.reelWidth / 2f;
         float reelRight = reelLeft + reel.reelWidth;
-        float windowTop = windowBottom + windowHeight;
+        float windowTop = windowBottom + WINDOW_HEIGHT;
         float border = FRAME_BORDER;
 
-        float fr = FRAME_COLOR.getRed() / 255f;
-        float fg = FRAME_COLOR.getGreen() / 255f;
-        float fb = FRAME_COLOR.getBlue() / 255f;
+        float[] fc = toGLComponents(FRAME_COLOR);
+        GL11.glColor4f(fc[0], fc[1], fc[2], alphaMult);
 
-        GL11.glColor4f(fr, fg, fb, alphaMult);
+        renderQuad(reelLeft, windowBottom - border, reel.reelWidth, border, fc[0], fc[1], fc[2], alphaMult);
+        renderQuad(reelLeft, windowTop, reel.reelWidth, border, fc[0], fc[1], fc[2], alphaMult);
+        renderQuad(reelLeft, windowBottom - border, border, WINDOW_HEIGHT + border * 2, fc[0], fc[1], fc[2], alphaMult);
+        renderQuad(reelRight - border, windowBottom - border, border, WINDOW_HEIGHT + border * 2, fc[0], fc[1], fc[2], alphaMult);
 
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(reelLeft, windowBottom - border);
-        GL11.glVertex2f(reelLeft + reel.reelWidth, windowBottom - border);
-        GL11.glVertex2f(reelLeft + reel.reelWidth, windowBottom);
-        GL11.glVertex2f(reelLeft, windowBottom);
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(reelLeft, windowTop);
-        GL11.glVertex2f(reelLeft + reel.reelWidth, windowTop);
-        GL11.glVertex2f(reelLeft + reel.reelWidth, windowTop + border);
-        GL11.glVertex2f(reelLeft, windowTop + border);
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(reelLeft, windowBottom - border);
-        GL11.glVertex2f(reelLeft + border, windowBottom - border);
-        GL11.glVertex2f(reelLeft + border, windowTop + border);
-        GL11.glVertex2f(reelLeft, windowTop + border);
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(reelRight - border, windowBottom - border);
-        GL11.glVertex2f(reelRight, windowBottom - border);
-        GL11.glVertex2f(reelRight, windowTop + border);
-        GL11.glVertex2f(reelRight - border, windowTop + border);
-        GL11.glEnd();
-
-        float windowCenterY = windowBottom + windowHeight / 2f;
+        float windowCenterY = windowBottom + WINDOW_HEIGHT / 2f;
         float resultWindowH = SHIP_SLOT_HEIGHT + RESULT_WINDOW_PADDING * 2;
         float resultWindowY = windowCenterY - resultWindowH / 2f;
         float resultWindowW = reel.reelWidth - border * 2;
@@ -718,42 +613,15 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         Color highlightColor = reel.isStopped ? reel.rarityColor : CENTER_LINE_COLOR;
         float highlightAlpha = reel.isStopped ? 1f : 0.7f;
 
-        float hr = highlightColor.getRed() / 255f;
-        float hg = highlightColor.getGreen() / 255f;
-        float hb = highlightColor.getBlue() / 255f;
+        float[] hc = toGLComponents(highlightColor);
+        float hAlpha = alphaMult * highlightAlpha;
 
-        GL11.glColor4f(hr, hg, hb, alphaMult * highlightAlpha);
-
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(resultWindowX, resultWindowY);
-        GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY);
-        GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY + highlightThickness);
-        GL11.glVertex2f(resultWindowX, resultWindowY + highlightThickness);
-        GL11.glEnd();
-
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(resultWindowX, resultWindowY + resultWindowH - highlightThickness);
-        GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY + resultWindowH - highlightThickness);
-        GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY + resultWindowH);
-        GL11.glVertex2f(resultWindowX, resultWindowY + resultWindowH);
-        GL11.glEnd();
+        renderQuad(resultWindowX, resultWindowY, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
+        renderQuad(resultWindowX, resultWindowY + resultWindowH - highlightThickness, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
 
         if (reel.isStopped) {
-            GL11.glColor4f(hr, hg, hb, alphaMult * highlightAlpha * 0.6f);
-
-            GL11.glBegin(GL11.GL_QUADS);
-            GL11.glVertex2f(resultWindowX, resultWindowY);
-            GL11.glVertex2f(resultWindowX + highlightThickness, resultWindowY);
-            GL11.glVertex2f(resultWindowX + highlightThickness, resultWindowY + resultWindowH);
-            GL11.glVertex2f(resultWindowX, resultWindowY + resultWindowH);
-            GL11.glEnd();
-
-            GL11.glBegin(GL11.GL_QUADS);
-            GL11.glVertex2f(resultWindowX + resultWindowW - highlightThickness, resultWindowY);
-            GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY);
-            GL11.glVertex2f(resultWindowX + resultWindowW, resultWindowY + resultWindowH);
-            GL11.glVertex2f(resultWindowX + resultWindowW - highlightThickness, resultWindowY + resultWindowH);
-            GL11.glEnd();
+            renderQuad(resultWindowX, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
+            renderQuad(resultWindowX + resultWindowW - highlightThickness, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
         }
         
         GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -792,15 +660,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         activeRevealBursts.removeIf(burst -> !burst.advance(amount));
 
         if (!allRevealed) {
-            boolean allStopped = true;
-            for (SlotReel reel : reels) {
-                if (!reel.isStopped) {
-                    allStopped = false;
-                    break;
-                }
-            }
-
-            if (allStopped) {
+            if (allReelsStopped()) {
                 float minRevealTime = 0.35f;
                 boolean readyToComplete = true;
                 for (SlotReel reel : reels) {
@@ -811,10 +671,7 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
                 }
 
                 if (readyToComplete) {
-                    allRevealed = true;
-                    for (GachaItem item : allItems) {
-                        item.revealed = true;
-                    }
+                    markAllRevealed();
                 }
             }
         }
@@ -865,19 +722,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             }
         }
 
-        boolean allStopped = true;
-        for (SlotReel reel : reels) {
-            if (!reel.isStopped) {
-                allStopped = false;
-                break;
-            }
-        }
-
-        if (allStopped) {
-            allRevealed = true;
-            for (GachaItem item : allItems) {
-                item.revealed = true;
-            }
+        if (allReelsStopped()) {
+            markAllRevealed();
         }
     }
 
@@ -888,6 +734,20 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
         activeRevealBursts.add(new RevealBurst(centerX, panelCenterY, reel.rarityColor));
         activeBursts.add(new ParticleBurst(centerX, panelCenterY, reel.rarityColor, 10 + reel.rarity * 3));
+    }
+
+    private boolean allReelsStopped() {
+        for (SlotReel reel : reels) {
+            if (!reel.isStopped) return false;
+        }
+        return true;
+    }
+
+    private void markAllRevealed() {
+        allRevealed = true;
+        for (GachaItem item : allItems) {
+            item.revealed = true;
+        }
     }
 
     private void closeAnimation() {
@@ -912,14 +772,11 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
             reel.isStopping = false;
             reel.isStopped = false;
             reel.scrollOffset = 0f;
+            reel.shiftsToReachCenter = 0;
             reel.revealTimer = 0f;
             reel.showStars = false;
             reel.starAnimTimer = 0f;
             reel.populateVisibleShips();
         }
-    }
-
-    public boolean isAnimationComplete() {
-        return allRevealed;
     }
 }

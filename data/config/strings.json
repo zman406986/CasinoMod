@@ -72,7 +72,14 @@
         "star_5_tag": "[5*]",
         "featured_4star_tag": "[FEATURED 4*]",
         "star_4_tag": "[4*]",
-        "star_3_tag": "[3*]"
+        "star_3_tag": "[3*]",
+        "auto_convert_menu": "Auto-Convert Settings",
+        "auto_convert_title": "Set Auto-Convert Ships:",
+        "auto_convert_desc": "Select ships to automatically convert to Stargems when pulled:",
+        "auto_convert_save": "Save",
+        "auto_convert_saved": "Auto-convert settings saved. %d ships marked for automatic conversion.",
+        "auto_convert_count": "Auto-Convert: %d ships marked",
+        "auto_convert_applied": "(%d ships auto-converted from your settings)"
     },
     "gacha_overdraft": {
         "alert_title": "IPC CREDIT ALERT",
