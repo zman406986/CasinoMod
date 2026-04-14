@@ -37,6 +37,7 @@ public class GachaHandler {
 
     private static final String MEMORY_KEY_AUTO_CONVERT = "$ipc_gacha_auto_convert";
 
+    @SuppressWarnings("unchecked")
     private Set<String> getAutoConvertHullIds() {
         MemoryAPI memory = Global.getSector().getMemoryWithoutUpdate();
         Set<String> hullIds = new HashSet<>();
@@ -392,7 +393,6 @@ public class GachaHandler {
 
     private void showConvertSelectionPicker(List<FleetMemberAPI> obtainedShips) {
         Set<String> autoConvertHullIds = getAutoConvertHullIds();
-        int autoConvertCount = 0;
 
         main.getDialog().showFleetMemberPickerDialog(
             Strings.get("gacha.select_convert"),
@@ -490,7 +490,7 @@ public class GachaHandler {
             7,
             80,
             true,
-            false,
+            true,
             potentialDrops,
             new FleetMemberPickerListener() {
                 public void pickedFleetMembers(List<FleetMemberAPI> members) {
