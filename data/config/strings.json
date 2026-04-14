@@ -437,6 +437,10 @@
     "gacha_animation": {
         "skip": "Skip"
     },
+    "gacha_slot": {
+        "click_stop": "Click anywhere to stop reels",
+        "click_continue": "Click anywhere to continue"
+    },
     "poker": {
         "resuming": "Resuming your suspended poker game...",
         "dealer_eyes_coldly": "The IPC Dealer eyes you coldly.",

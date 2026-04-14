@@ -12,8 +12,6 @@ import com.fs.starfarer.api.ui.CustomPanelAPI;
 public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate {
     
     protected CustomVisualDialogDelegate.DialogCallbacks callbacks;
-    protected float endDelay = 1f;
-    protected boolean finished = false;
     
     protected String musicId;
     protected GachaAnimation gachaAnimation;
@@ -47,13 +45,6 @@ public class GachaAnimationDialogDelegate implements CustomVisualDialogDelegate 
     }
     
     public void advance(float amount) {
-        if (!finished && gachaAnimation.isAnimationComplete()) {
-            endDelay = 0f;
-            callbacks.getPanelFader().fadeOut();
-            if (callbacks.getPanelFader().isFadedOut()) {
-                finished = true;
-            }
-        }
     }
     
     public void reportDismissed(int option) {

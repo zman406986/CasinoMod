@@ -437,6 +437,10 @@
     "gacha_animation": {
         "skip": "跳过"
     },
+    "gacha_slot": {
+        "click_stop": "点击任意位置停止转盘",
+        "click_continue": "点击任意位置继续"
+    },
     "poker_suits": {
         "spades": "黑桃",
         "hearts": "红桃",

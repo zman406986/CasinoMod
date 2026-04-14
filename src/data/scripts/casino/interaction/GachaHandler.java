@@ -331,9 +331,19 @@ public class GachaHandler {
 
         GachaAnimation animation = new GachaAnimation(itemsToAnimate, results -> justCompletedPull = true);
 
+        CasinoGachaManager poolManager = new CasinoGachaManager();
+        List<FleetMemberAPI> poolShips = poolManager.getPotentialDrops();
+        List<String> poolHullIds = new ArrayList<>();
+        for (FleetMemberAPI member : poolShips) {
+            if (member != null && member.getHullId() != null) {
+                poolHullIds.add(member.getHullId());
+            }
+        }
+        animation.setPoolHullIds(poolHullIds);
+
         GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, this::showGachaMenu);
 
-        main.getDialog().showCustomVisualDialog(800f, 600f, delegate);
+        main.getDialog().showCustomVisualDialog(1000f, 700f, delegate);
     }
 
     private int getRarityFromResult(String result) {
