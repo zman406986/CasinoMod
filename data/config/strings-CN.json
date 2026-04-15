@@ -928,5 +928,13 @@
     "blackjack_resume": {
         "continue": "继续",
         "wait": "再等一会儿"
+    },
+    "gacha_picker": {
+        "title": "选择要转化为星石的舰船:",
+        "auto_count": "自动转化: %d",
+        "selected_count": "已选择: %d 舰船",
+        "convert_btn": "转化 (%d 舰船)",
+        "keep_all_btn": "全部保留",
+        "value_format": "%d 星石"
     }
 }

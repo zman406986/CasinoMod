@@ -928,5 +928,13 @@
         "overdraft_title": "OVERDRAFT CONFIRMATION",
         "odds": "Odds: %.2fx",
         "bet_detail": "R%d %.2fx"
+    },
+    "gacha_picker": {
+        "title": "Select ships to convert to Stargems:",
+        "auto_count": "Auto-Convert: %d",
+        "selected_count": "Selected: %d ships",
+        "convert_btn": "Convert (%d ships)",
+        "keep_all_btn": "Keep All",
+        "value_format": "%d SG"
     }
 }

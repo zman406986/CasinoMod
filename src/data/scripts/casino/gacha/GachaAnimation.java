@@ -16,32 +16,19 @@ import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
 import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
+import com.fs.starfarer.api.ui.Alignment;
 import com.fs.starfarer.api.ui.CustomPanelAPI;
+import com.fs.starfarer.api.ui.LabelAPI;
 import com.fs.starfarer.api.ui.PositionAPI;
+import com.fs.starfarer.api.ui.UIComponentAPI;
+import com.fs.starfarer.api.ui.Fonts;
 import com.fs.starfarer.api.util.Pair;
 
 public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
-    /*
-     * Y COORDINATE SYSTEM (OpenGL rendering in renderBelow):
-     * - Y=0 at BOTTOM of screen, Y increases UPWARD
-     * - Higher Y value = TOP of screen (visually)
-     * - Lower Y value = BOTTOM of screen (visually)
-     * - windowCenterY + offset = position ABOVE center (higher Y, top visually)
-     * - windowCenterY - offset = position BELOW center (lower Y, bottom visually)
-     * 
-     * REEL SCROLLING:
-     * - Ships scroll DOWNWARD visually (from top of window toward bottom)
-     * - Increasing scrollOffset → ships move to lower Y → DOWNWARD visually
-     * - scrollOffset resets to 0 after reaching SHIP_SLOT_HEIGHT (70f)
-     * - New filler ships appear at top (higher Y) when scrollOffset resets
-     * 
-     * RESULT SHIP POSITIONING:
-     * - resultShipVisualOffset: positive = ABOVE center (at TOP, waiting to enter)
-     * - During stopping: offset decreases → ship moves DOWNWARD toward center
-     * - Offset 0 = exactly at center
-     * - Negative offset = BELOW center (overshoot position for bounce)
-     */
+    // OpenGL Y=0 at BOTTOM, Y increases UPWARD. Increasing scrollOffset moves ships DOWNWARD visually.
+    // targetListIndex: position in visibleHullIds where target ship resides. Decrements as reel shifts.
+    // scrollOffset: controls ship vertical offset, also used for bounce animation (overshoot → 0).
 
     protected DialogCallbacks callbacks;
     protected CustomPanelAPI panel;
@@ -51,8 +38,10 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected List<SlotReel> reels = new ArrayList<>();
     protected List<String> poolHullIds = new ArrayList<>();
     protected int nextReelToStop = 0;
+    protected int pendingStopCount = 0;
     protected boolean allRevealed = false;
     protected float animationTimer = 0f;
+    protected LabelAPI[] reelLabels;
 
     protected List<ParticleBurst> activeBursts = new ArrayList<>();
     protected List<RevealBurst> activeRevealBursts = new ArrayList<>();
@@ -67,6 +56,9 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final float SINGLE_REEL_WIDTH = 220f;
     protected static final float MULTI_REEL_WIDTH = 85f;
     protected static final float MULTI_REEL_SPACING = 5f;
+    protected static final float LABEL_HEIGHT = 20f;
+    protected static final float LABEL_Y_OFFSET = 8f;
+    protected static final float MIN_REVEAL_TIME = 0.3f;
 
     protected static final float SCROLL_SPEED_BASE = 310f;
     protected static final float SCROLL_SPEED_VARIANCE = 30f;
@@ -151,13 +143,14 @@ public class SlotReel {
         public float revealTimer = 0f;
         public boolean showStars = false;
         public float starAnimTimer = 0f;
-        public float resultShipVisualOffset = 0f;
-        public float stopDistance = 0f;
-        public float bounceOffset = 0f;
         public boolean bouncePhase = false;
         public float bounceTimer = 0f;
-        public static final float OVERSHOOT_AMOUNT = -30f;
-        public static final float BOUNCE_DURATION = 0.3f;
+        public float initialBounceOffset = 0f;
+        public static final float OVERSHOOT_AMOUNT = 15f;
+        public static final float BOUNCE_DURATION = 0.15f;
+        public static final int SLOTS_TO_SCROLL = 5;
+        public int shiftsRemaining;
+        public int targetListIndex = -1;
 
         public SlotReel(int index, String resultHullId, int rarity, float reelCenterX, float reelWidth) {
             this.index = index;
@@ -200,15 +193,13 @@ public class SlotReel {
                 bounceTimer += amount;
                 float progress = Math.min(1f, bounceTimer / BOUNCE_DURATION);
                 float easeOut = 1f - (1f - progress) * (1f - progress);
-                bounceOffset = -OVERSHOOT_AMOUNT * easeOut;
+                scrollOffset = initialBounceOffset * (1f - easeOut);
                 
                 if (progress >= 1f) {
-                    bounceOffset = -OVERSHOOT_AMOUNT;
+                    scrollOffset = 0f;
                     bouncePhase = false;
                     isStopping = false;
                     isStopped = true;
-                    resultShipVisualOffset = 0f;
-                    scrollOffset = 0f;
                     triggerRevealBurst(this);
                 }
                 return;
@@ -221,21 +212,26 @@ public class SlotReel {
                 float speedFactor = remaining * remaining;
                 
                 float currentSpeed = scrollSpeed * speedFactor;
-                scrollOffset += currentSpeed * amount;
+                float scrollDistance = currentSpeed * amount;
+                scrollOffset += scrollDistance;
                 
-                while (scrollOffset >= SHIP_SLOT_HEIGHT) {
-                    scrollOffset -= SHIP_SLOT_HEIGHT;
-                    shiftShips();
+                if (shiftsRemaining > 0) {
+                    while (scrollOffset >= SHIP_SLOT_HEIGHT) {
+                        scrollOffset -= SHIP_SLOT_HEIGHT;
+                        shiftsRemaining--;
+                        visibleHullIds.remove(0);
+                        visibleHullIds.add(getRandomPoolHullId());
+                        
+                        if (targetListIndex > 0) {
+                            targetListIndex--;
+                        }
+                    }
                 }
                 
-                resultShipVisualOffset -= currentSpeed * amount;
-                
-                if (resultShipVisualOffset <= OVERSHOOT_AMOUNT) {
-                    scrollOffset = 0f;
+                if (shiftsRemaining <= 0 && scrollOffset >= OVERSHOOT_AMOUNT) {
                     bouncePhase = true;
                     bounceTimer = 0f;
-                    bounceOffset = 0f;
-                    resultShipVisualOffset = OVERSHOOT_AMOUNT;
+                    initialBounceOffset = scrollOffset;
                 }
                 return;
             }
@@ -260,14 +256,17 @@ public class SlotReel {
             isStopping = true;
             stopTimer = 0f;
             bouncePhase = false;
-            bounceOffset = 0f;
+            initialBounceOffset = 0f;
             
-            scrollOffset = 0f;
+            targetListIndex = resultShipIndex + SLOTS_TO_SCROLL;
+            if (targetListIndex < visibleHullIds.size()) {
+                visibleHullIds.set(targetListIndex, resultHullId);
+            }
             
-            stopDistance = 4 * SHIP_SLOT_HEIGHT;
-            resultShipVisualOffset = stopDistance;
+            shiftsRemaining = SLOTS_TO_SCROLL;
             
-            stopDecelDuration = 3f * stopDistance / scrollSpeed;
+            float totalDistance = SLOTS_TO_SCROLL * SHIP_SLOT_HEIGHT + OVERSHOOT_AMOUNT;
+            stopDecelDuration = Math.max(0.5f, 3f * totalDistance / scrollSpeed);
         }
 
         public void instantStop() {
@@ -276,8 +275,9 @@ public class SlotReel {
             bouncePhase = false;
             isStopped = true;
             scrollOffset = 0f;
-            resultShipVisualOffset = 0f;
-            bounceOffset = 0f;
+            initialBounceOffset = 0f;
+            targetListIndex = resultShipIndex;
+            visibleHullIds.set(resultShipIndex, resultHullId);
             revealTimer = 0.2f;
             showStars = true;
             starAnimTimer = 0.15f;
@@ -431,6 +431,34 @@ public class SlotReel {
         this.panel = panel;
         this.callbacks = callbacks;
         createReels();
+        createReelLabels();
+    }
+
+    private void createReelLabels() {
+        if (panel == null || reels.isEmpty()) return;
+        
+        int numReels = reels.size();
+        boolean isSingle = numReels == 1;
+        float reelWidth = isSingle ? SINGLE_REEL_WIDTH : MULTI_REEL_WIDTH;
+        
+        float panelH = panel.getPosition().getHeight();
+        float panelX = panel.getPosition().getX();
+        float panelCenterX = panel.getPosition().getCenterX();
+        
+        float labelY = panelH / 2f + WINDOW_HEIGHT / 2f + FRAME_BORDER + LABEL_Y_OFFSET;
+        
+        reelLabels = new LabelAPI[numReels];
+        
+        for (int i = 0; i < numReels; i++) {
+            SlotReel reel = reels.get(i);
+            float labelX = panelCenterX + reel.reelCenterX - reelWidth / 2f - panelX;
+            
+            LabelAPI lbl = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
+            lbl.setAlignment(Alignment.MID);
+            lbl.setColor(CENTER_LINE_COLOR);
+            panel.addComponent((UIComponentAPI) lbl).inTL(labelX, labelY).setSize(reelWidth, LABEL_HEIGHT);
+            reelLabels[i] = lbl;
+        }
     }
 
     private void createReels() {
@@ -516,7 +544,7 @@ public class SlotReel {
         renderQuad(x, y, w, h, c[0], c[1], c[2], alphaMult);
     }
 
-    private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, float windowCenterY, float alphaMult) {
+private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, float windowCenterY, float alphaMult) {
         float reelWidth = reelRight - reelLeft;
         float reelCenterX = reelLeft + reelWidth / 2f;
         float maxShipWidth = reelWidth * 0.95f;
@@ -526,11 +554,7 @@ public class SlotReel {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
 
         for (int i = 0; i < reel.visibleHullIds.size(); i++) {
-            if (reel.isStopping || reel.bouncePhase || reel.isStopped) {
-                if (i == reel.resultShipIndex) continue;
-            }
-            
-            float shipCenterY = windowCenterY + (i - reel.resultShipIndex) * SHIP_SLOT_HEIGHT - reel.scrollOffset + reel.bounceOffset;
+            float shipCenterY = windowCenterY + (i - reel.resultShipIndex) * SHIP_SLOT_HEIGHT - reel.scrollOffset;
             float distanceFromCenter = Math.abs(shipCenterY - windowCenterY);
             
             if (distanceFromCenter > windowHalfHeight + SHIP_SLOT_HEIGHT) continue;
@@ -540,13 +564,6 @@ public class SlotReel {
             String hullId = reel.visibleHullIds.get(i);
             SpriteAPI sprite = getShipSprite(hullId);
             renderShipSprite(sprite, reelCenterX, shipCenterY, maxShipWidth, maxShipHeight, fadeAlpha);
-        }
-        
-        if (reel.isStopping || reel.bouncePhase || reel.isStopped) {
-            float resultY = windowCenterY + reel.resultShipVisualOffset + reel.bounceOffset;
-            SpriteAPI resultSprite = getShipSprite(reel.resultHullId);
-            float resultAlpha = reel.isStopped ? alphaMult : Math.max(0.7f, 1f - Math.abs(reel.resultShipVisualOffset + reel.bounceOffset) / windowHalfHeight) * alphaMult;
-            renderShipSprite(resultSprite, reelCenterX, resultY, maxShipWidth, maxShipHeight, resultAlpha);
         }
 
         GL11.glDisable(GL11.GL_TEXTURE_2D);
@@ -702,6 +719,22 @@ public class SlotReel {
             reel.advance(amount);
         }
 
+        if (pendingStopCount > 0 && nextReelToStop > 0) {
+            SlotReel prevReel = reels.get(nextReelToStop - 1);
+            if (prevReel.revealTimer >= MIN_REVEAL_TIME) {
+                for (int i = nextReelToStop; i < reels.size(); i++) {
+                    if (reels.get(i).isSpinning) {
+                        reels.get(i).stop();
+                        nextReelToStop++;
+                        pendingStopCount--;
+                        break;
+                    }
+                }
+            }
+        }
+
+        updateReelLabels();
+
         activeBursts.removeIf(burst -> !burst.advance(amount));
         activeRevealBursts.removeIf(burst -> !burst.advance(amount));
 
@@ -719,6 +752,27 @@ public class SlotReel {
                 if (readyToComplete) {
                     markAllRevealed();
                 }
+            }
+        }
+    }
+
+    private void updateReelLabels() {
+        if (reelLabels == null) return;
+        
+        for (int i = 0; i < reels.size(); i++) {
+            SlotReel reel = reels.get(i);
+            LabelAPI lbl = reelLabels[i];
+            
+            if (reel.isStopped) {
+                lbl.setText("");
+            } else if (reel.isStopping) {
+                lbl.setText("Stopping...");
+                lbl.setColor(Color.YELLOW);
+            } else if (i == nextReelToStop) {
+                lbl.setText("Click to stop");
+                lbl.setColor(CENTER_LINE_COLOR);
+            } else {
+                lbl.setText("");
             }
         }
     }
@@ -756,8 +810,14 @@ public class SlotReel {
         for (int i = nextReelToStop; i < reels.size(); i++) {
             SlotReel reel = reels.get(i);
             if (reel.isSpinning) {
-                reel.stop();
-                nextReelToStop = i + 1;
+                boolean canStopNow = nextReelToStop == 0 || reels.get(nextReelToStop - 1).revealTimer >= MIN_REVEAL_TIME;
+                
+                if (canStopNow) {
+                    reel.stop();
+                    nextReelToStop = i + 1;
+                } else {
+                    pendingStopCount++;
+                }
                 return;
             }
         }
@@ -808,6 +868,7 @@ public class SlotReel {
     public void startAnimation() {
         animationTimer = 0f;
         nextReelToStop = 0;
+        pendingStopCount = 0;
         allRevealed = false;
         activeBursts.clear();
         activeRevealBursts.clear();
@@ -819,12 +880,15 @@ public class SlotReel {
             reel.isStopped = false;
             reel.bouncePhase = false;
             reel.scrollOffset = 0f;
-            reel.resultShipVisualOffset = 0f;
-            reel.bounceOffset = 0f;
+            reel.initialBounceOffset = 0f;
+            reel.shiftsRemaining = 0;
             reel.revealTimer = 0f;
             reel.showStars = false;
             reel.starAnimTimer = 0f;
+            reel.targetListIndex = -1;
             reel.populateVisibleShips();
         }
+        
+        updateReelLabels();
     }
 }
