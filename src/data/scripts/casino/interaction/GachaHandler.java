@@ -324,6 +324,10 @@ public class GachaHandler {
         CasinoVIPManager.addToBalance(-cost);
 
         CasinoGachaManager manager = new CasinoGachaManager();
+        CasinoGachaManager.GachaData gachaData = manager.getData();
+        int initialPity5 = gachaData.pity5;
+        int initialPity4 = gachaData.pity4;
+        
         main.textPanel.addPara(Strings.get("gacha.initiating"), Color.CYAN);
 
         List<FleetMemberAPI> obtainedShips = new ArrayList<>();
@@ -333,10 +337,10 @@ public class GachaHandler {
             pullResults.add(result);
         }
 
-        showGachaAnimation(pullResults, obtainedShips);
+        showGachaAnimation(pullResults, obtainedShips, initialPity5, initialPity4);
     }
 
-    private void showGachaAnimation(List<String> pullResults, List<FleetMemberAPI> obtainedShips) {
+    private void showGachaAnimation(List<String> pullResults, List<FleetMemberAPI> obtainedShips, int initialPity5, int initialPity4) {
         List<GachaAnimation.GachaItem> itemsToAnimate = new ArrayList<>();
 
         for (int i = 0; i < pullResults.size(); i++) {
@@ -370,6 +374,7 @@ public class GachaHandler {
             }
         }
         animation.setPoolHullIds(poolHullIds);
+        animation.setInitialPity(initialPity5, initialPity4);
 
         GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, this::showGachaMenu);
 

@@ -89,3 +89,4 @@ docs/
 # Build outputs (keep Casino.jar)
 jars/classes/
 jars/generated-sources/
+/HSR_GalaxyCombatParty.md

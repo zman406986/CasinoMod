@@ -59,8 +59,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
     private static final Color COLOR_BG_DARK = new Color(15, 15, 20);
     private static final Color COLOR_BOX_BG = new Color(40, 40, 50);
-    private static final Color COLOR_AUTO_CONVERT = new Color(255, 215, 0);
-    private static final Color COLOR_MANUAL_SELECTED = new Color(50, 200, 50);
     private static final Color COLOR_CHECKBOX_GOLD = new Color(255, 215, 0);
     private static final Color COLOR_CHECKBOX_GREEN = new Color(50, 200, 50);
     private static final Color COLOR_UNSELECTED = new Color(100, 100, 120);
@@ -82,11 +80,13 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     private final Set<Integer> autoConvertIndices = new HashSet<>();
     private final Map<Integer, Integer> shipValues = new HashMap<>();
 
-    private LabelAPI titleLabel;
     private LabelAPI autoCountLabel;
     private LabelAPI selectedCountLabel;
 
     private final List<LabelAPI> shipNameLabels = new ArrayList<>();
+
+    private int lastAutoCount = -1;
+    private int lastSelectedCount = -1;
 
     private ButtonAPI convertButton;
     private ButtonAPI keepAllButton;
@@ -190,14 +190,14 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     }
 
     private void createHeaderLabels() {
-        titleLabel = settings.createLabel(Strings.get("gacha_picker.title"), Fonts.DEFAULT_SMALL);
+        LabelAPI titleLabel = settings.createLabel(Strings.get("gacha_picker.title"), Fonts.DEFAULT_SMALL);
         titleLabel.setColor(Color.CYAN);
         titleLabel.setAlignment(Alignment.LMID);
         panel.addComponent((UIComponentAPI) titleLabel).inTL(MARGIN, MARGIN)
             .setSize(PANEL_WIDTH - MARGIN * 2, HEADER_HEIGHT);
 
         autoCountLabel = settings.createLabel(Strings.format("gacha_picker.auto_count", autoConvertIndices.size()), Fonts.DEFAULT_SMALL);
-        autoCountLabel.setColor(COLOR_AUTO_CONVERT);
+        autoCountLabel.setColor(COLOR_AUTO_TAG);
         autoCountLabel.setAlignment(Alignment.RMID);
         panel.addComponent((UIComponentAPI) autoCountLabel).inTL(MARGIN, MARGIN)
             .setSize(PANEL_WIDTH - MARGIN * 2, HEADER_HEIGHT);
@@ -257,7 +257,7 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
             ButtonAPI shipBtn = btnTp.addButton("", ACTION_SELECT_SHIP + i, SHIP_BOX_WIDTH, SHIP_BOX_HEIGHT + CHECKBOX_SIZE, 0f);
             shipBtn.getPosition().inTL(boxX, boxY);
-            shipBtn.setOpacity(0f);
+            shipBtn.setOpacity(0.01f);
             shipBtn.setQuickMode(true);
             shipButtons.add(shipBtn);
         }
@@ -282,13 +282,19 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     }
 
     private void updateLabels() {
-        autoCountLabel.setText(Strings.format("gacha_picker.auto_count", autoConvertIndices.size()));
+        int autoCount = autoConvertIndices.size();
+        if (autoCount != lastAutoCount) {
+            lastAutoCount = autoCount;
+            autoCountLabel.setText(Strings.format("gacha_picker.auto_count", autoCount));
+        }
 
         int selectedCount = getSelectedCount();
-        selectedCountLabel.setText(Strings.format("gacha_picker.selected_count", selectedCount));
-
-        if (convertButton != null) {
-            convertButton.setText(Strings.format("gacha_picker.convert_btn", selectedCount));
+        if (selectedCount != lastSelectedCount) {
+            lastSelectedCount = selectedCount;
+            selectedCountLabel.setText(Strings.format("gacha_picker.selected_count", selectedCount));
+            if (convertButton != null) {
+                convertButton.setText(Strings.format("gacha_picker.convert_btn", selectedCount));
+            }
         }
 
         for (int i = 0; i < shipNameLabels.size() && i < ships.size(); i++) {
@@ -356,18 +362,9 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
             boolean isSelected = selectedIndices.contains(i);
             boolean isAuto = autoConvertIndices.contains(i);
 
-            float boxAlpha = isSelected ? 1f : 0.7f;
+            Misc.renderQuad(panelX + boxX, screenY, SHIP_BOX_WIDTH, SHIP_BOX_HEIGHT, COLOR_BOX_BG, alphaMult * 0.9f);
 
-            Misc.renderQuad(panelX + boxX, screenY, SHIP_BOX_WIDTH, SHIP_BOX_HEIGHT, COLOR_BOX_BG, alphaMult * 0.9f * boxAlpha);
-
-            Color borderColor;
-            if (isSelected) {
-                borderColor = isAuto ? COLOR_AUTO_CONVERT : COLOR_MANUAL_SELECTED;
-            } else {
-                borderColor = COLOR_UNSELECTED;
-            }
-
-            GL11.glColor4f(borderColor.getRed() / 255f, borderColor.getGreen() / 255f, borderColor.getBlue() / 255f, alphaMult * 0.9f);
+            GL11.glColor4f(COLOR_UNSELECTED.getRed() / 255f, COLOR_UNSELECTED.getGreen() / 255f, COLOR_UNSELECTED.getBlue() / 255f, alphaMult * 0.9f);
             GL11.glLineWidth(2f);
             GL11.glBegin(GL11.GL_LINE_LOOP);
             GL11.glVertex2f(panelX + boxX, screenY);
@@ -380,7 +377,7 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
             SpriteAPI sprite = getShipSprite(ship.getHullId());
             if (sprite != null) {
-                renderShipSprite(sprite, panelX + boxX, screenY, alphaMult * boxAlpha);
+                renderShipSprite(sprite, panelX + boxX, screenY, alphaMult);
             }
         }
 
@@ -439,18 +436,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     }
 
     public void processInput(List<InputEventAPI> events) {
-        for (InputEventAPI event : events) {
-            if (event.isConsumed()) continue;
-
-            if (event.isKeyDownEvent()) {
-                int key = event.getEventValue();
-                if (key == Keyboard.KEY_ESCAPE) {
-                    callbacks.dismissDialog();
-                    event.consume();
-                    return;
-                }
-            }
-        }
     }
 
     @Override

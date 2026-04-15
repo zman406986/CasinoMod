@@ -185,10 +185,6 @@ public class ArenaDialogDelegate implements CustomVisualDialogDelegate, ArenaAct
         this.pendingBattleEnd = pending;
     }
     
-    public boolean getPendingBattleEnd() {
-        return pendingBattleEnd;
-    }
-    
     public void clearPendingActions() {
         pendingLeave = false;
         pendingSuspend = false;
