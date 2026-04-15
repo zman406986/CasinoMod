@@ -91,8 +91,8 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final float CABINET_PADDING = 15f;
     
     protected static final float LIGHT_RADIUS = 5f;
-    protected static final int LIGHTS_PER_SIDE = 5;
-    protected static final float LIGHT_CHASE_SPEED = 0.06f;
+    protected static final int LIGHTS_PER_SIDE = 10;
+    protected static final float LIGHT_CHASE_SPEED = 0.08f;
     protected static final Color LIGHT_COLOR_OFF = new Color(60, 50, 30);
     protected static final Color LIGHT_COLOR_ON = new Color(255, 200, 50);
     protected static final Color LIGHT_COLOR_FLASH = new Color(255, 255, 150);
@@ -101,8 +101,6 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final float HANDLE_BALL_RADIUS = 10f;
     protected static final float HANDLE_OFFSET = 20f;
     protected static final float HANDLE_PULL_ANGLE = 35f;
-    protected static final float HANDLE_SPRING_STIFFNESS = 800f;
-    protected static final float HANDLE_SPRING_DAMPING = 0.75f;
     protected static final float HANDLE_EXTENSION = HANDLE_OFFSET + HANDLE_LENGTH;
 
     public static Color getRarityColor(int rarity) {
@@ -140,31 +138,29 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         GL11.glEnd();
     }
 
-    private static Color brighten(Color c, float factor) {
-        int r = Math.min(255, (int)(c.getRed() + (255 - c.getRed()) * factor));
-        int g = Math.min(255, (int)(c.getGreen() + (255 - c.getGreen()) * factor));
-        int b = Math.min(255, (int)(c.getBlue() + (255 - c.getBlue()) * factor));
+    private static Color brighten(Color c) {
+        int r = Math.min(255, (int)(c.getRed() + (255 - c.getRed()) * 0.35f));
+        int g = Math.min(255, (int)(c.getGreen() + (255 - c.getGreen()) * 0.35f));
+        int b = Math.min(255, (int)(c.getBlue() + (255 - c.getBlue()) * 0.35f));
         return new Color(r, g, b, c.getAlpha());
     }
 
-    private static Color darken(Color c, float factor) {
-        int r = (int)(c.getRed() * (1f - factor));
-        int g = (int)(c.getGreen() * (1f - factor));
-        int b = (int)(c.getBlue() * (1f - factor));
+    private static Color darken(Color c) {
+        int r = (int)(c.getRed() * 0.65f);
+        int g = (int)(c.getGreen() * 0.65f);
+        int b = (int)(c.getBlue() * 0.65f);
         return new Color(r, g, b, c.getAlpha());
     }
 
     private static void renderBeveledRect(float x, float y, float w, float h, Color baseColor, float thickness, float alphaMult) {
         float[] bc = toGLComponents(baseColor);
-        float[] lc = toGLComponents(brighten(baseColor, 0.35f));
-        float[] dc = toGLComponents(darken(baseColor, 0.35f));
-
-        float tw = thickness;
+        float[] lc = toGLComponents(brighten(baseColor));
+        float[] dc = toGLComponents(darken(baseColor));
 
         GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - tw);
-        GL11.glVertex2f(x + w, y + h - tw);
+        GL11.glVertex2f(x, y + h - thickness);
+        GL11.glVertex2f(x + w, y + h - thickness);
         GL11.glVertex2f(x + w, y + h);
         GL11.glVertex2f(x, y + h);
         GL11.glEnd();
@@ -172,63 +168,62 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
         GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + tw, y);
-        GL11.glVertex2f(x + tw, y + h);
+        GL11.glVertex2f(x + thickness, y);
+        GL11.glVertex2f(x + thickness, y + h);
         GL11.glVertex2f(x, y + h);
         GL11.glEnd();
 
         GL11.glColor4f(bc[0], bc[1], bc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x + tw, y + tw);
-        GL11.glVertex2f(x + w - tw, y + tw);
-        GL11.glVertex2f(x + w - tw, y + h - tw);
-        GL11.glVertex2f(x + tw, y + h - tw);
+        GL11.glVertex2f(x + thickness, y + thickness);
+        GL11.glVertex2f(x + w - thickness, y + thickness);
+        GL11.glVertex2f(x + w - thickness, y + h - thickness);
+        GL11.glVertex2f(x + thickness, y + h - thickness);
         GL11.glEnd();
 
         GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - tw);
-        GL11.glVertex2f(x + tw, y + h - tw);
-        GL11.glVertex2f(x + tw, y);
+        GL11.glVertex2f(x, y + h - thickness);
+        GL11.glVertex2f(x + thickness, y + h - thickness);
+        GL11.glVertex2f(x + thickness, y);
         GL11.glVertex2f(x, y);
         GL11.glEnd();
 
         GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x + w - tw, y + h - tw);
-        GL11.glVertex2f(x + w, y + h - tw);
+        GL11.glVertex2f(x + w - thickness, y + h - thickness);
+        GL11.glVertex2f(x + w, y + h - thickness);
         GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w - tw, y);
+        GL11.glVertex2f(x + w - thickness, y);
         GL11.glEnd();
     }
 
-    private static void renderBevelBorder(float x, float y, float w, float h, Color baseColor, float thickness, float alphaMult) {
-        float[] lc = toGLComponents(brighten(baseColor, 0.35f));
-        float[] dc = toGLComponents(darken(baseColor, 0.35f));
-        float t = thickness;
+    private static void renderBevelBorder(float x, float y, float w, float h, float thickness, float alphaMult) {
+        float[] lc = toGLComponents(brighten(FRAME_COLOR));
+        float[] dc = toGLComponents(darken(FRAME_COLOR));
 
         GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - t);
-        GL11.glVertex2f(x + w, y + h - t);
+        GL11.glVertex2f(x, y + h - thickness);
+        GL11.glVertex2f(x + w, y + h - thickness);
         GL11.glVertex2f(x + w, y + h);
         GL11.glVertex2f(x, y + h);
         GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + t, y);
-        GL11.glVertex2f(x + t, y + t);
-        GL11.glVertex2f(x, y + t);
+        GL11.glVertex2f(x + thickness, y);
+        GL11.glVertex2f(x + thickness, y + thickness);
+        GL11.glVertex2f(x, y + thickness);
         GL11.glEnd();
 
         GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
         GL11.glBegin(GL11.GL_QUADS);
         GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + t, y);
-        GL11.glVertex2f(x + t, y + h);
+        GL11.glVertex2f(x + thickness, y);
+        GL11.glVertex2f(x + thickness, y + h);
         GL11.glVertex2f(x, y + h);
-        GL11.glVertex2f(x + w - t, y);
+        GL11.glVertex2f(x + w - thickness, y);
         GL11.glVertex2f(x + w, y);
         GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x + w - t, y + h);
+        GL11.glVertex2f(x + w - thickness, y + h);
         GL11.glEnd();
     }
 
@@ -639,8 +634,11 @@ public class SlotReel {
         public float offsetY;
         public float currentAngle;
         public float targetAngle;
-        public float springVelocity;
+        public float animTimer;
         public State state;
+        public int pendingPulls;
+        
+        protected static final float ANIM_DURATION = 0.2f;
         
         public enum State { IDLE, PULLING, RETURNING }
         
@@ -649,39 +647,43 @@ public class SlotReel {
             this.offsetY = offsetY;
             this.currentAngle = 0f;
             this.targetAngle = 0f;
-            this.springVelocity = 0f;
+            this.animTimer = 0f;
             this.state = State.IDLE;
+            this.pendingPulls = 0;
         }
         
-        public void pull() {
-            if (state != State.IDLE) return;
-            state = State.PULLING;
-            targetAngle = HANDLE_PULL_ANGLE;
-        }
-        
-        public void release() {
-            if (state != State.PULLING) return;
-            state = State.RETURNING;
-            targetAngle = 0f;
+        public void triggerPull() {
+            pendingPulls++;
         }
         
         public void advance(float amount) {
+            if (pendingPulls > 0 && state == State.IDLE) {
+                pendingPulls--;
+                state = State.PULLING;
+                targetAngle = HANDLE_PULL_ANGLE;
+                animTimer = 0f;
+            }
+            
             if (state == State.PULLING) {
-                float diff = targetAngle - currentAngle;
-                currentAngle += diff * 5f * amount;
-                if (Math.abs(diff) < 1f) {
-                    currentAngle = targetAngle;
-                    release();
+                animTimer += amount;
+                float progress = Math.min(1f, animTimer / ANIM_DURATION);
+                currentAngle = HANDLE_PULL_ANGLE * progress;
+                
+                if (animTimer >= ANIM_DURATION) {
+                    currentAngle = HANDLE_PULL_ANGLE;
+                    state = State.RETURNING;
+                    targetAngle = 0f;
+                    animTimer = 0f;
                 }
             } else if (state == State.RETURNING) {
-                springVelocity += (targetAngle - currentAngle) * HANDLE_SPRING_STIFFNESS * amount;
-                springVelocity *= HANDLE_SPRING_DAMPING;
-                currentAngle += springVelocity * amount;
+                animTimer += amount;
+                float progress = Math.min(1f, animTimer / ANIM_DURATION);
+                currentAngle = HANDLE_PULL_ANGLE * (1f - progress);
                 
-                if (Math.abs(currentAngle - targetAngle) < 0.5f && Math.abs(springVelocity) < 10f) {
-                    currentAngle = targetAngle;
-                    springVelocity = 0f;
+                if (animTimer >= ANIM_DURATION) {
+                    currentAngle = 0f;
                     state = State.IDLE;
+                    animTimer = 0f;
                 }
             }
         }
@@ -727,17 +729,7 @@ public class SlotReel {
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
-        }
-        
-        public boolean isClickNearHandle(float clickX, float clickY, float baseX, float baseY) {
-            if (state != State.IDLE) return false;
-            float x = baseX + offsetX;
-            float y = baseY + offsetY;
-            float handleEndX = x + (float)Math.cos(Math.toRadians(-90 + currentAngle)) * HANDLE_LENGTH;
-            float handleEndY = y + (float)Math.sin(Math.toRadians(-90 + currentAngle)) * HANDLE_LENGTH;
-            float dist = (float)Math.sqrt((clickX - handleEndX) * (clickX - handleEndX) + (clickY - handleEndY) * (clickY - handleEndY));
-            return dist < HANDLE_BALL_RADIUS * 3f;
-        }
+}
     }
 
     protected GachaAnimationCallback callback;
@@ -913,7 +905,7 @@ public class SlotReel {
         float panelCenterX = panel.getPosition().getCenterX();
         float panelCenterY = panel.getPosition().getCenterY();
         
-        float labelGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - FOOTER_HEIGHT + LABEL_HEIGHT / 2f + 3f;
+        float labelGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - FOOTER_HEIGHT + LABEL_HEIGHT / 2f + 6f;
         float labelUIY = (panelY + panelH) - labelGLY;
         
         reelLabels = new LabelAPI[numReels];
@@ -1209,12 +1201,10 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
 
     private void renderReelFrame(SlotReel reel, float panelCenterX, float windowBottom, float alphaMult) {
         float reelLeft = panelCenterX + reel.reelCenterX - reel.reelWidth / 2f;
-        float reelRight = reelLeft + reel.reelWidth;
-        float windowTop = windowBottom + WINDOW_HEIGHT;
         float border = FRAME_BORDER;
 
         float bevelThickness = 1.5f;
-        renderBevelBorder(reelLeft, windowBottom - border, reel.reelWidth, WINDOW_HEIGHT + border * 2, FRAME_COLOR, bevelThickness, alphaMult);
+        renderBevelBorder(reelLeft, windowBottom - border, reel.reelWidth, WINDOW_HEIGHT + border * 2, bevelThickness, alphaMult);
 
         float windowCenterY = windowBottom + WINDOW_HEIGHT / 2f;
         float resultWindowH = SHIP_SLOT_HEIGHT + RESULT_WINDOW_PADDING * 2;
@@ -1429,19 +1419,6 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
             if (event.isConsumed()) continue;
 
             if (event.isLMBDownEvent()) {
-                float mouseX = event.getX();
-                float mouseY = event.getY();
-                
-                float panelCenterX = p.getCenterX();
-                float panelCenterY = p.getCenterY();
-                
-                if (slotHandle != null && slotHandle.isClickNearHandle(mouseX, mouseY, panelCenterX, panelCenterY) && !allRevealed && slotHandle.state == SlotHandle.State.IDLE) {
-                    event.consume();
-                    slotHandle.pull();
-                    handleClick();
-                    return;
-                }
-                
                 event.consume();
                 handleClick();
                 return;
@@ -1460,6 +1437,10 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
     }
 
     private void handleClick() {
+        if (slotHandle != null && !allRevealed) {
+            slotHandle.triggerPull();
+        }
+        
         if (allRevealed) {
             closeAnimation();
             return;
@@ -1539,8 +1520,9 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
         if (slotHandle != null) {
             slotHandle.currentAngle = 0f;
             slotHandle.targetAngle = 0f;
-            slotHandle.springVelocity = 0f;
+            slotHandle.animTimer = 0f;
             slotHandle.state = SlotHandle.State.IDLE;
+            slotHandle.pendingPulls = 0;
         }
         
         try {

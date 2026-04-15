@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
 import com.fs.starfarer.api.Global;
@@ -67,7 +68,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
     private static final String ACTION_CONVERT = "picker_convert";
     private static final String ACTION_KEEP_ALL = "picker_keep_all";
-    private static final String ACTION_SELECT_SHIP = "picker_ship_";
 
     private final List<FleetMemberAPI> ships;
     private final Set<String> autoConvertHullIds;
@@ -89,12 +89,16 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     private int lastSelectedCount = -1;
 
     private ButtonAPI convertButton;
-    private ButtonAPI keepAllButton;
-    private final List<ButtonAPI> shipButtons = new ArrayList<>();
 
     private final Map<String, SpriteAPI> spriteCache = new HashMap<>();
 
     private boolean buttonsCreated = false;
+    private boolean wasMousePressed = false;
+
+    private record ClickRegion(float boxX, float boxY, float width, float height, int shipIndex)
+    {    }
+
+    private final List<ClickRegion> shipClickRegions = new ArrayList<>();
 
     public interface ShipPickerCallback {
         void onConvert(List<FleetMemberAPI> selected);
@@ -221,7 +225,9 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
             float boxX = MARGIN + col * (SHIP_BOX_WIDTH + GAP_X);
             float boxY = startY + row * (SHIP_BOX_HEIGHT + NAME_HEIGHT + VALUE_HEIGHT + GAP_Y + CHECKBOX_SIZE);
 
-            String name = ship.getShipName() != null ? ship.getShipName() : 
+            shipClickRegions.add(new ClickRegion(boxX, boxY, SHIP_BOX_WIDTH, SHIP_BOX_HEIGHT + CHECKBOX_SIZE, i));
+
+            String name = ship.getShipName() != null ? ship.getShipName() :
                           (ship.getHullSpec() != null ? ship.getHullSpec().getHullName() : "Unknown");
 
             LabelAPI nameLbl = settings.createLabel(name, Fonts.DEFAULT_SMALL);
@@ -240,37 +246,22 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
         }
     }
 
-    private void createButtons() {
+private void createButtons() {
         if (panel == null || buttonsCreated) return;
-
-        TooltipMakerAPI btnTp = panel.createUIElement(PANEL_WIDTH, PANEL_HEIGHT, false);
-        btnTp.setActionListenerDelegate(this);
-        panel.addUIElement(btnTp).inTL(0, 0);
-
-        float startY = MARGIN + HEADER_HEIGHT + 20f;
-
-        for (int i = 0; i < ships.size() && i < COLS * ROWS; i++) {
-            int col = i % COLS;
-            int row = i / COLS;
-            float boxX = MARGIN + col * (SHIP_BOX_WIDTH + GAP_X);
-            float boxY = startY + row * (SHIP_BOX_HEIGHT + NAME_HEIGHT + VALUE_HEIGHT + GAP_Y + CHECKBOX_SIZE);
-
-            ButtonAPI shipBtn = btnTp.addButton("", ACTION_SELECT_SHIP + i, SHIP_BOX_WIDTH, SHIP_BOX_HEIGHT + CHECKBOX_SIZE, 0f);
-            shipBtn.getPosition().inTL(boxX, boxY);
-            shipBtn.setOpacity(0.01f);
-            shipBtn.setQuickMode(true);
-            shipButtons.add(shipBtn);
-        }
 
         float buttonAreaY = PANEL_HEIGHT - BUTTON_AREA_HEIGHT;
         float centerX = PANEL_WIDTH / 2f;
 
+        TooltipMakerAPI btnTp = panel.createUIElement(PANEL_WIDTH, BUTTON_AREA_HEIGHT, false);
+        btnTp.setActionListenerDelegate(this);
+        panel.addUIElement(btnTp).inTL(0, buttonAreaY);
+
         convertButton = btnTp.addButton(Strings.format("gacha_picker.convert_btn", getSelectedCount()), ACTION_CONVERT, 180f, BUTTON_HEIGHT, 0f);
-        convertButton.getPosition().inTL(centerX - 180f - 50f, buttonAreaY);
+        convertButton.getPosition().inTL(centerX - 180f - 50f, 0);
         convertButton.setQuickMode(true);
 
         keepAllButton = btnTp.addButton(Strings.get("gacha_picker.keep_all_btn"), ACTION_KEEP_ALL, 160f, BUTTON_HEIGHT, 0f);
-        keepAllButton.getPosition().inTL(centerX + 50f, buttonAreaY);
+        keepAllButton.getPosition().inTL(centerX + 50f, 0);
         keepAllButton.setQuickMode(true);
         keepAllButton.setShortcut(Keyboard.KEY_ESCAPE, false);
 
@@ -324,21 +315,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
         renderShipBoxes(x, y, alphaMult);
         updateLabels();
-        updateButtonVisibility();
-    }
-
-    private void updateButtonVisibility() {
-        for (ButtonAPI btn : shipButtons) {
-            if (btn != null) {
-                btn.setOpacity(0.01f);
-            }
-        }
-        if (convertButton != null) {
-            convertButton.setOpacity(1f);
-        }
-        if (keepAllButton != null) {
-            keepAllButton.setOpacity(1f);
-        }
     }
 
     private void renderShipBoxes(float panelX, float panelY, float alphaMult) {
@@ -436,12 +412,48 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     }
 
     public void processInput(List<InputEventAPI> events) {
+        boolean mouseDown = Mouse.isButtonDown(0);
+
+        if (mouseDown && !wasMousePressed) {
+            float scale = Global.getSettings().getScreenScaleMult();
+            float mouseX = Mouse.getX() / scale;
+            float mouseY = Mouse.getY() / scale;
+
+            PositionAPI pos = panel.getPosition();
+            float panelX = pos.getX();
+            float panelY = pos.getY();
+
+            for (ClickRegion region : shipClickRegions) {
+                float screenX = panelX + region.boxX;
+                float screenY = panelY + PANEL_HEIGHT - region.boxY - region.height;
+
+                if (mouseX >= screenX && mouseX <= screenX + region.width &&
+                    mouseY >= screenY && mouseY <= screenY + region.height) {
+                    toggleSelection(region.shipIndex);
+                    Global.getSoundPlayer().playUISound("ui_button_pressed", 1f, 0.6f);
+                    break;
+                }
+            }
+        }
+
+        wasMousePressed = mouseDown;
+    }
+
+    private void toggleSelection(int index) {
+        if (index < 0 || index >= ships.size()) return;
+
+        if (selectedIndices.contains(index)) {
+            selectedIndices.remove(index);
+        } else {
+            selectedIndices.add(index);
+        }
+        updateLabels();
     }
 
     @Override
     public void actionPerformed(Object input, Object source) {
         if (!(source instanceof ButtonAPI btn)) return;
-        
+
         Object data = btn.getCustomData();
         if (data == null) return;
 
@@ -463,16 +475,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
                 callback.onKeepAll();
             }
             callbacks.dismissDialog();
-        } else if (action.startsWith(ACTION_SELECT_SHIP)) {
-            int idx = Integer.parseInt(action.substring(ACTION_SELECT_SHIP.length()));
-            if (idx >= 0 && idx < ships.size()) {
-                if (selectedIndices.contains(idx)) {
-                    selectedIndices.remove(idx);
-                } else {
-                    selectedIndices.add(idx);
-                }
-                updateLabels();
-            }
         }
     }
 }
