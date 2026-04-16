@@ -13,6 +13,8 @@ import data.scripts.casino.cards.Card;
 import data.scripts.casino.cards.CardFlipAnimation;
 import data.scripts.casino.cards.CardSprites;
 
+import static data.scripts.casino.shared.GLColorUtils.setColorGL;
+
 public final class CardRenderingUtils {
     private CardRenderingUtils() {}
 
@@ -310,12 +312,8 @@ public final class CardRenderingUtils {
             GL11.glVertex2f(segX, segY);
             GL11.glVertex2f(segX + segmentWidth, segY);
             GL11.glVertex2f(segX + segmentWidth, segY + CHIP_GAP);
-            GL11.glVertex2f(segX, segY + CHIP_GAP);
+GL11.glVertex2f(segX, segY + CHIP_GAP);
             GL11.glEnd();
         }
-    }
-
-    private static void setColorGL(Color color, float alphaMult) {
-        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
     }
 }

@@ -1,5 +1,7 @@
 package data.scripts.casino.cards;
 
+import data.scripts.casino.shared.GLColorUtils;
+
 public class CardFlipAnimation {
     public enum Phase { HIDDEN, FLIPPING, REVEALED }
         
@@ -22,8 +24,7 @@ public class CardFlipAnimation {
     }
     
     public void advance(float amount) {
-        final float maxDelta = 0.1f;
-        amount = Math.min(amount, maxDelta);
+        amount = GLColorUtils.capDelta(amount);
 
         if (phase == Phase.HIDDEN && triggered) {
             if (delay > 0) {

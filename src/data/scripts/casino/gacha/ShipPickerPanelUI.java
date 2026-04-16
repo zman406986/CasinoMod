@@ -16,7 +16,6 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
-import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.fleet.FleetMemberAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
@@ -33,6 +32,7 @@ import com.fs.starfarer.api.util.Misc;
 
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.Strings;
+import data.scripts.casino.shared.CasinoSpriteCache;
 //need to reinvent the ShipPicker because base game api's version doesn't allow modification
 public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements ActionListenerDelegate {
 
@@ -90,8 +90,6 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
 
     private ButtonAPI convertButton;
 
-    private final Map<String, SpriteAPI> spriteCache = new HashMap<>();
-
     private boolean buttonsCreated = false;
     private boolean wasMousePressed = false;
 
@@ -147,32 +145,7 @@ public class ShipPickerPanelUI extends BaseCustomUIPanelPlugin implements Action
     }
 
     private SpriteAPI getShipSprite(String hullId) {
-        if (hullId == null || hullId.isEmpty()) return null;
-
-        if (spriteCache.containsKey(hullId)) {
-            return spriteCache.get(hullId);
-        }
-
-        try {
-            ShipHullSpecAPI spec = settings.getHullSpec(hullId);
-            if (spec == null) {
-                spriteCache.put(hullId, null);
-                return null;
-            }
-
-            String spriteName = spec.getSpriteName();
-            if (spriteName == null || spriteName.isEmpty()) {
-                spriteCache.put(hullId, null);
-                return null;
-            }
-
-            SpriteAPI sprite = settings.getSprite(spriteName);
-            spriteCache.put(hullId, sprite);
-            return sprite;
-        } catch (Exception e) {
-            spriteCache.put(hullId, null);
-            return null;
-        }
+        return CasinoSpriteCache.getShipSprite(hullId);
     }
 
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
@@ -260,7 +233,7 @@ private void createButtons() {
         convertButton.getPosition().inTL(centerX - 180f - 50f, 0);
         convertButton.setQuickMode(true);
 
-        keepAllButton = btnTp.addButton(Strings.get("gacha_picker.keep_all_btn"), ACTION_KEEP_ALL, 160f, BUTTON_HEIGHT, 0f);
+    ButtonAPI keepAllButton = btnTp.addButton(Strings.get("gacha_picker.keep_all_btn"), ACTION_KEEP_ALL, 160f, BUTTON_HEIGHT, 0f);
         keepAllButton.getPosition().inTL(centerX + 50f, 0);
         keepAllButton.setQuickMode(true);
         keepAllButton.setShortcut(Keyboard.KEY_ESCAPE, false);
@@ -320,13 +293,13 @@ private void createButtons() {
     private void renderShipBoxes(float panelX, float panelY, float alphaMult) {
         float startY = MARGIN + HEADER_HEIGHT + 20f;
 
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-
         for (int i = 0; i < ships.size() && i < COLS * ROWS; i++) {
             FleetMemberAPI ship = ships.get(i);
             if (ship == null) continue;
+
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
 
             int col = i % COLS;
             int row = i / COLS;
@@ -351,21 +324,20 @@ private void createButtons() {
 
             renderCheckbox(panelX + boxX, screenY - CHECKBOX_SIZE + 3f, isSelected, isAuto, alphaMult);
 
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+
             SpriteAPI sprite = getShipSprite(ship.getHullId());
             if (sprite != null) {
                 renderShipSprite(sprite, panelX + boxX, screenY, alphaMult);
             }
         }
 
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glLineWidth(1f);
     }
 
     private void renderCheckbox(float x, float y, boolean isSelected, boolean isAuto, float alphaMult) {
         float size = CHECKBOX_SIZE;
         float margin = 3f;
-
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
 
         Misc.renderQuad(x, y, size, size, new Color(30, 30, 40), alphaMult * 0.8f);
 
@@ -388,8 +360,6 @@ private void createButtons() {
             GL11.glVertex2f(x + size - margin - 2f, y + size - margin - 2f);
             GL11.glEnd();
         }
-
-        GL11.glLineWidth(1f);
     }
 
     private void renderShipSprite(SpriteAPI sprite, float boxX, float boxY, float alphaMult) {

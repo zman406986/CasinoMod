@@ -104,6 +104,8 @@ public class CasinoConfig {
     public static float ARENA_SPRITE_NUDGE_DURATION;
     public static float ARENA_HP_ANIM_DURATION;
     public static int ARENA_FLASH_COUNT;
+    public static float ARENA_EVASION_DURATION;
+    public static float ARENA_EVASION_SPLIT_DISTANCE;
 
     // Credit Ceiling
     public static float MAX_DEBT_MULTIPLIER;
@@ -234,6 +236,8 @@ public class CasinoConfig {
             ARENA_SPRITE_NUDGE_DURATION = (float) settings.optDouble("arenaSpriteNudgeDuration", 0.25f);
             ARENA_HP_ANIM_DURATION = (float) settings.optDouble("arenaHpAnimDuration", 0.4f);
             ARENA_FLASH_COUNT = settings.optInt("arenaFlashCount", 2);
+            ARENA_EVASION_DURATION = (float) settings.optDouble("arenaEvasionDuration", 0.3f);
+            ARENA_EVASION_SPLIT_DISTANCE = (float) settings.optDouble("arenaEvasionSplitDistance", 15.0f);
 
             // Arena base stats from JSON
             if (settings.has("arenaBaseStats")) {

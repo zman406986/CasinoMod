@@ -12,7 +12,6 @@ import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.SettingsAPI;
 import com.fs.starfarer.api.campaign.BaseCustomUIPanelPlugin;
 import com.fs.starfarer.api.campaign.CustomVisualDialogDelegate.DialogCallbacks;
-import com.fs.starfarer.api.combat.ShipHullSpecAPI;
 import com.fs.starfarer.api.graphics.SpriteAPI;
 import com.fs.starfarer.api.input.InputEventAPI;
 import com.fs.starfarer.api.ui.Alignment;
@@ -29,6 +28,7 @@ import com.fs.starfarer.api.util.Misc;
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.Strings;
+import data.scripts.casino.shared.CasinoSpriteCache;
 import data.scripts.casino.arena.SpiralAbyssArena.SpiralGladiator;
 import data.scripts.casino.interaction.ArenaHandler.BetInfo;
 import data.scripts.casino.interaction.ArenaHandler.BetValidationResult;
@@ -350,8 +350,6 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
     private boolean buttonsCreated = false;
     
     private static final int[] BET_AMOUNTS = {100, 500, 1000, 2000, 5000};
-    
-    private final Map<String, SpriteAPI> spriteCache = new HashMap<>();
     private static final float SPRITE_SCALE = 0.75f;
     
     private final float[] cachedOdds = new float[5];
@@ -411,6 +409,45 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
     private float spriteAnimTimer = 0f;
     private float attackerNudgeOffset = 0f;
     private boolean targetFlashState = false;
+
+    // Evasion Animation State
+    private String evasionTargetHullId = null;
+    private float evasionAnimTimer = 0f;
+    private float evasionSplitOffset = 0f;
+    private boolean evasionSpawnedPhase1 = false;
+    private boolean evasionSpawnedPhase2 = false;
+    private final List<EvasionAfterimage> evasionAfterimages = new ArrayList<>();
+
+    private static class EvasionAfterimage {
+        float centerX, centerY;
+        float scaledWidth, scaledHeight;
+        Color color;
+        float alpha;
+        float lifetime;
+        float maxLifetime;
+        float offsetX;
+
+        EvasionAfterimage(float cx, float cy, float w, float h, Color c, float a, float offset) {
+            this.centerX = cx;
+            this.centerY = cy;
+            this.scaledWidth = w;
+            this.scaledHeight = h;
+            this.color = c;
+            this.alpha = a;
+            this.maxLifetime = 0.12f;
+            this.lifetime = 0f;
+            this.offsetX = offset;
+        }
+
+        boolean advance(float amount) {
+            lifetime += amount;
+            return lifetime < maxLifetime;
+        }
+
+        float getAlpha() {
+            return alpha * (1f - lifetime / maxLifetime);
+        }
+    }
 
     // HP Animation State
     private final int[] animatedHp = new int[5];
@@ -516,32 +553,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
     }
     
     private SpriteAPI getShipSprite(String hullId) {
-        if (hullId == null || hullId.isEmpty()) return null;
-        
-        if (spriteCache.containsKey(hullId)) {
-            return spriteCache.get(hullId);
-        }
-        
-        try {
-            ShipHullSpecAPI spec = settings.getHullSpec(hullId);
-            if (spec == null) {
-                spriteCache.put(hullId, null);
-                return null;
-            }
-            
-            String spriteName = spec.getSpriteName();
-            if (spriteName == null || spriteName.isEmpty()) {
-                spriteCache.put(hullId, null);
-                return null;
-            }
-            
-            SpriteAPI sprite = settings.getSprite(spriteName);
-            spriteCache.put(hullId, sprite);
-            return sprite;
-        } catch (Exception e) {
-            spriteCache.put(hullId, null);
-            return null;
-        }
+        return CasinoSpriteCache.getShipSprite(hullId);
     }
     
     public void init(CustomPanelAPI panel, DialogCallbacks callbacks) {
@@ -575,6 +587,12 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
                     currentTargetHullId = null;
                     spriteAnimTimer = 0f;
                     targetFlashState = false;
+                    evasionTargetHullId = null;
+                    evasionAnimTimer = 0f;
+                    evasionSplitOffset = 0f;
+                    evasionSpawnedPhase1 = false;
+                    evasionSpawnedPhase2 = false;
+                    evasionAfterimages.clear();
                 } else {
                     if (displayedLogIndex < pendingEntries.size()) {
                         ParsedLogEntry current = pendingEntries.get(displayedLogIndex);
@@ -607,6 +625,19 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
         } else {
             attackerNudgeOffset = 0f;
             targetFlashState = false;
+        }
+
+        if (evasionAnimTimer > 0) {
+            evasionAnimTimer -= amount;
+            float progress = 1f - (evasionAnimTimer / CasinoConfig.ARENA_EVASION_DURATION);
+            evasionSplitOffset = (float) Math.sin(progress * Math.PI) * CasinoConfig.ARENA_EVASION_SPLIT_DISTANCE;
+            evasionAfterimages.removeIf(ai -> !ai.advance(amount));
+        } else {
+            evasionSplitOffset = 0f;
+            evasionTargetHullId = null;
+            if (!evasionAfterimages.isEmpty()) {
+                evasionAfterimages.clear();
+            }
         }
 
         for (int i = 0; i < fadeOutAlpha.length; i++) {
@@ -642,8 +673,14 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
             case "MISS" -> {
                 if (animate) {
                     currentAttackerHullId = entry.attackerHullId;
-                    currentTargetHullId = entry.targetHullId;
+                    currentTargetHullId = null;
                     spriteAnimTimer = CasinoConfig.ARENA_SPRITE_NUDGE_DURATION;
+                    evasionTargetHullId = entry.targetHullId;
+                    evasionAnimTimer = CasinoConfig.ARENA_EVASION_DURATION;
+                    evasionSplitOffset = 0f;
+                    evasionSpawnedPhase1 = false;
+                    evasionSpawnedPhase2 = false;
+                    evasionAfterimages.clear();
                 }
             }
             case "KILL" -> {
@@ -1317,32 +1354,60 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
                 Color tint;
                 float spriteAlpha;
 
-                if (isTarget && targetFlashState) {
-                    tint = Color.WHITE;
-                    spriteAlpha = 1.5f * alphaMult * boxAlpha;
-                    sprite.setColor(tint);
-                    sprite.setAlphaMult(spriteAlpha);
-                    sprite.setAdditiveBlend();
-                } else if (isShipEffectivelyDead(ship)) {
+                if (isShipEffectivelyDead(ship)) {
                     tint = COLOR_TINT_DEAD;
                     spriteAlpha = 0.6f * alphaMult * boxAlpha;
-                    sprite.setColor(tint);
-                    sprite.setAlphaMult(spriteAlpha);
-                    sprite.setNormalBlend();
                 } else if (displayHp < ship.maxHp * 0.5f) {
                     tint = COLOR_TINT_DAMAGED;
                     spriteAlpha = 0.8f * alphaMult * boxAlpha;
-                    sprite.setColor(tint);
-                    sprite.setAlphaMult(spriteAlpha);
-                    sprite.setNormalBlend();
                 } else {
                     tint = Color.WHITE;
                     spriteAlpha = alphaMult * boxAlpha;
+                }
+
+                boolean isEvasionTarget = ship.hullId != null && ship.hullId.equals(evasionTargetHullId);
+                if (isEvasionTarget && evasionAnimTimer > 0) {
+                    float progress = 1f - (evasionAnimTimer / CasinoConfig.ARENA_EVASION_DURATION);
+
+                    if (progress >= 0.3f && !evasionSpawnedPhase1) {
+                        evasionSpawnedPhase1 = true;
+                        float spawnOffset1 = (float) Math.sin(0.3f * Math.PI) * CasinoConfig.ARENA_EVASION_SPLIT_DISTANCE;
+                        evasionAfterimages.add(new EvasionAfterimage(centerX, centerY, scaledWidth, scaledHeight, tint, spriteAlpha * 0.5f, -spawnOffset1));
+                        evasionAfterimages.add(new EvasionAfterimage(centerX, centerY, scaledWidth, scaledHeight, tint, spriteAlpha * 0.5f, spawnOffset1));
+                    }
+
+                    if (progress >= 0.7f && !evasionSpawnedPhase2) {
+                        evasionSpawnedPhase2 = true;
+                        float spawnOffset2 = (float) Math.sin(0.7f * Math.PI) * CasinoConfig.ARENA_EVASION_SPLIT_DISTANCE;
+                        evasionAfterimages.add(new EvasionAfterimage(centerX, centerY, scaledWidth, scaledHeight, tint, spriteAlpha * 0.5f, -spawnOffset2));
+                        evasionAfterimages.add(new EvasionAfterimage(centerX, centerY, scaledWidth, scaledHeight, tint, spriteAlpha * 0.5f, spawnOffset2));
+                    }
+
+                    for (EvasionAfterimage ai : evasionAfterimages) {
+                        sprite.setSize(ai.scaledWidth, ai.scaledHeight);
+                        sprite.setColor(ai.color);
+                        sprite.setAlphaMult(ai.getAlpha());
+                        sprite.setNormalBlend();
+                        sprite.renderAtCenter(ai.centerX + ai.offsetX, ai.centerY);
+                    }
+
+                    sprite.setSize(scaledWidth, scaledHeight);
                     sprite.setColor(tint);
                     sprite.setAlphaMult(spriteAlpha);
                     sprite.setNormalBlend();
+                    sprite.renderAtCenter(centerX - evasionSplitOffset, centerY);
+                    sprite.renderAtCenter(centerX + evasionSplitOffset, centerY);
+                } else {
+                    sprite.setColor(tint);
+                    sprite.setAlphaMult(spriteAlpha);
+                    sprite.setNormalBlend();
+                    if (isTarget && targetFlashState) {
+                        sprite.setColor(Color.WHITE);
+                        sprite.setAlphaMult(1.5f * alphaMult * boxAlpha);
+                        sprite.setAdditiveBlend();
+                    }
+                    sprite.renderAtCenter(centerX, centerY);
                 }
-                sprite.renderAtCenter(centerX, centerY);
             }
 
             if (isShipEffectivelyDead(ship)) {

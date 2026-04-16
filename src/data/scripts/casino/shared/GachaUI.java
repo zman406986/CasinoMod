@@ -4,83 +4,44 @@ import java.awt.Color;
 
 import org.lwjgl.opengl.GL11;
 
-import com.fs.starfarer.api.util.Misc;
-
 public final class GachaUI {
     private GachaUI() {}
 
-    public static void drawStarShape(float x, float y, float width, float height, Color color, float alphaMult) {
-        float halfW = width / 2f;
-        float halfH = height / 2f;
-
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
-
-        GL11.glBegin(GL11.GL_TRIANGLE_FAN);
-
-        GL11.glVertex2f(x, y);
-
-        GL11.glVertex2f(x, y - halfH);
-        GL11.glVertex2f(x + halfW * 0.3f, y - halfH * 0.3f);
-        GL11.glVertex2f(x + halfW, y);
-        GL11.glVertex2f(x + halfW * 0.3f, y + halfH * 0.3f);
-        GL11.glVertex2f(x, y + halfH);
-        GL11.glVertex2f(x - halfW * 0.3f, y + halfH * 0.3f);
-        GL11.glVertex2f(x - halfW, y);
-        GL11.glVertex2f(x - halfW * 0.3f, y - halfH * 0.3f);
-        GL11.glVertex2f(x, y - halfH);
-
-        GL11.glEnd();
-
-        GL11.glColor4f(1f, 1f, 1f, 1f);
+    public static float[] toGLComponents(Color color) {
+        return GLColorUtils.toGLComponents(color);
     }
 
-    public static void drawStarShapeBorder(float x, float y, float width, float height, Color color, float alphaMult) {
-        float halfW = width / 2f;
-        float halfH = height / 2f;
-        float borderThickness = 2f;
-
-        GL11.glDisable(GL11.GL_TEXTURE_2D);
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        GL11.glColor4f(color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, alphaMult);
-
-        GL11.glBegin(GL11.GL_QUADS);
-
-        GL11.glVertex2f(x - borderThickness/2, y - halfH);
-        GL11.glVertex2f(x + borderThickness/2, y - halfH);
-        GL11.glVertex2f(x + borderThickness/2, y - halfH * 0.3f);
-        GL11.glVertex2f(x - borderThickness/2, y - halfH * 0.3f);
-
-        GL11.glVertex2f(x - borderThickness/2, y + halfH * 0.3f);
-        GL11.glVertex2f(x + borderThickness/2, y + halfH * 0.3f);
-        GL11.glVertex2f(x + borderThickness/2, y + halfH);
-        GL11.glVertex2f(x - borderThickness/2, y + halfH);
-
-        GL11.glVertex2f(x - halfW, y - borderThickness/2);
-        GL11.glVertex2f(x - halfW * 0.3f, y - borderThickness/2);
-        GL11.glVertex2f(x - halfW * 0.3f, y + borderThickness/2);
-        GL11.glVertex2f(x - halfW, y + borderThickness/2);
-
-        GL11.glVertex2f(x + halfW * 0.3f, y - borderThickness/2);
-        GL11.glVertex2f(x + halfW, y - borderThickness/2);
-        GL11.glVertex2f(x + halfW, y + borderThickness/2);
-        GL11.glVertex2f(x + halfW * 0.3f, y + borderThickness/2);
-
-        GL11.glEnd();
-
-        GL11.glColor4f(1f, 1f, 1f, 1f);
+    public static Color darken(Color c) {
+        return GLColorUtils.darken(c);
     }
 
-    public static void drawRatingStar(float x, float y, float size, Color color, float alphaMult) {
-        float halfSize = size / 2f;
-        float quarterSize = size / 4f;
+    public static void renderCircle(float cx, float cy, float radius, float r, float g, float b, float a) {
+        GL11.glColor4f(r, g, b, a);
+        GL11.glBegin(GL11.GL_POLYGON);
+        for (int i = 0; i < 8; i++) {
+            float angle = (float)(i * 2 * Math.PI / 8);
+            GL11.glVertex2f(cx + (float)Math.cos(angle) * radius, cy + (float)Math.sin(angle) * radius);
+        }
+        GL11.glEnd();
+    }
 
-        Misc.renderQuad(x - quarterSize, y - halfSize, quarterSize * 2, size, color, alphaMult);
-        Misc.renderQuad(x - halfSize, y - quarterSize, size, quarterSize * 2, color, alphaMult);
+    public static void renderQuad(float x, float y, float w, float h, float r, float g, float b, float a) {
+        GLQuadUtils.renderQuad(x, y, w, h, r, g, b, a);
+    }
+
+    public static void renderQuad(float x, float y, float w, float h, Color color, float alphaMult) {
+        GLQuadUtils.renderQuad(x, y, w, h, color, alphaMult);
+    }
+
+    public static void renderBeveledRect(float x, float y, float w, float h, Color baseColor, float thickness, float alphaMult) {
+        GLQuadUtils.renderBeveledRect(x, y, w, h, baseColor, thickness, alphaMult);
+    }
+
+    public static void renderBevelBorder(float x, float y, float w, float h, Color frameColor, float thickness, float alphaMult) {
+        GLQuadUtils.renderBevelBorder(x, y, w, h, frameColor, thickness, alphaMult);
+    }
+
+    public static void renderInnerShadow(float x, float y, float w, float h, float thickness, float alphaMult) {
+        GLQuadUtils.renderInnerShadow(x, y, w, h, thickness, alphaMult);
     }
 }

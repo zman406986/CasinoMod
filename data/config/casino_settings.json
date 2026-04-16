@@ -73,6 +73,8 @@
     "arenaSpriteNudgeDuration": 0.25,
     "arenaHpAnimDuration": 0.4,
     "arenaFlashCount": 2,
+    "arenaEvasionDuration": 0.3,
+    "arenaEvasionSplitDistance": 15.0,
 
     "arenaBaseStats": {
         "frigate": { "hp": 80, "power": 25, "agility": 0.35 },

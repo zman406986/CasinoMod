@@ -363,6 +363,15 @@ public class GachaHandler {
         this.shipsAwaitingConversionDecision.clear();
         this.shipsAwaitingConversionDecision.addAll(obtainedShips);
 
+        GachaAnimation animation = getAnimation(initialPity5, initialPity4, itemsToAnimate);
+
+        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, this::showGachaMenu);
+
+        main.getDialog().showCustomVisualDialog(1000f, 700f, delegate);
+    }
+
+    private GachaAnimation getAnimation(int initialPity5, int initialPity4, List<GachaAnimation.GachaItem> itemsToAnimate)
+    {
         GachaAnimation animation = new GachaAnimation(itemsToAnimate, results -> justCompletedPull = true);
 
         CasinoGachaManager poolManager = new CasinoGachaManager();
@@ -375,10 +384,7 @@ public class GachaHandler {
         }
         animation.setPoolHullIds(poolHullIds);
         animation.setInitialPity(initialPity5, initialPity4);
-
-        GachaAnimationDialogDelegate delegate = createAnimationDialog(animation, this::showGachaMenu);
-
-        main.getDialog().showCustomVisualDialog(1000f, 700f, delegate);
+        return animation;
     }
 
     private int getRarityFromResult(String result) {

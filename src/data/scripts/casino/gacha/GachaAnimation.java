@@ -2,9 +2,7 @@ package data.scripts.casino.gacha;
 
 import java.awt.Color;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 import org.lwjgl.opengl.GL11;
@@ -26,6 +24,8 @@ import com.fs.starfarer.api.util.Pair;
 
 import data.scripts.casino.Strings;
 import data.scripts.casino.CasinoConfig;
+import data.scripts.casino.shared.GachaUI;
+import data.scripts.casino.shared.CasinoSpriteCache;
 import data.scripts.casino.gacha.CasinoGachaManager.GachaData;
 
 public class GachaAnimation extends BaseCustomUIPanelPlugin {
@@ -48,7 +48,6 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
 
     protected List<ParticleBurst> activeBursts = new ArrayList<>();
     protected List<RevealBurst> activeRevealBursts = new ArrayList<>();
-    protected Map<String, SpriteAPI> spriteCache = new HashMap<>();
     protected Random random = new Random();
     
     protected List<ChasingLight> chasingLights = new ArrayList<>();
@@ -88,7 +87,9 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     
     protected static final float HEADER_HEIGHT = 55f;
     protected static final float FOOTER_HEIGHT = 38f;
-    protected static final float CABINET_PADDING = 15f;
+    protected static final float CABINET_PADDING_SINGLE = 80f;
+    protected static final float CABINET_PADDING_MULTI = 5f;
+    protected static final float PITY_BAR_WIDTH = 70f;
     
     protected static final float LIGHT_RADIUS = 5f;
     protected static final int LIGHTS_PER_SIDE = 10;
@@ -98,10 +99,14 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final Color LIGHT_COLOR_FLASH = new Color(255, 255, 150);
     
     protected static final float HANDLE_LENGTH = 70f;
-    protected static final float HANDLE_BALL_RADIUS = 10f;
     protected static final float HANDLE_OFFSET = 20f;
-    protected static final float HANDLE_PULL_ANGLE = 35f;
-    protected static final float HANDLE_EXTENSION = HANDLE_OFFSET + HANDLE_LENGTH;
+    protected static final float HANDLE_PULL_ANGLE = 180f;
+    protected static final float HANDLE_EXTENSION = HANDLE_OFFSET + 15f;
+    protected static final float AXLE_LENGTH = 4f;
+    protected static final float AXLE_WIDTH = 6f;
+    protected static final float KNOB_WIDTH = 10f;
+    protected static final float KNOB_HEIGHT_MAX = 10f;
+    protected static final float KNOB_HEIGHT_MIN = 2f;
 
     public static Color getRarityColor(int rarity) {
         return switch(rarity) {
@@ -114,146 +119,16 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
         };
     }
 
-    public static float[] toGLComponents(Color color) {
-        return new float[] { color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f };
-    }
-
-    private static void renderQuad(float x, float y, float w, float h, float r, float g, float b, float a) {
-        GL11.glColor4f(r, g, b, a);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glEnd();
-    }
-
-    private static void renderCircle(float cx, float cy, float radius, float r, float g, float b, float a, int segments) {
-        GL11.glColor4f(r, g, b, a);
-        GL11.glBegin(GL11.GL_POLYGON);
-        for (int i = 0; i < segments; i++) {
-            float angle = (float)(i * 2 * Math.PI / segments);
-            GL11.glVertex2f(cx + (float)Math.cos(angle) * radius, cy + (float)Math.sin(angle) * radius);
-        }
-        GL11.glEnd();
-    }
-
-    private static Color brighten(Color c) {
-        int r = Math.min(255, (int)(c.getRed() + (255 - c.getRed()) * 0.35f));
-        int g = Math.min(255, (int)(c.getGreen() + (255 - c.getGreen()) * 0.35f));
-        int b = Math.min(255, (int)(c.getBlue() + (255 - c.getBlue()) * 0.35f));
-        return new Color(r, g, b, c.getAlpha());
-    }
-
-    private static Color darken(Color c) {
-        int r = (int)(c.getRed() * 0.65f);
-        int g = (int)(c.getGreen() * 0.65f);
-        int b = (int)(c.getBlue() * 0.65f);
-        return new Color(r, g, b, c.getAlpha());
-    }
-
     private static void renderBeveledRect(float x, float y, float w, float h, Color baseColor, float thickness, float alphaMult) {
-        float[] bc = toGLComponents(baseColor);
-        float[] lc = toGLComponents(brighten(baseColor));
-        float[] dc = toGLComponents(darken(baseColor));
-
-        GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - thickness);
-        GL11.glVertex2f(x + w, y + h - thickness);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glEnd();
-
-        GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + thickness, y);
-        GL11.glVertex2f(x + thickness, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glEnd();
-
-        GL11.glColor4f(bc[0], bc[1], bc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x + thickness, y + thickness);
-        GL11.glVertex2f(x + w - thickness, y + thickness);
-        GL11.glVertex2f(x + w - thickness, y + h - thickness);
-        GL11.glVertex2f(x + thickness, y + h - thickness);
-        GL11.glEnd();
-
-        GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - thickness);
-        GL11.glVertex2f(x + thickness, y + h - thickness);
-        GL11.glVertex2f(x + thickness, y);
-        GL11.glVertex2f(x, y);
-        GL11.glEnd();
-
-        GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x + w - thickness, y + h - thickness);
-        GL11.glVertex2f(x + w, y + h - thickness);
-        GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w - thickness, y);
-        GL11.glEnd();
+        GachaUI.renderBeveledRect(x, y, w, h, baseColor, thickness, alphaMult);
     }
 
     private static void renderBevelBorder(float x, float y, float w, float h, float thickness, float alphaMult) {
-        float[] lc = toGLComponents(brighten(FRAME_COLOR));
-        float[] dc = toGLComponents(darken(FRAME_COLOR));
-
-        GL11.glColor4f(lc[0], lc[1], lc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h - thickness);
-        GL11.glVertex2f(x + w, y + h - thickness);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + thickness, y);
-        GL11.glVertex2f(x + thickness, y + thickness);
-        GL11.glVertex2f(x, y + thickness);
-        GL11.glEnd();
-
-        GL11.glColor4f(dc[0], dc[1], dc[2], alphaMult);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + thickness, y);
-        GL11.glVertex2f(x + thickness, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glVertex2f(x + w - thickness, y);
-        GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x + w - thickness, y + h);
-        GL11.glEnd();
+        GachaUI.renderBevelBorder(x, y, w, h, FRAME_COLOR, thickness, alphaMult);
     }
 
     private static void renderInnerShadow(float x, float y, float w, float h, float thickness, float alphaMult) {
-        float shAlpha = alphaMult * 0.4f;
-        float[] sc = new float[] { 0.1f, 0.1f, 0.15f };
-
-        GL11.glColor4f(sc[0], sc[1], sc[2], shAlpha);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y + h);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x + w, y + h - thickness);
-        GL11.glVertex2f(x, y + h - thickness);
-        GL11.glEnd();
-
-        GL11.glColor4f(sc[0], sc[1], sc[2], shAlpha * 0.6f);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x, y);
-        GL11.glVertex2f(x + thickness, y);
-        GL11.glVertex2f(x + thickness, y + h);
-        GL11.glVertex2f(x, y + h);
-        GL11.glEnd();
-
-        GL11.glColor4f(sc[0], sc[1], sc[2], shAlpha * 0.4f);
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(x + w - thickness, y);
-        GL11.glVertex2f(x + w, y);
-        GL11.glVertex2f(x + w, y + h);
-        GL11.glVertex2f(x + w - thickness, y + h);
-        GL11.glEnd();
+        GachaUI.renderInnerShadow(x, y, w, h, thickness, alphaMult);
     }
 
     public interface GachaAnimationCallback {
@@ -479,7 +354,7 @@ public class SlotReel {
 
             float progress = lifetime / maxLifetime;
             float alpha = (1f - progress) * alphaMult;
-            float[] c = toGLComponents(color);
+            float[] c = GachaUI.toGLComponents(color);
 
             for (Pair<Float, Float> particle : particles) {
                 float angle = particle.one;
@@ -488,7 +363,7 @@ public class SlotReel {
                 float px = x + (float)Math.cos(angle) * dist;
                 float py = y + (float)Math.sin(angle) * dist;
                 float size = 4f * (1f - progress * 0.5f);
-                renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
+                GachaUI.renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
             }
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -535,13 +410,13 @@ public class SlotReel {
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             
-            float[] c = toGLComponents(color);
+            float[] c = GachaUI.toGLComponents(color);
 
             float flashProgress = flashLifetime / flashMaxLifetime;
             if (flashProgress < 1f) {
                 float flashAlpha = (1f - flashProgress) * alphaMult * 0.7f;
                 float currentFlashSize = flashSize * (1f + flashProgress * 1.5f);
-                renderQuad(x - currentFlashSize/2, y - currentFlashSize/2, currentFlashSize, currentFlashSize, c[0], c[1], c[2], flashAlpha);
+                GachaUI.renderQuad(x - currentFlashSize/2, y - currentFlashSize/2, currentFlashSize, currentFlashSize, c[0], c[1], c[2], flashAlpha);
             }
 
             float progress = lifetime / maxLifetime;
@@ -554,7 +429,7 @@ public class SlotReel {
                 float px = x + (float)Math.cos(angle) * dist;
                 float py = y + (float)Math.sin(angle) * dist;
                 float size = 6f * (1f - progress * 0.6f);
-                renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
+                GachaUI.renderQuad(px - size/2, py - size/2, size, size, c[0], c[1], c[2], alpha);
             }
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
@@ -611,21 +486,21 @@ public class SlotReel {
             float y = cy + offsetY;
             
             Color baseColor = flashMode ? LIGHT_COLOR_FLASH : LIGHT_COLOR_ON;
-            float[] c = toGLComponents(baseColor);
+            float[] c = GachaUI.toGLComponents(baseColor);
             
             if (intensity > 0.1f) {
                 float glowRadius = radius * 2.5f;
                 float glowAlpha = intensity * alphaMult * 0.3f;
-                GachaAnimation.renderCircle(x, y, glowRadius, c[0], c[1], c[2], glowAlpha, 8);
+                GachaUI.renderCircle(x, y, glowRadius, c[0], c[1], c[2], glowAlpha);
             }
             
-            float[] offC = toGLComponents(LIGHT_COLOR_OFF);
+            float[] offC = GachaUI.toGLComponents(LIGHT_COLOR_OFF);
             float litRatio = intensity;
             float r = offC[0] + (c[0] - offC[0]) * litRatio;
             float g = offC[1] + (c[1] - offC[1]) * litRatio;
             float b = offC[2] + (c[2] - offC[2]) * litRatio;
             
-            GachaAnimation.renderCircle(x, y, radius, r, g, b, alphaMult, 8);
+            GachaUI.renderCircle(x, y, radius, r, g, b, alphaMult);
         }
     }
     
@@ -696,40 +571,60 @@ public class SlotReel {
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             
-            float[] fc = toGLComponents(FRAME_COLOR);
-            float handleEndX = x + (float)Math.cos(Math.toRadians(-90 + currentAngle)) * HANDLE_LENGTH;
-            float handleEndY = y + (float)Math.sin(Math.toRadians(-90 + currentAngle)) * HANDLE_LENGTH;
+            float[] fc = GachaUI.toGLComponents(FRAME_COLOR);
             
-            float leverWidth = 6f;
-            float dx = handleEndX - x;
-            float dy = handleEndY - y;
-            float len = (float)Math.sqrt(dx * dx + dy * dy);
-            float nx = -dy / len * leverWidth / 2f;
-            float ny = dx / len * leverWidth / 2f;
-            
-            GL11.glColor4f(fc[0], fc[1], fc[2], alphaMult * 0.8f);
+            float axleX = x - AXLE_LENGTH;
+            float axleY = y - AXLE_WIDTH / 2f;
+            GL11.glColor4f(fc[0] * 0.8f, fc[1] * 0.8f, fc[2] * 0.8f, alphaMult * 0.9f);
             GL11.glBegin(GL11.GL_QUADS);
-            GL11.glVertex2f(x + nx, y + ny);
-            GL11.glVertex2f(x - nx, y - ny);
-            GL11.glVertex2f(handleEndX - nx, handleEndY - ny);
-            GL11.glVertex2f(handleEndX + nx, handleEndY + ny);
+            GL11.glVertex2f(axleX, axleY);
+            GL11.glVertex2f(x, axleY);
+            GL11.glVertex2f(x, axleY + AXLE_WIDTH);
+            GL11.glVertex2f(axleX, axleY + AXLE_WIDTH);
             GL11.glEnd();
             
-            float[] bc = toGLComponents(LIGHT_COLOR_ON);
+            float angleRad = currentAngle * (float)Math.PI / 180f;
+            float cosAngle = (float)Math.cos(angleRad);
+            float apparentLength = HANDLE_LENGTH * Math.abs(cosAngle);
+            float handleEndY = y + apparentLength * cosAngle;
+            float leverWidth = 6f;
+            
+            GL11.glColor4f(fc[0], fc[1], fc[2], alphaMult * 0.85f);
+            GL11.glBegin(GL11.GL_QUADS);
+            GL11.glVertex2f(x - leverWidth / 2f, y);
+            GL11.glVertex2f(x + leverWidth / 2f, y);
+            GL11.glVertex2f(x + leverWidth / 2f, handleEndY);
+            GL11.glVertex2f(x - leverWidth / 2f, handleEndY);
+            GL11.glEnd();
+            
+            float knobHeight = KNOB_HEIGHT_MAX * Math.abs(cosAngle);
+            float knobHalfW = KNOB_WIDTH / 2f;
+            float knobHalfH = knobHeight / 2f;
+            
+            float[] bc = GachaUI.toGLComponents(LIGHT_COLOR_ON);
             if (state == State.PULLING) {
-                bc = toGLComponents(new Color(255, 255, 200));
+                bc = GachaUI.toGLComponents(new Color(255, 255, 200));
             }
             
-            float ballGlow = HANDLE_BALL_RADIUS * 1.8f;
-            GachaAnimation.renderCircle(handleEndX, handleEndY, ballGlow, bc[0], bc[1], bc[2], alphaMult * 0.25f, 12);
-            GachaAnimation.renderCircle(handleEndX, handleEndY, HANDLE_BALL_RADIUS, bc[0], bc[1], bc[2], alphaMult, 12);
+            float knobGlowSize = KNOB_WIDTH * 1.5f;
+            GachaUI.renderCircle(x, handleEndY, knobGlowSize, bc[0], bc[1], bc[2], alphaMult * 0.2f);
             
-            float pivotRadius = 8f;
-            GachaAnimation.renderCircle(x, y, pivotRadius, fc[0], fc[1], fc[2], alphaMult, 12);
+            GL11.glColor4f(bc[0], bc[1], bc[2], alphaMult);
+            GL11.glBegin(GL11.GL_QUADS);
+            GL11.glVertex2f(x - knobHalfW, handleEndY - knobHalfH);
+            GL11.glVertex2f(x + knobHalfW, handleEndY - knobHalfH);
+            GL11.glVertex2f(x + knobHalfW, handleEndY + knobHalfH);
+            GL11.glVertex2f(x - knobHalfW, handleEndY + knobHalfH);
+            GL11.glEnd();
+            
+            float pivotRadius = 5f;
+            float[] dc = GachaUI.toGLComponents(GachaUI.darken(FRAME_COLOR));
+            GachaUI.renderCircle(x, y, pivotRadius + 1f, dc[0], dc[1], dc[2], alphaMult);
+            GachaUI.renderCircle(x, y, pivotRadius, fc[0], fc[1], fc[2], alphaMult);
             
             GL11.glColor4f(1f, 1f, 1f, 1f);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
-}
+        }
     }
 
     protected GachaAnimationCallback callback;
@@ -790,17 +685,8 @@ public class SlotReel {
     
     private void createChasingLights() {
         if (reels.isEmpty()) return;
-        
-        int numReels = reels.size();
-        boolean isSingle = numReels == 1;
-        float reelWidth = isSingle ? SINGLE_REEL_WIDTH : MULTI_REEL_WIDTH;
-        float spacing = isSingle ? 0f : MULTI_REEL_SPACING;
-        float totalReelWidth = numReels * reelWidth + (numReels - 1) * spacing;
-        
-        float cabinetPadding = isSingle ? CABINET_PADDING : 5f;
-        float handleExt = isSingle ? HANDLE_EXTENSION : 15f;
-        
-        float halfWidth = totalReelWidth / 2f + FRAME_BORDER + cabinetPadding + handleExt / 2f;
+
+        float halfWidth = getHalfWidth();
         float halfHeight = WINDOW_HEIGHT / 2f + FRAME_BORDER + (HEADER_HEIGHT + FOOTER_HEIGHT) / 2f;
         
         float lightOuterOffset = LIGHT_RADIUS + 5f;
@@ -808,26 +694,40 @@ public class SlotReel {
         int index = 0;
         
         for (int i = 0; i < LIGHTS_PER_SIDE; i++) {
-            float xOffset = -halfWidth + (i + 0.5f) * (2f * halfWidth / LIGHTS_PER_SIDE) + reelsOffsetX;
+            float xOffset = -halfWidth + (i + 0.5f) * (2f * halfWidth / LIGHTS_PER_SIDE);
             chasingLights.add(new ChasingLight(xOffset, halfHeight + lightOuterOffset, index++));
         }
         
         for (int i = 0; i < LIGHTS_PER_SIDE; i++) {
-            float xOffset = -halfWidth + (i + 0.5f) * (2f * halfWidth / LIGHTS_PER_SIDE) + reelsOffsetX;
+            float xOffset = -halfWidth + (i + 0.5f) * (2f * halfWidth / LIGHTS_PER_SIDE);
             chasingLights.add(new ChasingLight(xOffset, -halfHeight - lightOuterOffset, index++));
         }
         
         for (int i = 0; i < LIGHTS_PER_SIDE; i++) {
             float yOffset = -halfHeight + (i + 0.5f) * (2f * halfHeight / LIGHTS_PER_SIDE);
-            chasingLights.add(new ChasingLight(-halfWidth - lightOuterOffset + reelsOffsetX, yOffset, index++));
+            chasingLights.add(new ChasingLight(-halfWidth - lightOuterOffset, yOffset, index++));
         }
         
         for (int i = 0; i < LIGHTS_PER_SIDE; i++) {
             float yOffset = -halfHeight + (i + 0.5f) * (2f * halfHeight / LIGHTS_PER_SIDE);
-            chasingLights.add(new ChasingLight(halfWidth + lightOuterOffset + reelsOffsetX, yOffset, index++));
+            chasingLights.add(new ChasingLight(halfWidth + lightOuterOffset, yOffset, index++));
         }
     }
-    
+
+    private float getHalfWidth()
+    {
+        int numReels = reels.size();
+        boolean isSingle = numReels == 1;
+        float reelWidth = isSingle ? SINGLE_REEL_WIDTH : MULTI_REEL_WIDTH;
+        float spacing = isSingle ? 0f : MULTI_REEL_SPACING;
+        float totalReelWidth = numReels * reelWidth + (numReels - 1) * spacing;
+
+        float cabinetPadding = isSingle ? CABINET_PADDING_SINGLE : CABINET_PADDING_MULTI;
+        float handleExt = isSingle ? HANDLE_EXTENSION : 15f;
+
+        return totalReelWidth / 2f + FRAME_BORDER + cabinetPadding + handleExt / 2f;
+    }
+
     private void createSlotHandle() {
         if (reels.isEmpty()) return;
         
@@ -837,7 +737,7 @@ public class SlotReel {
         float spacing = isSingle ? 0f : MULTI_REEL_SPACING;
         float totalReelWidth = numReels * reelWidth + (numReels - 1) * spacing;
         
-        float cabinetPadding = isSingle ? CABINET_PADDING : 5f;
+        float cabinetPadding = isSingle ? CABINET_PADDING_SINGLE : CABINET_PADDING_MULTI;
         float handleOffsetX = totalReelWidth / 2f + FRAME_BORDER + HANDLE_OFFSET + cabinetPadding + reelsOffsetX;
         float handleOffsetY = 0f;
         slotHandle = new SlotHandle(handleOffsetX, handleOffsetY);
@@ -850,7 +750,7 @@ public class SlotReel {
         float panelH = panel.getPosition().getHeight();
         float panelCenterY = panel.getPosition().getCenterY();
         
-        float footerGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - 35f;
+        float footerGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - 60f;
         float footerUIY = (panelY + panelH) - footerGLY;
         
         footerLabel = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
@@ -879,17 +779,17 @@ public class SlotReel {
         float headerUIY = (panelY + panelH) - headerGLY;
         
         float pity5BarX = panelCenterX + totalReelWidth / 4f + 20f + reelsOffsetX - panelX;
-        float pity4BarX = pity5BarX + 80f + 10f;
+        float pity4BarX = pity5BarX + PITY_BAR_WIDTH + 10f;
         
         pity5Label = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
         pity5Label.setAlignment(Alignment.MID);
         pity5Label.setColor(new Color(100, 180, 255));
-        panel.addComponent((UIComponentAPI) pity5Label).inTL(pity5BarX, headerUIY).setSize(80f, 14f);
+        panel.addComponent((UIComponentAPI) pity5Label).inTL(pity5BarX, headerUIY).setSize(PITY_BAR_WIDTH, 14f);
         
         pity4Label = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
         pity4Label.setAlignment(Alignment.MID);
         pity4Label.setColor(new Color(180, 100, 255));
-        panel.addComponent((UIComponentAPI) pity4Label).inTL(pity4BarX, headerUIY).setSize(60f, 14f);
+        panel.addComponent((UIComponentAPI) pity4Label).inTL(pity4BarX, headerUIY).setSize(PITY_BAR_WIDTH, 14f);
     }
 
     private void createReelLabels() {
@@ -905,7 +805,7 @@ public class SlotReel {
         float panelCenterX = panel.getPosition().getCenterX();
         float panelCenterY = panel.getPosition().getCenterY();
         
-        float labelGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - FOOTER_HEIGHT + LABEL_HEIGHT / 2f + 6f;
+        float labelGLY = panelCenterY - WINDOW_HEIGHT / 2f - FRAME_BORDER - FOOTER_HEIGHT + LABEL_HEIGHT / 2f + 11f;
         float labelUIY = (panelY + panelH) - labelGLY;
         
         reelLabels = new LabelAPI[numReels];
@@ -969,7 +869,7 @@ public class SlotReel {
         float spacing = isSingle ? 0f : MULTI_REEL_SPACING;
         float totalReelWidth = numReels * reelWidth + (numReels - 1) * spacing;
         
-        float cabinetPadding = isSingle ? CABINET_PADDING : 5f;
+        float cabinetPadding = isSingle ? CABINET_PADDING_SINGLE : CABINET_PADDING_MULTI;
         float handleExt = isSingle ? HANDLE_EXTENSION : 15f;
         
         float cabinetLeft = panelCenterX - totalReelWidth / 2f - FRAME_BORDER - cabinetPadding + reelsOffsetX;
@@ -1039,9 +939,9 @@ public class SlotReel {
         float headerY = panelCenterY + WINDOW_HEIGHT / 2f + FRAME_BORDER;
         renderGradientQuad(left + borderW, headerY, right - left - borderW * 2, HEADER_HEIGHT - borderW, headerBgTop, headerBgBottom, alphaMult);
         
-        float pityBarW = 80f;
+        float pityBarW = PITY_BAR_WIDTH;
         float pityBarH = 12f;
-        float pityBarX = panelCenterX + totalReelWidth / 4f + 20f;
+        float pityBarX = panelCenterX + totalReelWidth / 4f + 20f + reelsOffsetX;
         float pityBarY = headerY + HEADER_HEIGHT * 0.65f;
         
         Color pityBg = new Color(20, 20, 30);
@@ -1056,13 +956,12 @@ public class SlotReel {
             renderColorQuad(pityBarX + 1f, pityBarY + 1f, filledW, pityBarH - 2f, pityColor, alphaMult);
         }
         
-        float pity4BarW = 60f;
         float pity4BarX = pityBarX + pityBarW + 10f;
         float pity4Progress = (float) visualPity4 / CasinoConfig.PITY_HARD_4;
-        float pity4FilledW = Math.max(0f, pity4BarW - 2f) * pity4Progress;
+        float pity4FilledW = Math.max(0f, pityBarW - 2f) * pity4Progress;
         Color pity4Color = pity4Progress > 0.8f ? new Color(255, 150, 100) : new Color(180, 100, 255);
-        renderBeveledRect(pity4BarX, pityBarY, pity4BarW, pityBarH, pityBorder, 1f, alphaMult);
-        renderColorQuad(pity4BarX + 1f, pityBarY + 1f, pity4BarW - 2f, pityBarH - 2f, pityBg, alphaMult);
+        renderBeveledRect(pity4BarX, pityBarY, pityBarW, pityBarH, pityBorder, 1f, alphaMult);
+        renderColorQuad(pity4BarX + 1f, pityBarY + 1f, pityBarW - 2f, pityBarH - 2f, pityBg, alphaMult);
         if (pity4FilledW > 0f) {
             renderColorQuad(pity4BarX + 1f, pityBarY + 1f, pity4FilledW, pityBarH - 2f, pity4Color, alphaMult);
         }
@@ -1073,8 +972,8 @@ public class SlotReel {
     }
     
     private void renderGradientQuad(float x, float y, float w, float h, Color topColor, Color bottomColor, float alphaMult) {
-        float[] tc = toGLComponents(topColor);
-        float[] bc = toGLComponents(bottomColor);
+        float[] tc = GachaUI.toGLComponents(topColor);
+        float[] bc = GachaUI.toGLComponents(bottomColor);
         
         GL11.glBegin(GL11.GL_QUADS);
         GL11.glColor4f(tc[0], tc[1], tc[2], alphaMult);
@@ -1087,8 +986,8 @@ public class SlotReel {
     }
 
     private void renderColorQuad(float x, float y, float w, float h, Color color, float alphaMult) {
-        float[] c = toGLComponents(color);
-        renderQuad(x, y, w, h, c[0], c[1], c[2], alphaMult);
+        float[] c = GachaUI.toGLComponents(color);
+        GachaUI.renderQuad(x, y, w, h, c[0], c[1], c[2], alphaMult);
     }
 
 private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, float windowCenterY, float alphaMult) {
@@ -1121,12 +1020,12 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
             float glowIntensity = Math.min(1f, reel.revealTimer * 2.5f);
             
             if (glowIntensity > 0f && reel.rarity >= 3) {
-                float[] c = toGLComponents(reel.rarityColor);
+                float[] c = GachaUI.toGLComponents(reel.rarityColor);
 
                 for (int gl = 0; gl < 3; gl++) {
                     float glowSize = 65f + gl * 25f;
                     float glowA = glowIntensity * alphaMult * 0.18f * (1f - gl * 0.25f);
-                    renderQuad(reelCenterX - glowSize/2, windowCenterY - glowSize/2, glowSize, glowSize, c[0], c[1], c[2], glowA);
+                    GachaUI.renderQuad(reelCenterX - glowSize/2, windowCenterY - glowSize/2, glowSize, glowSize, c[0], c[1], c[2], glowA);
                 }
             }
 
@@ -1141,9 +1040,9 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
 
     private void renderShipSprite(SpriteAPI sprite, float centerX, float centerY, float maxWidth, float maxHeight, float alphaMult) {
         if (sprite == null) {
-            float[] c = toGLComponents(new Color(80, 80, 100));
+            float[] c = GachaUI.toGLComponents(new Color(80, 80, 100));
             GL11.glDisable(GL11.GL_TEXTURE_2D);
-            renderQuad(centerX - maxWidth/2, centerY - maxHeight/2, maxWidth, maxHeight, c[0], c[1], c[2], alphaMult * 0.5f);
+            GachaUI.renderQuad(centerX - maxWidth/2, centerY - maxHeight/2, maxWidth, maxHeight, c[0], c[1], c[2], alphaMult * 0.5f);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
             return;
         }
@@ -1162,7 +1061,7 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
     }
 
     private void renderStars(float centerX, float centerY, int rarity, float animTimer, float alphaMult) {
-        float[] c = toGLComponents(rarity >= 4 ? new Color(255, 215, 0) : new Color(255, 255, 120));
+        float[] c = GachaUI.toGLComponents(rarity >= 4 ? new Color(255, 215, 0) : new Color(255, 255, 120));
         
         float baseSize = 6f;
         float spacing = 10f;
@@ -1219,38 +1118,22 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
         Color highlightColor = reel.isStopped ? reel.rarityColor : CENTER_LINE_COLOR;
         float highlightAlpha = reel.isStopped ? 1f : 0.7f;
 
-        float[] hc = toGLComponents(highlightColor);
+        float[] hc = GachaUI.toGLComponents(highlightColor);
         float hAlpha = alphaMult * highlightAlpha;
 
-        renderQuad(resultWindowX, resultWindowY, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
-        renderQuad(resultWindowX, resultWindowY + resultWindowH - highlightThickness, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
+        GachaUI.renderQuad(resultWindowX, resultWindowY, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
+        GachaUI.renderQuad(resultWindowX, resultWindowY + resultWindowH - highlightThickness, resultWindowW, highlightThickness, hc[0], hc[1], hc[2], hAlpha);
 
         if (reel.isStopped) {
-            renderQuad(resultWindowX, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
-            renderQuad(resultWindowX + resultWindowW - highlightThickness, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
+            GachaUI.renderQuad(resultWindowX, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
+            GachaUI.renderQuad(resultWindowX + resultWindowW - highlightThickness, resultWindowY, highlightThickness, resultWindowH, hc[0], hc[1], hc[2], hAlpha * 0.6f);
         }
         
         GL11.glColor4f(1f, 1f, 1f, 1f);
     }
 
     private SpriteAPI getShipSprite(String hullId) {
-        if (hullId == null || hullId.isEmpty()) return null;
-        if (spriteCache.containsKey(hullId)) return spriteCache.get(hullId);
-
-        try {
-            ShipHullSpecAPI spec = Global.getSettings().getHullSpec(hullId);
-            if (spec == null) {
-                spriteCache.put(hullId, null);
-                return null;
-            }
-
-            SpriteAPI sprite = Global.getSettings().getSprite(spec.getSpriteName());
-            spriteCache.put(hullId, sprite);
-            return sprite;
-        } catch (Exception e) {
-            spriteCache.put(hullId, null);
-            return null;
-        }
+        return CasinoSpriteCache.getShipSprite(hullId);
     }
 
     public void advance(float amount) {
@@ -1504,7 +1387,6 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
         allRevealed = false;
         activeBursts.clear();
         activeRevealBursts.clear();
-        spriteCache.clear();
         
         reelsProcessedForPity = 0;
         pityInitialized = false;
