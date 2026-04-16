@@ -42,7 +42,7 @@ public class CasinoVIPManager implements EveryFrameScript {
             return;
         }
         
-        Long lastProcessedDay = memory.getLong(LAST_PROCESSED_DAY_KEY);
+        long lastProcessedDay = memory.getLong(LAST_PROCESSED_DAY_KEY);
         if (lastProcessedDay == 0) {
             memory.set(LAST_PROCESSED_DAY_KEY, clock.getTimestamp());
             return;
@@ -186,7 +186,7 @@ if (currentDebt >= maxDebt) {
             return true;
         }
         
-        Long lastMonthlyNotify = memory.getLong(LAST_MONTHLY_NOTIFY_KEY);
+        long lastMonthlyNotify = memory.getLong(LAST_MONTHLY_NOTIFY_KEY);
         if (lastMonthlyNotify == 0) {
             memory.set(LAST_MONTHLY_NOTIFY_KEY, clock.getTimestamp());
             return true;
@@ -306,7 +306,7 @@ if (currentDebt >= maxDebt) {
             return 0;
         }
         
-        Long startTime = memory.getLong("$ipc_vip_start_time");
+        long startTime = memory.getLong("$ipc_vip_start_time");
         
         if (startTime == 0) {
             return 0;
@@ -334,7 +334,7 @@ if (currentDebt >= maxDebt) {
         }
         
         memory.set("$ipc_vip_start_time", currentTimestamp);
-        memory.set("$ipc_vip_duration", Integer.valueOf(newDuration));
+        memory.set("$ipc_vip_duration", newDuration);
         
         addCumulativeVIPPurchases(1);
         

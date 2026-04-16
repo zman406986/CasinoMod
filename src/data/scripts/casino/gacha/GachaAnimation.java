@@ -106,7 +106,6 @@ public class GachaAnimation extends BaseCustomUIPanelPlugin {
     protected static final float AXLE_WIDTH = 6f;
     protected static final float KNOB_WIDTH = 10f;
     protected static final float KNOB_HEIGHT_MAX = 10f;
-    protected static final float KNOB_HEIGHT_MIN = 2f;
 
     public static Color getRarityColor(int rarity) {
         return switch(rarity) {

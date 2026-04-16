@@ -695,9 +695,16 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
         if (availableForWinPayout <= 0.0f) {
             return CasinoConfig.ARENA_MIN_ODDS;
         }
-        
+
+        float finalOdds = getFinalOdds(currentRound, availableForWinPayout, winProbability);
+
+        return Math.max(CasinoConfig.ARENA_MIN_ODDS, finalOdds);
+    }
+
+    private static float getFinalOdds(int currentRound, float availableForWinPayout, Float winProbability)
+    {
         float fairOdds = availableForWinPayout / winProbability;
-        
+
         float midRoundMultiplier = 1.0f;
         if (currentRound > 0) {
             float basePenalty = CasinoConfig.ARENA_MID_ROUND_BASE_PENALTY;
@@ -705,9 +712,7 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
             progressivePenalty = Math.max(CasinoConfig.ARENA_DIMINISHING_RETURNS_MIN, progressivePenalty);
             midRoundMultiplier = basePenalty * progressivePenalty;
         }
-        
-        float finalOdds = fairOdds * midRoundMultiplier;
-        
-        return Math.max(CasinoConfig.ARENA_MIN_ODDS, finalOdds);
+
+        return fairOdds * midRoundMultiplier;
     }
 }

@@ -24,7 +24,6 @@ pom.xml
 
 # Gradle
 .gradle/
-build/
 !gradle-wrapper.jar
 .gradletasknamecache
 gradle-wrapper.properties
@@ -67,7 +66,6 @@ logs/
 ehthumbs.db
 Thumbs.db
 *.swp
-*~
 
 # Temp files
 *.tmp
