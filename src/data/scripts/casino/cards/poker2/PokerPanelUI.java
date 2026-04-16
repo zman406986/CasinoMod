@@ -80,6 +80,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         lastAnimatedRound = null;
         lastAnimatedCommunityCount = 0;
         playerCardsAnimated = false;
+        playerHandRankLabel.setOpacity(0f);
     }
 
     private void checkAndTriggerAnimations(PokerState state, PokerRound previousRound, int previousCommunityCount) {
@@ -120,6 +121,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
     private LabelAPI playerActionLabel;
     private LabelAPI returnMessageLabel;
     private LabelAPI resultLabel;
+    private LabelAPI playerHandRankLabel;
 
     public interface PokerActionCallback {
         void onPlayerAction(PokerAction action, int raiseAmount);
@@ -454,6 +456,13 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         panel.addComponent((UIComponentAPI) playerActionLabel).inTL(160, 480)
             .setSize(ACTION_LABEL_WIDTH, ACTION_LABEL_HEIGHT);
         hidePlayerAction();
+
+        playerHandRankLabel = settings.createLabel("", Fonts.DEFAULT_SMALL);
+        playerHandRankLabel.setColor(Color.WHITE);
+        playerHandRankLabel.setAlignment(Alignment.LMID);
+        panel.addComponent((UIComponentAPI) playerHandRankLabel).inTL(160, 505)
+            .setSize(200f, 18f);
+        playerHandRankLabel.setOpacity(0f);
     }
 
     public final void showOpponentAction(String action) {
@@ -472,6 +481,32 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
 
     public final void hidePlayerAction() {
         playerActionLabel.setOpacity(0f);
+    }
+
+    private void updatePlayerHandRankLabel(PokerState state) {
+        if (state.playerHand == null || state.communityCards == null) {
+            playerHandRankLabel.setOpacity(0f);
+            return;
+        }
+
+        final boolean hasCommunity = state.communityCards.size() >= 3;
+        if (!hasCommunity) {
+            playerHandRankLabel.setOpacity(0f);
+            return;
+        }
+
+        final HandScore score = PokerHandEvaluator.evaluate(state.playerHand, state.communityCards);
+        playerHandRankLabel.setText(formatHandDescription(score));
+
+        if (state.round == PokerRound.SHOWDOWN && state.folder == null) {
+            final HandScore oppScore = PokerHandEvaluator.evaluate(state.opponentHand, state.communityCards);
+            final boolean isWinner = score.compareTo(oppScore) > 0;
+            playerHandRankLabel.setColor(isWinner ? Color.GREEN : Color.WHITE);
+        } else {
+            playerHandRankLabel.setColor(Color.WHITE);
+        }
+
+        playerHandRankLabel.setOpacity(1f);
     }
 
     private void createReturnMessageLabel() {
@@ -670,6 +705,7 @@ public class PokerPanelUI extends BaseCardGamePanelUI<PokerGame> {
         waitingLabel.setOpacity(waitingForOpponent ? 1f : 0f);
 
         updateResultLabel(state);
+        updatePlayerHandRankLabel(state);
         updateNextHandButton(state);
         updateButtonVisibility();
 

@@ -782,12 +782,12 @@ public class SlotReel {
         
         pity5Label = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
         pity5Label.setAlignment(Alignment.MID);
-        pity5Label.setColor(new Color(100, 180, 255));
+        pity5Label.setColor(new Color(255, 215, 0));
         panel.addComponent((UIComponentAPI) pity5Label).inTL(pity5BarX, headerUIY).setSize(PITY_BAR_WIDTH, 14f);
         
         pity4Label = Global.getSettings().createLabel("", Fonts.DEFAULT_SMALL);
         pity4Label.setAlignment(Alignment.MID);
-        pity4Label.setColor(new Color(180, 100, 255));
+        pity4Label.setColor(new Color(200, 100, 255));
         panel.addComponent((UIComponentAPI) pity4Label).inTL(pity4BarX, headerUIY).setSize(PITY_BAR_WIDTH, 14f);
     }
 
@@ -950,7 +950,7 @@ public class SlotReel {
         
         float pity5Progress = (float) visualPity5 / CasinoConfig.PITY_HARD_5;
         float filledW = Math.max(0f, pityBarW - 2f) * pity5Progress;
-        Color pityColor = pity5Progress > 0.8f ? new Color(255, 100, 50) : new Color(100, 180, 255);
+        Color pityColor = new Color(255, 215, 0);
         if (filledW > 0f) {
             renderColorQuad(pityBarX + 1f, pityBarY + 1f, filledW, pityBarH - 2f, pityColor, alphaMult);
         }
@@ -958,7 +958,7 @@ public class SlotReel {
         float pity4BarX = pityBarX + pityBarW + 10f;
         float pity4Progress = (float) visualPity4 / CasinoConfig.PITY_HARD_4;
         float pity4FilledW = Math.max(0f, pityBarW - 2f) * pity4Progress;
-        Color pity4Color = pity4Progress > 0.8f ? new Color(255, 150, 100) : new Color(180, 100, 255);
+        Color pity4Color = new Color(200, 100, 255);
         renderBeveledRect(pity4BarX, pityBarY, pityBarW, pityBarH, pityBorder, 1f, alphaMult);
         renderColorQuad(pity4BarX + 1f, pityBarY + 1f, pityBarW - 2f, pityBarH - 2f, pityBg, alphaMult);
         if (pity4FilledW > 0f) {
@@ -1254,22 +1254,10 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
     private void updatePityLabels() {
         if (pity5Label != null) {
             pity5Label.setText(visualPity5 + "/" + CasinoConfig.PITY_HARD_5);
-            float progress = (float) visualPity5 / CasinoConfig.PITY_HARD_5;
-            if (progress > 0.8f) {
-                pity5Label.setColor(new Color(255, 100, 50));
-            } else {
-                pity5Label.setColor(new Color(100, 180, 255));
-            }
         }
         
         if (pity4Label != null) {
             pity4Label.setText(visualPity4 + "/" + CasinoConfig.PITY_HARD_4);
-            float progress = (float) visualPity4 / CasinoConfig.PITY_HARD_4;
-            if (progress > 0.8f) {
-                pity4Label.setColor(new Color(255, 150, 100));
-            } else {
-                pity4Label.setColor(new Color(180, 100, 255));
-            }
         }
     }
 

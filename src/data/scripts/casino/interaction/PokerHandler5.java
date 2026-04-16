@@ -198,7 +198,21 @@ public class PokerHandler5 {
 
         pokerGame.processPokerAction(PokerGame5.HUMAN_PLAYER_INDEX, action, raiseAmount);
 
-        processAITurnsInPlace(delegate);
+        PokerGame5.PokerState5 state = pokerGame.getState();
+        
+        if (state.round == PokerRound.SHOWDOWN) {
+            pokerGame.determineWinners();
+            delegate.refreshAfterStateChange(pokerGame);
+            return;
+        }
+
+        if (state.currentPlayerIndex != PokerGame5.HUMAN_PLAYER_INDEX &&
+            pokerGame.canAct(state.currentPlayerIndex)) {
+            delegate.startAITurn(state.currentPlayerIndex);
+            delegate.refreshAfterStateChange(pokerGame);
+        } else {
+            delegate.refreshAfterStateChange(pokerGame);
+        }
     }
 
     public void processAITurnsInPlace(PokerDialogDelegate5 delegate) {
@@ -241,6 +255,7 @@ public class PokerHandler5 {
         if (state.currentPlayerIndex != PokerGame5.HUMAN_PLAYER_INDEX &&
             pokerGame.canAct(state.currentPlayerIndex)) {
             delegate.startAITurn(state.currentPlayerIndex);
+            delegate.refreshAfterStateChange(pokerGame);
         } else {
             delegate.refreshAfterStateChange(pokerGame);
         }
@@ -277,8 +292,6 @@ public class PokerHandler5 {
         handsPlayedThisSession++;
 
         delegate.updateGame(pokerGame);
-
-        processAITurnsInPlace(delegate);
     }
 
     public void handleCleanLeaveInPlace(PokerDialogDelegate5 delegate) {

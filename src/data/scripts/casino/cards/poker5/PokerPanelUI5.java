@@ -60,6 +60,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
     private int currentAITurn = -1;
     private boolean skipRequested = false;
     private boolean wasMousePressed = false;
+    private boolean justStartedWaiting = false;
     private static final float AI_THINK_DELAY = 5.0f;
 
     private final CardFlipAnimation[] playerCardAnimations = new CardFlipAnimation[HAND_SIZE];
@@ -516,9 +517,9 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         }
 
         final PokerHandEvaluator.HandRank handRank = state.handRanks != null ? state.handRanks[playerIdx] : null;
-        if (!isFolded && state.round == PokerRound.SHOWDOWN && handRank != null) {
+        if (!isFolded && handRank != null) {
             playerHandRankLabel.setText(formatHandRank(handRank));
-            final boolean isWinner = isPlayerWinner(state.winners, playerIdx);
+            final boolean isWinner = state.round == PokerRound.SHOWDOWN && isPlayerWinner(state.winners, playerIdx);
             playerHandRankLabel.setColor(isWinner ? Color.GREEN : Color.WHITE);
             playerHandRankLabel.setOpacity(1f);
         } else {
@@ -773,10 +774,17 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         
         if (waitingForAI) {
             aiThinkTimer += amount;
-            if (mouseDown && !wasMousePressed) {
-                skipRequested = true;
+            
+            if (!justStartedWaiting) {
+                if (mouseDown && !wasMousePressed) {
+                    skipRequested = true;
+                }
+                wasMousePressed = mouseDown;
+            } else {
+                justStartedWaiting = false;
+                wasMousePressed = mouseDown;
             }
-            wasMousePressed = mouseDown;
+            
             if (skipRequested || aiThinkTimer >= AI_THINK_DELAY) {
                 waitingForAI = false;
                 aiThinkTimer = 0f;
@@ -806,6 +814,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         waitingForAI = true;
         aiThinkTimer = 0f;
         currentAITurn = playerIndex;
+        justStartedWaiting = true;
     }
 
     public final void updateGameState(PokerGame5 game) {
@@ -813,6 +822,10 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final PokerState5 state = game.getState();
 
         if (state.round == PokerRound.PREFLOP && lastAnimatedRound != PokerRound.PREFLOP) {
+            waitingForAI = false;
+            aiThinkTimer = 0f;
+            currentAITurn = -1;
+            skipRequested = false;
             resetCardAnimations();
         }
 
