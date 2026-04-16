@@ -434,7 +434,7 @@ public class ArenaPanelUI extends BaseCustomUIPanelPlugin
             this.scaledHeight = h;
             this.color = c;
             this.alpha = a;
-            this.maxLifetime = 0.12f;
+            this.maxLifetime = 0.24f;
             this.lifetime = 0f;
             this.offsetX = offset;
         }

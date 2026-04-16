@@ -68,12 +68,12 @@
     "arenaSingleShipDamagePercent": 0.15,
     "arenaMultiShipDamagePercent": 0.10,
 
-    "arenaLogLineDelay": 1.0,
+    "arenaLogLineDelay": 2.0,
     "arenaSpriteNudgeAmount": 12.0,
-    "arenaSpriteNudgeDuration": 0.25,
-    "arenaHpAnimDuration": 0.4,
+    "arenaSpriteNudgeDuration": 0.5,
+    "arenaHpAnimDuration": 0.8,
     "arenaFlashCount": 2,
-    "arenaEvasionDuration": 0.3,
+    "arenaEvasionDuration": 0.6,
     "arenaEvasionSplitDistance": 15.0,
 
     "arenaBaseStats": {

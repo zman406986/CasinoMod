@@ -376,6 +376,7 @@
         "gacha_5050": "- 50/50: If you get a non-featured 5*, next 5* is guaranteed featured",
         "gacha_after": "After Pulling:",
         "gacha_after_1": "- Keep ships for your fleet or convert to Stargems",
+        "gacha_after_2": "- Set Auto-Convert to automatically convert unwanted ships when pulled",
         "financial_title": "--- Financial Services ---",
         "financial_vip": "VIP Pass:",
         "financial_vip_cost": "- Cost: %s Credits for %d days",
