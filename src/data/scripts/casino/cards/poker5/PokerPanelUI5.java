@@ -499,7 +499,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
         final int stack = state.stacks[playerIdx];
         final int bet = state.displayBets[playerIdx];
         final boolean isFolded = state.foldedPlayers.contains(playerIdx);
-        final boolean isBust = !game.canPlay(playerIdx);
+        final boolean isBust = state.round == PokerRound.SHOWDOWN && state.stacks[playerIdx] <= 0;
 
         final String playerName = Strings.get("poker5.you_name");
         final String posName = game.getPositionName(playerIdx);
@@ -553,7 +553,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
             final boolean isCurrentTurn = state.currentPlayerIndex == playerIdx && state.round != PokerRound.SHOWDOWN;
             final int bet = state.displayBets[playerIdx];
             final PokerHandEvaluator.HandRank handRank = state.handRanks != null ? state.handRanks[playerIdx] : null;
-            final boolean isBust = !game.canPlay(playerIdx);
+            final boolean isBust = state.round == PokerRound.SHOWDOWN && state.stacks[playerIdx] <= 0;
 
             final String oppNameLabel = Strings.format("poker5.opponent_name", i + 1);
             final String posName = game.getPositionName(playerIdx);
@@ -730,7 +730,7 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
 
         for (int i = 0; i < NUM_OPPONENTS; i++) {
             final int playerIdx = i + 1;
-            if (!game.canPlay(playerIdx)) continue;
+            if (state.foldedPlayers.contains(playerIdx)) continue;
 
             final List<Card> cards = state.hands[playerIdx];
             if (cards == null || cards.isEmpty()) continue;
@@ -779,12 +779,11 @@ public class PokerPanelUI5 extends BaseCardGamePanelUI<PokerGame5> {
                 if (mouseDown && !wasMousePressed) {
                     skipRequested = true;
                 }
-                wasMousePressed = mouseDown;
             } else {
                 justStartedWaiting = false;
-                wasMousePressed = mouseDown;
             }
-            
+            wasMousePressed = mouseDown;
+
             if (skipRequested || aiThinkTimer >= AI_THINK_DELAY) {
                 waitingForAI = false;
                 aiThinkTimer = 0f;

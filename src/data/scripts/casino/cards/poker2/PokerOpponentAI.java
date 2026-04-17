@@ -333,6 +333,15 @@ public class PokerOpponentAI extends AbstractPokerAI {
     }
 
     private PokerAICommon.AIResponse postFlopEVDecision(int currentBetToCall, int potSize, int stackSize, String playerRange, float equity, boolean isWetBoard, float trueEquity, float perceivedStrength, PokerAICommon.DeceptionMode mode, PokerRound currentRound) {
+        if (currentBetToCall == 0) {
+            PokerAICommon.AIResponse decision = handleFreeCheckDecision(
+                equity, potSize, stackSize, isInPosition, isWetBoard);
+            applyPersonalityToRaise(decision, equity, stackSize);
+            boolean wasInitiator = decision.action == PokerAICommon.InternalAction.RAISE;
+            recordBettingAction(currentRound, decision.action, decision.raiseAmount, potSize, wasInitiator);
+            return decision;
+        }
+
         float evFold = -committedThisRound;
         float evCall = PokerAIUtils.calculateCallEV(equity, potSize, currentBetToCall);
         
@@ -444,14 +453,12 @@ public class PokerOpponentAI extends AbstractPokerAI {
             float potOdds = currentBetToCall > 0 ? (float) currentBetToCall / (potSize + currentBetToCall) : 0f;
             PokerAICommon.AIResponse deviation = randomDeviationResponse(equity, potOdds, stackSize, potSize);
             if (deviation.action != finalDecision.action || deviation.raiseAmount != finalDecision.raiseAmount) {
-                boolean wasInitiator = deviation.action == PokerAICommon.InternalAction.RAISE && currentBetToCall == 0;
-                recordBettingAction(currentRound, deviation.action, deviation.raiseAmount, potSize, wasInitiator);
-                return deviation;
+recordBettingAction(currentRound, deviation.action, deviation.raiseAmount, potSize, false);
+            return deviation;
             }
         }
 
-        boolean wasInitiator = finalDecision.action == PokerAICommon.InternalAction.RAISE && currentBetToCall == 0;
-        recordBettingAction(currentRound, finalDecision.action, finalDecision.raiseAmount, potSize, wasInitiator);
+        recordBettingAction(currentRound, finalDecision.action, finalDecision.raiseAmount, potSize, false);
 
         return finalDecision;
     }

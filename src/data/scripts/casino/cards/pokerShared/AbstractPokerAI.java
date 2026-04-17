@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.cards.Card;
 
 public abstract class AbstractPokerAI {
@@ -330,6 +331,27 @@ public abstract class AbstractPokerAI {
             (int) (pot * 1.0f * baseMultiplier),
             (int) (pot * 2.0f * baseMultiplier)
         };
+    }
+
+    protected PokerAICommon.AIResponse handleFreeCheckDecision(
+            float equity, int potSize, int stackSize, boolean inLatePosition, boolean wetBoard) {
+        float bluffChance = inLatePosition ? 0.35f : 0.20f;
+        float threshold = 0.45f;
+
+        if (equity >= threshold || (equity >= threshold - 0.05f && random.nextFloat() < bluffChance)) {
+            int[] raiseSizes = calculatePostFlopRaiseSizes(potSize, wetBoard, equity, inLatePosition);
+            int raiseAmount = raiseSizes[random.nextInt(raiseSizes.length)];
+            raiseAmount = Math.min(Math.max(raiseAmount, CasinoConfig.POKER_AI_MIN_RAISE_VALUE), stackSize);
+            return new PokerAICommon.AIResponse(PokerAICommon.InternalAction.RAISE, raiseAmount);
+        }
+
+        if (equity < 0.35f && random.nextFloat() < bluffChance * 0.5f) {
+            int bluffRaise = (int) (potSize * 0.5f);
+            bluffRaise = Math.min(Math.max(bluffRaise, CasinoConfig.POKER_AI_MIN_RAISE_VALUE), stackSize);
+            return new PokerAICommon.AIResponse(PokerAICommon.InternalAction.RAISE, bluffRaise);
+        }
+
+        return new PokerAICommon.AIResponse(PokerAICommon.InternalAction.CHECK, 0);
     }
 
     protected void resetForNewHand() {

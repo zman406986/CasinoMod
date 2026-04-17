@@ -447,7 +447,9 @@
     },
     "gacha_slot": {
         "click_stop": "Click anywhere to stop reels",
-        "click_continue": "Click anywhere to continue"
+        "click_continue": "Click anywhere to continue",
+        "stopping": "Stopping...",
+        "click_stop_reel": "Click to stop"
     },
     "poker": {
         "resuming": "Resuming your suspended poker game...",

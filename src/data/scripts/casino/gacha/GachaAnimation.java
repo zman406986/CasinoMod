@@ -1271,10 +1271,10 @@ private void renderReelContent(SlotReel reel, float reelLeft, float reelRight, f
             if (reel.isStopped) {
                 lbl.setText("");
             } else if (reel.isStopping) {
-                lbl.setText("Stopping...");
+                lbl.setText(Strings.get("gacha_slot.stopping"));
                 lbl.setColor(Color.YELLOW);
             } else if (i == nextReelToStop) {
-                lbl.setText("Click to stop");
+                lbl.setText(Strings.get("gacha_slot.click_stop_reel"));
                 lbl.setColor(CENTER_LINE_COLOR);
             } else {
                 lbl.setText("");

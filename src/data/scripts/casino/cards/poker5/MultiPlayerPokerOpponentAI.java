@@ -196,6 +196,15 @@ public class MultiPlayerPokerOpponentAI extends AbstractPokerAI implements Poker
 
         boolean wetBoard = PokerAIUtils.isWetBoard(table.communityCards());
 
+        if (betToCall == 0) {
+            PokerAICommon.AIResponse decision = handleFreeCheckDecision(
+                adjustedEquity, table.pot(), stack, position.isLatePosition(), wetBoard);
+            applyPersonalityToRaise(decision, adjustedEquity, stack);
+            boolean wasInitiator = decision.action == PokerAICommon.InternalAction.RAISE;
+            recordBettingNarrative(table.round(), decision.action, decision.raiseAmount, table.pot(), wasInitiator);
+            return decision;
+        }
+
         float perceivedStrength = getPerceivedStrength(narrative.type, wetBoard);
         PokerAICommon.DeceptionMode deceptionMode = selectDeceptionMode(trueEquity, perceivedStrength, wetBoard);
         float deceptionEquity = computeDeceptionEquity(deceptionMode, adjustedEquity, perceivedStrength);
@@ -301,8 +310,7 @@ public class MultiPlayerPokerOpponentAI extends AbstractPokerAI implements Poker
             }
         }
 
-        boolean wasInitiator = finalDecision.action == PokerAICommon.InternalAction.RAISE && betToCall == 0;
-        recordBettingNarrative(table.round(), finalDecision.action, finalDecision.raiseAmount, table.pot(), wasInitiator);
+        recordBettingNarrative(table.round(), finalDecision.action, finalDecision.raiseAmount, table.pot(), false);
 
         return finalDecision;
     }
