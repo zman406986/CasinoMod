@@ -1,3 +1,6 @@
+Version 1.6.1
+- Fixed crash when resuming suspended arena game in Chinese locale (format specifier mismatch).
+
 Version 1.6.0
 - Overhauled gacha UI to use slot reel animation, added auto-convert.
 - Fixed arena result terminating prematurely.

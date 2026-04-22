@@ -188,10 +188,10 @@
         "combatants_wait": "'The combatants will remain where they are. Don't be long.'",
         "other_matches": "'We have other matches scheduled.'",
         "no_suspended": "No suspended arena game found.",
-        "return_30_days": "The arena announcer's voice crackles over ancient speakers: 'AFTER %d DAYS... THEY... RETURN.' Dust falls from the ceiling. 'THE COMBATANTS HAVE BEEN STANDING PERFECTLY STILL, AGING GRACEFULLY, WAITING FOR YOU.'",
-        "return_7_days": "The arena manager rushes over, eyes bloodshot. '%d DAYS! Do you know how long it takes to keep a crowd entertained when nothing is happening? We've been doing puppet shows with fighter debris!'",
-        "return_1_day": "A maintenance drone bumps into you. 'Welcome back after %d days,' it drones. 'The combatants have not moved. The crowd has not moved. Time has... mostly not moved. Can we start now?'",
-        "return_hours": "The arena attendant looks surprised. 'Back already? Only %s hours have passed.' They whisper to a colleague: 'I lost the bet. I said they'd be gone at least a day.'",
+        "return_30_days": "The arena announcer's voice crackles over ancient speakers: 'AFTER %.1f DAYS... THEY... RETURN.' Dust falls from the ceiling. 'THE COMBATANTS HAVE BEEN STANDING PERFECTLY STILL, AGING GRACEFULLY, WAITING FOR YOU.'",
+        "return_7_days": "The arena manager rushes over, eyes bloodshot. '%.1f DAYS! Do you know how long it takes to keep a crowd entertained when nothing is happening? We've been doing puppet shows with fighter debris!'",
+        "return_1_day": "A maintenance drone bumps into you. 'Welcome back after %.1f days,' it drones. 'The combatants have not moved. The crowd has not moved. Time has... mostly not moved. Can we start now?'",
+        "return_hours": "The arena attendant looks surprised. 'Back already? Only %.1f hours have passed.' They whisper to a colleague: 'I lost the bet. I said they'd be gone at least a day.'",
         "crowd_stirs": "The crowd stirs from their torpor as the combatants finally unlock their joints."
     },
     "arena_resume": {

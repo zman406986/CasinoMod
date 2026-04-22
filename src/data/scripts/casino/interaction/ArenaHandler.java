@@ -1506,13 +1506,13 @@ private void performAddBetToChampion(int championIndex, int additionalAmount) {
         }
 
         if (daysAway >= 30) {
-            main.getTextPanel().addPara(Strings.format("arena_suspend.return_30_days", String.format("%.1f", daysAway)), Color.YELLOW);
+            main.getTextPanel().addPara(Strings.format("arena_suspend.return_30_days", daysAway), Color.YELLOW);
         } else if (daysAway >= 7) {
-            main.getTextPanel().addPara(Strings.format("arena_suspend.return_7_days", String.format("%.1f", daysAway)), Color.YELLOW);
+            main.getTextPanel().addPara(Strings.format("arena_suspend.return_7_days", daysAway), Color.YELLOW);
         } else if (daysAway >= 1) {
-            main.getTextPanel().addPara(Strings.format("arena_suspend.return_1_day", String.format("%.1f", daysAway)), Color.YELLOW);
+            main.getTextPanel().addPara(Strings.format("arena_suspend.return_1_day", daysAway), Color.YELLOW);
         } else {
-            main.getTextPanel().addPara(Strings.format("arena_suspend.return_hours", String.format("%.1f", daysAway * 24)), Color.YELLOW);
+            main.getTextPanel().addPara(Strings.format("arena_suspend.return_hours", daysAway * 24), Color.YELLOW);
         }
         main.getTextPanel().addPara(Strings.get("arena_suspend.crowd_stirs"), Color.CYAN);
         
