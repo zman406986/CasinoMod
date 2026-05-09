@@ -37,10 +37,10 @@ public class CasinoConfig {
     public static int POKER_MONTE_CARLO_SAMPLES;
     public static float POKER_BLIND_DEFENSE_THRESHOLD;
     public static float POKER_BLIND_FOLD_RESISTANCE;
-    public static boolean POKER_AI_DEBUG_LOGGING = true;
 
     // Gacha
     public static int GACHA_COST;
+    public static int GACHA_REFRESH_COST;
     public static int GACHA_POOL_SIZE;
     public static int GACHA_POOL_CAPITALS;
     public static int GACHA_POOL_CRUISERS;
@@ -168,6 +168,7 @@ public class CasinoConfig {
 
             // Gacha settings
             GACHA_COST = settings.optInt("gachaCost", 160);
+            GACHA_REFRESH_COST = settings.optInt("gachaRefreshCost", 5000);
             GACHA_POOL_SIZE = settings.optInt("gachaPoolSize", 40);
             GACHA_POOL_CAPITALS = settings.optInt("gachaPoolCapitals", 3);
             GACHA_POOL_CRUISERS = settings.optInt("gachaPoolCruisers", 9);

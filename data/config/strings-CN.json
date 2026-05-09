@@ -79,7 +79,13 @@
         "auto_convert_save": "保存",
         "auto_convert_saved": "自动转化设置已保存。已标记 %d 艘舰船。",
         "auto_convert_count": "自动转化：已标记 %d 艘舰船",
-        "auto_convert_applied": "(%d 艘舰船已根据设置自动转化)"
+        "auto_convert_applied": "(%d 艘舰船已根据设置自动转化)",
+        "refresh_pool": "刷新舰船池(%d 星石)",
+        "refresh_confirm": "确认刷新舰船池，消耗 %d 星石？",
+        "refresh_pity_note": "您的保底进度将保留。",
+        "refresh_confirm_btn": "确认刷新",
+        "refresh_success": "舰船池已成功刷新！",
+        "refresh_insufficient": "星石不足，无法刷新舰船池。"
     },
     "gacha_overdraft": {
         "alert_title": "星际和平赌场信用提醒",
@@ -122,7 +128,7 @@
         "purchase_prompt": "前往金融服务购买VIP月卡，即可解锁透支功能！",
         "go_topup": "前往星石充值"
     },
-"arena": {
+    "arena": {
         "lobby_title": "深境螺旋竞技场 - 今日对阵表",
         "select_champion": "选择一位英雄参战：",
         "how_works": "玩法说明",
@@ -182,7 +188,7 @@
         "net_result": "净赚：%s 星石",
         "bet_returned": "您的 %s 星石投注已返还至钱包。"
     },
-"arena_suspend": {
+    "arena_suspend": {
         "stand_up": "您突然站起来：【全体目光向我看齐，我宣布个事！我要去上个厕所！】",
         "announcer_pause": "竞技场解说员话音未落。观众困惑地低语。",
         "combatants_wait": "【战斗人员请保持原位。】",
@@ -773,6 +779,7 @@
         "corrupted_blackjack_data": "暂停的21点游戏数据已损坏。开始新游戏。",
         "corrupted_arena_data": "暂停的竞技场数据已损坏。开始新比赛。",
         "market_too_small": "这个市场太小了，无法支持赌场设施。",
+        "casino_start_failed": "启动赌场时发生错误，请稍后再试。",
         "champion_not_found": "错误：未找到所选英雄。返回大厅。"
     },
     "poker_help": {
@@ -840,7 +847,7 @@
         "odds": "赔率：%.2fx",
         "bet_detail": "第%d回合 %.2fx"
     },
-"arena_errors": {
+    "arena_errors": {
         "overdraft_vip_only": "透支需要VIP月卡。",
         "credit_exhausted_topup": "信用额度已耗尽。请前往星石充值。",
         "credit_insufficient": "可用额度：%s 星石(不足以投注 %s 星石)",

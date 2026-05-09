@@ -92,8 +92,7 @@ public class BlackjackGame {
 
     private final GameStateData state;
     private Deck deck;
-    private int handsSinceShuffle;
-    private static final int RESHUFFLE_INTERVAL = 50;
+    private static final int RESHUFFLE_THRESHOLD = 52;
 
     public BlackjackGame(int playerStack) {
         state = new GameStateData();
@@ -103,7 +102,6 @@ public class BlackjackGame {
         state.splitHands = new ArrayList<>();
         deck = new Deck(GameType.BLACKJACK);
         deck.shuffle();
-        handsSinceShuffle = 0;
     }
 
     private void resetHandState() {
@@ -119,11 +117,9 @@ public class BlackjackGame {
     }
 
     public void startNewHand() {
-        handsSinceShuffle++;
-        if (handsSinceShuffle >= RESHUFFLE_INTERVAL) {
+        if (deck.cards.size() < RESHUFFLE_THRESHOLD) {
             deck = new Deck(GameType.BLACKJACK);
             deck.shuffle();
-            handsSinceShuffle = 0;
         }
         resetHandState();
     }

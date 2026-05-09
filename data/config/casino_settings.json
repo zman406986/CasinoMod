@@ -86,7 +86,7 @@
     "maxDebtMultiplier": 2.0,
     "overdraftCeilingLevelMultiplier": 1000,
     "debtCollectorThresholdPercent": 0.75,
-    "marketSizeMinForPlayerCasino": 4,
+    "marketSizeMinForPlayerCasino": 3,
     "marketSizeMinForGeneralCasino": 3,
 
     "stargemExchangeRate": 500,

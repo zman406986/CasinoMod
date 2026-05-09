@@ -79,7 +79,13 @@
         "auto_convert_save": "Save",
         "auto_convert_saved": "Auto-convert settings saved. %d ships marked for automatic conversion.",
         "auto_convert_count": "Auto-Convert: %d ships marked",
-        "auto_convert_applied": "(%d ships auto-converted from your settings)"
+        "auto_convert_applied": "(%d ships auto-converted from your settings)",
+        "refresh_pool": "Refresh Pool (%d Gems)",
+        "refresh_confirm": "Refresh the gacha pool for %d Stargems?",
+        "refresh_pity_note": "Your pity progress will be preserved.",
+        "refresh_confirm_btn": "Confirm Refresh",
+        "refresh_success": "Pool refreshed successfully!",
+        "refresh_insufficient": "Insufficient Stargems to refresh the pool."
     },
     "gacha_overdraft": {
         "alert_title": "IPC CREDIT ALERT",
@@ -853,6 +859,7 @@
         "corrupted_blackjack_data": "The suspended blackjack game data has been corrupted. Starting a new game.",
         "corrupted_arena_data": "The suspended arena data has been corrupted. Starting a new match.",
         "market_too_small": "This market is too small to support a casino establishment.",
+        "casino_start_failed": "An error occurred while starting the casino. Please try again later.",
         "champion_not_found": "Error: Selected champion not found. Returning to lobby."
     },
     "poker_help": {

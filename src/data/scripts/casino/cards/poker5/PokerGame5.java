@@ -107,6 +107,9 @@ public class PokerGame5 {
 
         if (!suspendedGameMarker) {
             startNewHand();
+        } else {
+            deck = new Deck(GameType.POKER);
+            deck.shuffle();
         }
     }
 

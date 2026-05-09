@@ -76,6 +76,7 @@ public class PokerGame5Factory {
         state.currentPlayerIndex = currentPlayerIndex;
         state.pot = pot;
 
+        int maxStack = 0;
         for (int i = 0; i < PokerGame5.NUM_PLAYERS; i++) {
             state.stacks[i] = stacks[i];
             state.bets[i] = bets[i];
@@ -85,12 +86,17 @@ public class PokerGame5Factory {
             state.declaredAllIn[i] = allIn[i];
             state.hasActed[i] = hasActed[i];
 
+            if (stacks[i] > maxStack) {
+                maxStack = stacks[i];
+            }
+
             if (folded[i]) {
                 state.foldedPlayers.add(i);
             } else if (stacks[i] > 0) {
                 state.activePlayers.add(i);
             }
         }
+        state.maxStack = maxStack;
 
         state.communityCards = new ArrayList<>(communityCards);
 

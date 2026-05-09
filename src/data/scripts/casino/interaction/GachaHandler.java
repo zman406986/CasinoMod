@@ -26,6 +26,8 @@ public class GachaHandler {
     private static final String OPTION_GACHA_MENU = "gacha_menu";
     private static final String OPTION_PULL_1 = "pull_1";
     private static final String OPTION_PULL_10 = "pull_10";
+    private static final String OPTION_REFRESH_POOL = "refresh_pool";
+    private static final String OPTION_CONFIRM_REFRESH = "confirm_refresh";
     private static final String OPTION_AUTO_CONVERT = "auto_convert";
     private static final String OPTION_HOW_TO_GACHA = "how_to_gacha";
     private static final String OPTION_BACK_MENU = "back_menu";
@@ -72,6 +74,8 @@ public class GachaHandler {
         handlers.put(OPTION_GACHA_MENU, option -> showGachaMenu());
         handlers.put(OPTION_PULL_1, option -> showGachaConfirm(1));
         handlers.put(OPTION_PULL_10, option -> showGachaConfirm(10));
+        handlers.put(OPTION_REFRESH_POOL, option -> showRefreshConfirm());
+        handlers.put(OPTION_CONFIRM_REFRESH, option -> performPoolRefresh());
         handlers.put(OPTION_AUTO_CONVERT, option -> openAutoConvertPicker());
         handlers.put(OPTION_HOW_TO_GACHA, option -> main.help.showGachaHelp());
         handlers.put(OPTION_BACK_MENU, option -> main.showMenu());
@@ -173,6 +177,7 @@ public class GachaHandler {
         displayFinancialInfo();
         addPullOptions();
 
+        addRefreshOption();
         main.options.addOption(Strings.get("gacha.auto_convert_menu"), OPTION_AUTO_CONVERT);
         main.options.addOption(Strings.get("gacha.handbook"), OPTION_HOW_TO_GACHA);
         main.options.addOption(Strings.get("common.back"), OPTION_BACK_MENU);
@@ -200,6 +205,45 @@ public class GachaHandler {
         if (canAffordTransaction(CasinoConfig.GACHA_COST * 10)) {
             main.options.addOption(Strings.format("gacha.pull_10x", CasinoConfig.GACHA_COST * 10), OPTION_PULL_10);
         }
+    }
+
+    private void addRefreshOption() {
+        int balance = CasinoVIPManager.getBalance();
+        if (balance >= CasinoConfig.GACHA_REFRESH_COST) {
+            main.options.addOption(Strings.format("gacha.refresh_pool", CasinoConfig.GACHA_REFRESH_COST), OPTION_REFRESH_POOL);
+        }
+    }
+
+    private void showRefreshConfirm() {
+        main.options.clearOptions();
+        main.textPanel.addPara(Strings.format("gacha.refresh_confirm", CasinoConfig.GACHA_REFRESH_COST), Color.YELLOW);
+        main.textPanel.addPara(Strings.get("gacha.refresh_pity_note"), Color.GRAY);
+        main.options.addOption(Strings.get("gacha.refresh_confirm_btn"), OPTION_CONFIRM_REFRESH);
+        main.options.addOption(Strings.get("common.cancel"), OPTION_GACHA_MENU);
+    }
+
+    private void performPoolRefresh() {
+        int balance = CasinoVIPManager.getBalance();
+        if (balance < CasinoConfig.GACHA_REFRESH_COST) {
+            main.textPanel.addPara(Strings.get("gacha.refresh_insufficient"), Color.RED);
+            showGachaMenu();
+            return;
+        }
+
+        CasinoVIPManager.addToBalance(-CasinoConfig.GACHA_REFRESH_COST);
+
+        CasinoGachaManager manager = new CasinoGachaManager();
+        CasinoGachaManager.GachaData data = manager.getData();
+        manager.rotatePool(data);
+
+        main.textPanel.addPara(Strings.get("gacha.refresh_success"), Color.GREEN);
+        if (data.featuredCapital != null) {
+            ShipHullSpecAPI capSpec = Global.getSettings().getHullSpec(data.featuredCapital);
+            String capName = capSpec != null ? capSpec.getHullName() : data.featuredCapital;
+            main.textPanel.addPara(Strings.format("gacha.featured_5star", capName), Color.ORANGE);
+        }
+
+        showGachaMenu();
     }
 
     private void showGachaConfirm(int times) {

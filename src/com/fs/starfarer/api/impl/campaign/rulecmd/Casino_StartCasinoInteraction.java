@@ -39,7 +39,9 @@ public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
                 
                 if (marketSize < minSize) {
                     dialog.getTextPanel().addPara(Strings.get("errors.market_too_small"), Color.RED);
-                    return false;
+                    dialog.getOptionPanel().clearOptions();
+                    dialog.getOptionPanel().addOption(Strings.get("common.continue"), "casino_error_dismiss");
+                    return true;
                 }
             }
 
@@ -49,7 +51,10 @@ public class Casino_StartCasinoInteraction extends BaseCommandPlugin {
             return true;
         } catch (Exception e) {
             Global.getLogger(this.getClass()).error("Error starting casino interaction", e);
-            return false;
+            dialog.getTextPanel().addPara(Strings.get("errors.casino_start_failed"), Color.RED);
+            dialog.getOptionPanel().clearOptions();
+            dialog.getOptionPanel().addOption(Strings.get("common.continue"), "casino_error_dismiss");
+            return true;
         }
     }
 }
