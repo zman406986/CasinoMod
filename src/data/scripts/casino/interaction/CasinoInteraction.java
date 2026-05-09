@@ -24,6 +24,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
     protected final FinHandler financial;
     protected final TopupHandler topup;
     protected final HelpHandler help;
+    protected CosmiconLoungeHandler loungeHandler;
 
     private State currentState = State.MAIN_MENU;
 
@@ -35,7 +36,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         ARENA,
         FINANCIAL,
         TOPUP,
-        HELP
+        HELP,
+        COSMICON_LOUNGE
     }
 
     public static void startCasinoInteraction(InteractionDialogAPI dialog) {
@@ -53,6 +55,17 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         this.financial = new FinHandler(this);
         this.topup = new TopupHandler(this);
         this.help = new HelpHandler(this);
+    }
+
+    protected CosmiconLoungeHandler getLoungeHandler() {
+        if (loungeHandler == null) {
+            loungeHandler = new CosmiconLoungeHandler(this);
+        }
+        return loungeHandler;
+    }
+
+    public InteractionDialogAPI getDialog() {
+        return dialog;
     }
 
     @Override
@@ -92,6 +105,11 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         options.addOption(Strings.get("main_menu.btn_topup"), "topup_menu");
         options.addOption(Strings.get("main_menu.btn_financial"), "financial_menu");
         options.addOption(Strings.get("main_menu.btn_help"), "how_to_play_main");
+
+        if (Global.getSettings().getModManager().isModEnabled("cosmicon_dice")) {
+            options.addOption(Strings.get("cosmicon_lounge.btn_enter"), "cosmicon_lounge");
+        }
+
         options.addOption(Strings.get("main_menu.btn_leave"), "leave");
 
         setState(State.MAIN_MENU);
@@ -129,6 +147,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
                    option.startsWith("captcha_answer_") || option.startsWith("captcha_wrong_") ||
                    option.startsWith("cash_out")) {
             financial.handle(option);
+        } else if (option.equals("cosmicon_lounge") || option.startsWith("lounge_")) {
+            getLoungeHandler().handle(option);
         } else if (option.startsWith("how_to_")) {
             help.handle(option);
         } else if (option.startsWith("back_")) {
