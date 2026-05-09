@@ -27,7 +27,7 @@ public class GachaHandler {
     private static final String OPTION_PULL_1 = "pull_1";
     private static final String OPTION_PULL_10 = "pull_10";
     private static final String OPTION_REFRESH_POOL = "refresh_pool";
-    private static final String OPTION_CONFIRM_REFRESH = "confirm_refresh";
+    private static final String OPTION_CONFIRM_REFRESH = "refresh_confirm";
     private static final String OPTION_AUTO_CONVERT = "auto_convert";
     private static final String OPTION_HOW_TO_GACHA = "how_to_gacha";
     private static final String OPTION_BACK_MENU = "back_menu";

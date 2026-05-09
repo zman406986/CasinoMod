@@ -1,5 +1,6 @@
 package data.scripts.casino.interaction;
 
+import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.*;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
@@ -128,7 +129,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         }
 
         // Route to appropriate handler based on option prefix
-        if (option.startsWith("gacha_") || option.startsWith("pull_") || option.startsWith("confirm_pull_") || option.startsWith("auto_convert") || option.startsWith("explain_")) {
+        if (option.startsWith("gacha_") || option.startsWith("pull_") || option.startsWith("confirm_pull_") || option.startsWith("refresh_") || option.startsWith("auto_convert") || option.startsWith("explain_")) {
             gacha.handle(option);
         } else if (option.equals("play5") || option.startsWith("poker5_") || option.startsWith("confirm_poker5") || option.startsWith("next_hand5")) {
             poker5.handle(option);
@@ -187,10 +188,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
     public void setState(State state) {
         this.currentState = state;
-    }
-
-    public InteractionDialogAPI getDialog() {
-        return dialog;
     }
 
     public TextPanelAPI getTextPanel() {

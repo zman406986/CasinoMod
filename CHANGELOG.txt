@@ -1,5 +1,8 @@
-Version 1.6.2
+Version 1.6.3
 - Add option to refresh current gacha pool for 5000 Stargems.
+- Add collab with Cosmicon Dice mod - if both installed, you can play dice in casino.
+
+Version 1.6.2
 - Fixed crash and incorrect stack visualization bar when resuming suspended 5-player poker game.
 
 Version 1.6.1

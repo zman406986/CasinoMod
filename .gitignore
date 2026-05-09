@@ -77,16 +77,16 @@ Thumbs.db
 backup/
 *.bak
 
-# Graphify knowledge graph
-graphify-out/
-.opencode/
-
 # Project specific excludes
 AGENTS.md
 starsector reference api/
 plan/
 docs/
 .trae/
+graphify-out/
+.opencode/
+README.md
+README_CN.md
 
 # Build outputs (keep Casino.jar)
 jars/classes/

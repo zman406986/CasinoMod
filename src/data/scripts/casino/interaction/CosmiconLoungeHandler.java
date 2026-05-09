@@ -9,12 +9,11 @@ import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 
 import data.scripts.casino.CasinoVIPManager;
 import data.scripts.casino.Strings;
+import data.scripts.cosmicon.casino.CasinoIntegrationManager;
 
 public class CosmiconLoungeHandler {
 
     private static final String KEY_BOSS_LAST_TIME = "$ipc_cosmicon_boss_last_time";
-    private static final String KEY_COS_GAMES_PLAYED = "$cos_games_played";
-    private static final String KEY_COS_TRASHCAN_HUNTER = "$cos_trashcan_hunter_level";
 
     private static final int BOSS_COST = 5000;
     private static final int CHALLENGE_COST = 10000;
@@ -53,20 +52,18 @@ public class CosmiconLoungeHandler {
         casino.options.clearOptions();
         MemoryAPI mem = Global.getSector().getPlayerMemoryWithoutUpdate();
 
-        int hunterLevel = getTrashcanHunterLevel(mem);
+        int hunterLevel = getTrashcanHunterLevel();
         if (hunterLevel > 0) {
             casino.textPanel.addPara(Strings.format("cosmicon_lounge.trashcan_hunter_greeting", hunterLevel), Color.CYAN);
         } else {
             casino.textPanel.addPara(Strings.get("cosmicon_lounge.welcome"), Color.CYAN);
         }
 
-        if (!isTutorialComplete(mem)) {
+        if (!isTutorialComplete()) {
             casino.textPanel.addPara(Strings.get("cosmicon_lounge.tutorial_required"), Color.ORANGE);
             casino.options.addOption(Strings.get("cosmicon_lounge.back"), "lounge_back");
             return;
         }
-
-        int balance = CasinoVIPManager.getBalance();
 
         float cooldownRemaining = getBossCooldownRemaining(mem);
         if (cooldownRemaining > 0) {
@@ -132,43 +129,19 @@ public class CosmiconLoungeHandler {
         return BOSS_COOLDOWN_DAYS - elapsed;
     }
 
-    private boolean isTutorialComplete(MemoryAPI mem) {
-        if (!mem.contains(KEY_COS_GAMES_PLAYED)) return false;
-        int gamesPlayed = (int) mem.getFloat(KEY_COS_GAMES_PLAYED);
-        return gamesPlayed >= 2;
+    private boolean isTutorialComplete() {
+        return CasinoIntegrationManager.isTutorialComplete();
     }
 
-    private int getTrashcanHunterLevel(MemoryAPI mem) {
-        if (!mem.contains(KEY_COS_TRASHCAN_HUNTER)) return 0;
-        return (int) mem.getFloat(KEY_COS_TRASHCAN_HUNTER);
+    private int getTrashcanHunterLevel() {
+        return CasinoIntegrationManager.getTrashcanHunterLevel();
     }
 
     private void startBossBattle(InteractionDialogAPI dialog, Runnable onLeave) {
-        try {
-            Class<?> managerClass = Class.forName("data.scripts.cosmicon.casino.CasinoIntegrationManager");
-            java.lang.reflect.Method method = managerClass.getMethod("startBossBattle",
-                InteractionDialogAPI.class, Runnable.class);
-            method.invoke(null, dialog, onLeave);
-        } catch (Exception e) {
-            showReflectionError(e);
-        }
+        CasinoIntegrationManager.startBossBattle(dialog, onLeave);
     }
 
     private void startChallengeBattle(InteractionDialogAPI dialog, Runnable onLeave) {
-        try {
-            Class<?> managerClass = Class.forName("data.scripts.cosmicon.casino.CasinoIntegrationManager");
-            java.lang.reflect.Method method = managerClass.getMethod("startChallengeBattle",
-                InteractionDialogAPI.class, Runnable.class);
-            method.invoke(null, dialog, onLeave);
-        } catch (Exception e) {
-            showReflectionError(e);
-        }
-    }
-
-    private void showReflectionError(Exception e) {
-        casino.options.clearOptions();
-        casino.textPanel.addPara("An error occurred starting the Cosmicon battle: " + e.getMessage(), Color.RED);
-        casino.options.addOption(Strings.get("cosmicon_lounge.back"), "lounge_back");
-        e.printStackTrace();
+        CasinoIntegrationManager.startChallengeBattle(dialog, onLeave);
     }
 }
