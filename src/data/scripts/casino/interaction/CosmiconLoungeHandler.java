@@ -91,6 +91,7 @@ public class CosmiconLoungeHandler {
         mem.set(KEY_BOSS_LAST_TIME, clock.getTimestamp());
 
         Runnable backToLounge = () -> {
+            dialog.setPlugin(casino);
             casino.options.clearOptions();
             showLoungeMenu();
         };
@@ -112,6 +113,7 @@ public class CosmiconLoungeHandler {
         mem.unset(KEY_BOSS_LAST_TIME);
 
         Runnable backToLounge = () -> {
+            dialog.setPlugin(casino);
             casino.options.clearOptions();
             showLoungeMenu();
         };
