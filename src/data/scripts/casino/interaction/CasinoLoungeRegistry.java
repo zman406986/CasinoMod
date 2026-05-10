@@ -4,11 +4,18 @@ import com.fs.starfarer.api.Global;
 
 public class CasinoLoungeRegistry {
 
-    public static boolean isCosmiconEnabled() {
-        return Global.getSettings().getModManager().isModEnabled("cosmicon_dice");
+    private static LoungeProvider provider = null;
+
+    @SuppressWarnings("unused")
+    public static void registerProvider(LoungeProvider p) {
+        provider = p;
     }
 
-    public static LoungeProvider createProvider() {
-        return new data.scripts.cosmicon.casino.CosmiconLoungeProvider();
+    public static LoungeProvider getProvider() {
+        return provider;
+    }
+
+    public static boolean isCosmiconEnabled() {
+        return Global.getSettings().getModManager().isModEnabled("cosmicon_dice");
     }
 }

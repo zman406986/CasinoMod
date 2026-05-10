@@ -1,6 +1,5 @@
 package data.scripts.casino.interaction;
 
-import com.fs.starfarer.api.Global;
 import com.fs.starfarer.api.campaign.*;
 import com.fs.starfarer.api.campaign.rules.MemoryAPI;
 import com.fs.starfarer.api.combat.EngagementResultAPI;
@@ -60,7 +59,10 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
     protected CosmiconLoungeHandler getLoungeHandler() {
         if (loungeHandler == null) {
-            loungeHandler = new CosmiconLoungeHandler(this, CasinoLoungeRegistry.createProvider());
+            LoungeProvider p = CasinoLoungeRegistry.getProvider();
+            if (p != null) {
+                loungeHandler = new CosmiconLoungeHandler(this, p);
+            }
         }
         return loungeHandler;
     }
@@ -108,7 +110,10 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         options.addOption(Strings.get("main_menu.btn_help"), "how_to_play_main");
 
         if (CasinoLoungeRegistry.isCosmiconEnabled()) {
-            options.addOption(getLoungeHandler().getProvider().getEnterButtonLabel(), "cosmicon_lounge");
+            CosmiconLoungeHandler handler = getLoungeHandler();
+            if (handler != null) {
+                options.addOption(handler.getProvider().getEnterButtonLabel(), "cosmicon_lounge");
+            }
         }
 
         options.addOption(Strings.get("main_menu.btn_leave"), "leave");
@@ -149,7 +154,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
                    option.startsWith("cash_out")) {
             financial.handle(option);
         } else if (option.equals("cosmicon_lounge") || option.startsWith("lounge_")) {
-            getLoungeHandler().handle(option);
+            CosmiconLoungeHandler handler = getLoungeHandler();
+            if (handler != null) { handler.handle(option); } else { showMenu(); }
         } else if (option.startsWith("how_to_")) {
             help.handle(option);
         } else if (option.startsWith("back_")) {

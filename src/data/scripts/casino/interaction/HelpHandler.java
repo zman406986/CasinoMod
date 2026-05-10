@@ -2,7 +2,7 @@ package data.scripts.casino.interaction;
 
 import data.scripts.casino.CasinoConfig;
 import data.scripts.casino.Strings;
-import com.fs.starfarer.api.Global;
+
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +27,10 @@ public class HelpHandler {
         handlers.put("how_to_financial", option -> showFinancialHelp());
         handlers.put("how_to_topup", option -> showTopupHelp());
         handlers.put("back_menu", option -> main.showMenu());
-        handlers.put("cosmicon_lounge", option -> main.getLoungeHandler().showLounge());
+        handlers.put("cosmicon_lounge", option -> {
+            CosmiconLoungeHandler handler = main.getLoungeHandler();
+            if (handler != null) { handler.showLounge(); } else { main.showMenu(); }
+        });
         handlers.put("gacha_menu", main.gacha::handle);
         handlers.put("play", main.poker::handle);
         handlers.put("play5", main.poker5::handle);
@@ -75,8 +78,11 @@ public class HelpHandler {
         main.textPanel.addPara(Strings.get("help.games_3"));
 
         if (CasinoLoungeRegistry.isCosmiconEnabled()) {
-            for (String line : main.getLoungeHandler().getProvider().getHelpLines()) {
-                main.textPanel.addPara(line, Color.YELLOW);
+            CosmiconLoungeHandler handler = main.getLoungeHandler();
+            if (handler != null) {
+                for (String line : handler.getProvider().getHelpLines()) {
+                    main.textPanel.addPara(line, Color.YELLOW);
+                }
             }
         }
 
@@ -85,7 +91,10 @@ public class HelpHandler {
         main.options.addOption(Strings.get("help.about_arena"), "how_to_arena");
         main.options.addOption(Strings.get("help.about_gacha"), "how_to_gacha");
         if (CasinoLoungeRegistry.isCosmiconEnabled()) {
-            main.options.addOption(main.getLoungeHandler().getProvider().getHelpOptionLabel(), "cosmicon_lounge");
+            CosmiconLoungeHandler handler = main.getLoungeHandler();
+            if (handler != null) {
+                main.options.addOption(handler.getProvider().getHelpOptionLabel(), "cosmicon_lounge");
+            }
         }
         main.options.addOption(Strings.get("common.back"), "back_menu");
         main.setState(CasinoInteraction.State.HELP);
