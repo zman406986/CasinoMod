@@ -60,7 +60,7 @@ public class CasinoInteraction implements InteractionDialogPlugin {
 
     protected CosmiconLoungeHandler getLoungeHandler() {
         if (loungeHandler == null) {
-            loungeHandler = new CosmiconLoungeHandler(this);
+            loungeHandler = new CosmiconLoungeHandler(this, CasinoLoungeRegistry.createProvider());
         }
         return loungeHandler;
     }
@@ -107,8 +107,8 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         options.addOption(Strings.get("main_menu.btn_financial"), "financial_menu");
         options.addOption(Strings.get("main_menu.btn_help"), "how_to_play_main");
 
-        if (Global.getSettings().getModManager().isModEnabled("cosmicon_dice")) {
-            options.addOption(Strings.get("cosmicon_lounge.btn_enter"), "cosmicon_lounge");
+        if (CasinoLoungeRegistry.isCosmiconEnabled()) {
+            options.addOption(getLoungeHandler().getProvider().getEnterButtonLabel(), "cosmicon_lounge");
         }
 
         options.addOption(Strings.get("main_menu.btn_leave"), "leave");

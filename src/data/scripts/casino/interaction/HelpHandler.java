@@ -74,19 +74,18 @@ public class HelpHandler {
         main.textPanel.addPara(Strings.get("help.games_2"));
         main.textPanel.addPara(Strings.get("help.games_3"));
 
-        if (Global.getSettings().getModManager().isModEnabled("cosmicon_dice")) {
-            main.textPanel.addPara(Strings.get("help.cosmicon_collab"), Color.YELLOW);
-            main.textPanel.addPara(Strings.get("help.cosmicon_collab_1"));
-            main.textPanel.addPara(Strings.get("help.cosmicon_collab_2"));
-            main.textPanel.addPara(Strings.get("help.cosmicon_collab_3"));
+        if (CasinoLoungeRegistry.isCosmiconEnabled()) {
+            for (String line : main.getLoungeHandler().getProvider().getHelpLines()) {
+                main.textPanel.addPara(line, Color.YELLOW);
+            }
         }
 
         main.options.addOption(Strings.get("help.about_poker"), "how_to_poker");
         main.options.addOption(Strings.get("help.about_blackjack"), "how_to_blackjack");
         main.options.addOption(Strings.get("help.about_arena"), "how_to_arena");
         main.options.addOption(Strings.get("help.about_gacha"), "how_to_gacha");
-        if (Global.getSettings().getModManager().isModEnabled("cosmicon_dice")) {
-            main.options.addOption(Strings.get("help.cosmicon_enter"), "cosmicon_lounge");
+        if (CasinoLoungeRegistry.isCosmiconEnabled()) {
+            main.options.addOption(main.getLoungeHandler().getProvider().getHelpOptionLabel(), "cosmicon_lounge");
         }
         main.options.addOption(Strings.get("common.back"), "back_menu");
         main.setState(CasinoInteraction.State.HELP);
