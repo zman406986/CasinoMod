@@ -36,7 +36,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         ARENA,
         FINANCIAL,
         TOPUP,
-        HELP,
         COSMICON_LOUNGE
     }
 
@@ -107,7 +106,6 @@ public class CasinoInteraction implements InteractionDialogPlugin {
         options.addOption(Strings.get("main_menu.btn_arena"), "arena_visual_panel");
         options.addOption(Strings.get("main_menu.btn_topup"), "topup_menu");
         options.addOption(Strings.get("main_menu.btn_financial"), "financial_menu");
-        options.addOption(Strings.get("main_menu.btn_help"), "how_to_play_main");
 
         if (CasinoLoungeRegistry.isCosmiconEnabled()) {
             CosmiconLoungeHandler handler = getLoungeHandler();

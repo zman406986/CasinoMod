@@ -18,7 +18,6 @@ public class HelpHandler {
     }
     
     private void initializeHandlers() {
-        handlers.put("how_to_play_main", option -> showGeneralHelp());
         handlers.put("how_to_poker", option -> showPokerHelp());
         handlers.put("how_to_poker5_menu", option -> showPokerHelp("play5"));
         handlers.put("how_to_blackjack", option -> showBlackjackHelp());
@@ -55,49 +54,6 @@ public class HelpHandler {
         }
         
         main.showMenu();
-    }
-
-    public void showGeneralHelp() {
-        main.options.clearOptions();
-        main.textPanel.addPara(Strings.get("help.how_to_play"), Color.CYAN);
-        
-        main.textPanel.addPara(Strings.get("help.stargems_title"), Color.YELLOW);
-        main.textPanel.addPara(Strings.format("help.stargems_1", (int)CasinoConfig.STARGEM_EXCHANGE_RATE));
-        main.textPanel.addPara(Strings.get("help.stargems_2"));
-        main.textPanel.addPara(Strings.get("help.stargems_3"));
-        
-        main.textPanel.addPara(Strings.get("help.vip_title"), Color.YELLOW);
-        main.textPanel.addPara(Strings.format("help.vip_1", CasinoConfig.VIP_PASS_DAYS));
-        main.textPanel.addPara(Strings.format("help.vip_2", CasinoConfig.VIP_DAILY_REWARD));
-        main.textPanel.addPara(Strings.get("help.vip_3"));
-        main.textPanel.addPara(Strings.get("help.vip_4"));
-        
-        main.textPanel.addPara(Strings.get("help.games_title"), Color.GRAY);
-        main.textPanel.addPara(Strings.get("help.games_1"));
-        main.textPanel.addPara(Strings.get("help.games_2"));
-        main.textPanel.addPara(Strings.get("help.games_3"));
-
-        if (CasinoLoungeRegistry.isCosmiconEnabled()) {
-            CosmiconLoungeHandler handler = main.getLoungeHandler();
-            if (handler != null) {
-                for (String line : handler.getProvider().getHelpLines()) {
-                    main.textPanel.addPara(line, Color.YELLOW);
-                }
-            }
-        }
-
-        main.options.addOption(Strings.get("help.about_poker"), "how_to_poker");
-        main.options.addOption(Strings.get("help.about_blackjack"), "how_to_blackjack");
-        main.options.addOption(Strings.get("help.about_arena"), "how_to_arena");
-        main.options.addOption(Strings.get("help.about_gacha"), "how_to_gacha");
-        if (CasinoLoungeRegistry.isCosmiconEnabled()) {
-            CosmiconLoungeHandler handler = main.getLoungeHandler();
-            if (handler != null) {
-                main.options.addOption(handler.getProvider().getHelpOptionLabel(), "cosmicon_lounge");
-            }
-        }
-        main.options.addOption(Strings.get("common.back"), "back_menu");
-        main.setState(CasinoInteraction.State.HELP);
     }
 
     public void showPokerHelp() {

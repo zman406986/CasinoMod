@@ -24,7 +24,6 @@
         "btn_arena": "深境螺旋(大逃杀竞技场)",
         "btn_topup": "星石充值",
         "btn_financial": "金融服务",
-        "btn_help": "玩法说明",
         "btn_leave": "离开"
     },
     "financial_status": {
@@ -341,24 +340,6 @@
         "purchased": "成功购买 %d 星石。"
     },
     "help": {
-        "how_to_play": "--- 玩法说明 ---",
-        "stargems_title": "星石：",
-        "stargems_1": "- 赌场货币(1 星石 = %d 星币)",
-        "stargems_2": "- 在充值终端购买星石",
-        "stargems_3": "- 在金融服务出售舰船换取星石",
-        "vip_title": "VIP月卡：",
-        "vip_1": "- 有效期 %d 天",
-        "vip_2": "- 每日领取 %d 星石",
-        "vip_3": "- 解锁透支功能(余额不足时可继续消费)",
-        "vip_4": "- 降低债务利息",
-        "games_title": "游戏：",
-        "games_1": "- 扑克：与荷官对战德州扑克",
-        "games_2": "- 竞技场：在大逃杀中押注舰船",
-        "games_3": "- 跃迁：抽卡获取舰船，含保底机制",
-        "about_poker": "扑克玩法",
-        "about_arena": "竞技场玩法",
-        "about_gacha": "跃迁玩法",
-        "about_blackjack": "21点玩法",
         "arena_title": "--- 深境螺旋竞技场 ---",
         "arena_desc": "在大逃杀中押注舰船，赌谁会是最后幸存者！",
         "arena_how_works": "玩法：",

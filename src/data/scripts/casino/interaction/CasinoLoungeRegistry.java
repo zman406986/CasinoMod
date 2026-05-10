@@ -1,7 +1,7 @@
 package data.scripts.casino.interaction;
 
 import com.fs.starfarer.api.Global;
-
+//check cosmicon existence for collab features
 public class CasinoLoungeRegistry {
 
     private static LoungeProvider provider = null;

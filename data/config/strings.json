@@ -24,7 +24,6 @@
         "btn_arena": "Spiral Abyss (Battle Royale Arena)",
         "btn_topup": "Stargem Top-up",
         "btn_financial": "Financial Services",
-        "btn_help": "How to Play",
         "btn_leave": "Leave"
     },
     "financial_status": {
@@ -341,24 +340,6 @@
         "purchased": "Purchased %d Stargems."
     },
     "help": {
-        "how_to_play": "--- How to Play ---",
-        "stargems_title": "Stargems:",
-        "stargems_1": "- Casino currency (1 Gem = %d Credits)",
-        "stargems_2": "- Buy Stargems at the Top-Up terminal",
-        "stargems_3": "- Sell ships at Financial Services for Stargems",
-        "vip_title": "VIP Pass:",
-        "vip_1": "- Lasts %d days",
-        "vip_2": "- %d Stargems daily reward",
-        "vip_3": "- Overdraft access (spend beyond balance)",
-        "vip_4": "- Reduced interest on debt",
-        "games_title": "Games:",
-        "games_1": "- Poker: Texas Hold'em against the dealer",
-        "games_2": "- Arena: Bet on ships in a battle royale",
-        "games_3": "- Gacha: Pull for ships with pity system",
-        "about_poker": "About Poker",
-        "about_arena": "About Arena",
-        "about_gacha": "About Gacha",
-        "about_blackjack": "About Blackjack",
         "arena_title": "--- Spiral Abyss Arena ---",
         "arena_desc": "Bet on ships to be the last one standing in a battle royale!",
         "arena_how_works": "How it works:",

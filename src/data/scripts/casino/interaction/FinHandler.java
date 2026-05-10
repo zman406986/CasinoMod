@@ -114,7 +114,6 @@ public class FinHandler {
         handlers.put("cancel_ship_trade", option -> showFinancialMenu());
         handlers.put("toggle_vip_notifications", option -> toggleVIPNotifications());
         handlers.put("back_menu", option -> main.showMenu());
-        handlers.put("how_to_play_main", option -> main.help.showGeneralHelp());
         handlers.put("how_to_financial", option -> main.help.showFinancialHelp());
 
         // Predicate-based handlers for pattern matching
