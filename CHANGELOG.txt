@@ -1,3 +1,6 @@
+Version 1.6.4
+- (no feature updates) Add debug commands, add quick translate .bat
+
 Version 1.6.3
 - Add option to refresh current gacha pool for 5000 Stargems.
 - Add collab with Cosmicon Dice mod - if both installed, you can play dice in casino.

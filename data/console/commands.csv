@@ -1,0 +1,4 @@
+command,class,tags,syntax,help
+casino_status,data.console.commands.CasinoStatus,"casino,debug,campaign",casino_status,"Shows full Casino state: stargem balance, VIP, debt, gacha pity, debt collector."
+casino_set_debt,data.console.commands.CasinoSetDebt,"casino,debug,cheat,campaign",casino_set_debt max [spawn],"Sets debt to max. Add 'spawn' to also immediately spawn the debt collector fleet."
+casino_pity,data.console.commands.CasinoPity,"casino,debug,cheat,campaign",casino_pity [near_max|<5star> [<4star>]],"Sets gacha pity counters. No args or 'near_max': 5★=88, 4★=9. Or specify exact values."

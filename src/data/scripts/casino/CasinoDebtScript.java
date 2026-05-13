@@ -41,6 +41,8 @@ public class CasinoDebtScript implements EveryFrameScript {
     private static final float MAX_DIST_FROM_CORE = 30000f;
     private static final float SPAWN_DIST_FROM_SYSTEM = 3000f;
     
+    private static CasinoDebtScript instance;
+
     private StarSystemAPI systemPlayerIsIn = null;
     private float daysInSystem = 0f;
     private boolean shouldSpawnCollector = false;
@@ -48,6 +50,7 @@ public class CasinoDebtScript implements EveryFrameScript {
 
     public CasinoDebtScript() {
         seed = Misc.genRandomSeed();
+        instance = this;
     }
 
     @Override
@@ -431,6 +434,16 @@ public class CasinoDebtScript implements EveryFrameScript {
         Global.getSector().getMemoryWithoutUpdate().unset(MEM_COLLECTOR_FLEET_ID);
         Global.getSector().getMemoryWithoutUpdate().unset(MEM_PENDING_START_TIME);
         Global.getLogger(CasinoDebtScript.class).info("Debt collector system manually reset");
+    }
+
+    public static void forceSpawnCollector() {
+        if (instance == null) {
+            Global.getLogger(CasinoDebtScript.class).warn("forceSpawnCollector: no active instance");
+            return;
+        }
+        instance.setCollectorState(STATE_ACTIVE);
+        instance.spawnDebtCollector(null);
+        instance.recordSpawnTime();
     }
     
     public static void initializeSystem() {
