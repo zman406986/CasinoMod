@@ -425,6 +425,7 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
                 String flavor = crit ? getFlavor(Strings.getList("arena_flavor.crit"), lastCritHistory) : getFlavor(Strings.getList("arena_flavor.attack"), lastAttackHistory);
                 String prefix = crit ? "[CRIT] " : "[HIT] ";
                 log.add(prefix + flavor.replace("$attacker", attacker.shortName).replace("$target", target.shortName).replace("$dmg", ""+dmg));
+                Global.getSoundPlayer().playUISound("ipc_arena_impact", 0.9f + random.nextFloat() * 0.2f, 0.7f);
                 
                 if (random.nextFloat() < target.bravery) {
                     target.retaliateTarget = attacker;
@@ -443,6 +444,7 @@ public SpiralGladiator(String hullId, String prefix, String hullName, String aff
             } else {
                 String miss = getFlavor(Strings.getList("arena_flavor.miss"), lastMissHistory);
                 log.add("[MISS] " + miss.replace("$attacker", attacker.shortName).replace("$target", target.shortName));
+                Global.getSoundPlayer().playUISound("ipc_arena_miss", 0.9f + random.nextFloat() * 0.2f, 0.7f);
             }
         }
 

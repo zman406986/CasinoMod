@@ -260,11 +260,13 @@ handlers.put("poker_back_action", option -> showPokerVisualPanel());
     
 private void startGameWithStack(int stackSize) {
         CasinoVIPManager.addToBalance(-stackSize);
-        
+
         pokerGame = new PokerGame(stackSize, stackSize);
-        
+
         handsPlayedThisSession = 0;
-        
+
+        Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+
         showPokerVisualPanel();
     }
     
@@ -985,9 +987,10 @@ private void endHand() {
     
     public void processPlayerActionInPlace(PokerAction action, int raiseAmount, PokerDialogDelegate delegate) {
         if (pokerGame == null) return;
-        
+
         PokerGame.PokerState state = pokerGame.getState();
-        
+        PokerRound roundBefore = state.round;
+
         switch (action) {
             case FOLD -> {
                 pokerGame.processPlayerAction(PokerAction.FOLD, 0);
@@ -1010,43 +1013,70 @@ private void endHand() {
                 int callAmount = Math.min(state.opponentBet - state.playerBet, state.playerStack);
                 pokerGame.processPlayerAction(PokerAction.CALL, 0);
                 delegate.setLastPlayerAction(Strings.format("poker_actions.you_call", callAmount));
+                Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
             }
             case RAISE -> {
                 pokerGame.processPlayerAction(PokerAction.RAISE, raiseAmount);
                 delegate.setLastPlayerAction(Strings.format("poker_actions.you_raise_to", raiseAmount));
+                Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
             }
             case ALL_IN -> throw new IllegalArgumentException();
         }
-        
+
         processOpponentTurnInPlace(delegate);
-        
+
+        state = pokerGame.getState();
+        if (state.round != roundBefore && state.round != PokerRound.SHOWDOWN) {
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+        }
+
         delegate.refreshAfterStateChange(pokerGame);
     }
     
     private void processOpponentTurnInPlace(PokerDialogDelegate delegate) {
         if (pokerGame == null) return;
-        
+
         PokerGame.PokerState state = pokerGame.getState();
-        
+
         if (state.round == PokerRound.SHOWDOWN) {
             determineWinnerInPlace(delegate);
             return;
         }
-        
+
+        PokerRound roundBefore = state.round;
+        boolean opponentActed = false;
+
         while (state.currentPlayer == PokerGame.CurrentPlayer.OPPONENT) {
+            if (!opponentActed) {
+                Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
+                opponentActed = true;
+            }
             delegate.startOpponentTurn();
-            
-PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
+
+            PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
             pokerGame.processOpponentAction(response);
-            
+
+            InternalAction aiAction = response.action;
+            if (aiAction == InternalAction.CALL || aiAction == InternalAction.RAISE || aiAction == InternalAction.BET) {
+                Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+            }
+
             String actionText = formatOpponentActionText(response);
             delegate.setLastOpponentAction(actionText);
-            
+
             state = pokerGame.getState();
             if (state.round == PokerRound.SHOWDOWN) {
                 determineWinnerInPlace(delegate);
                 return;
             }
+        }
+
+        if (opponentActed) {
+            Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
+        }
+
+        if (state.round != roundBefore && state.round != PokerRound.SHOWDOWN) {
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
         }
     }
     
@@ -1063,29 +1093,35 @@ PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
     private void determineWinnerInPlace(PokerDialogDelegate delegate) {
         if (pokerGame == null) return;
         PokerGame.PokerState state = pokerGame.getState();
-        
+
         if (state.folder != null) {
             state.lastPotWon = state.pot;
             if (state.folder == PokerGame.CurrentPlayer.PLAYER) {
                 state.opponentStack += state.pot;
+                Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
             } else {
                 state.playerStack += state.pot;
+                Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
             }
             state.pot = 0;
             delegate.refreshAfterStateChange(pokerGame);
             return;
         }
-        
+
+        Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+
         PokerHandEvaluator.HandScore playerScore = PokerHandEvaluator.evaluate(state.playerHand, state.communityCards);
         PokerHandEvaluator.HandScore oppScore = PokerHandEvaluator.evaluate(state.opponentHand, state.communityCards);
-        
+
         state.lastPotWon = state.pot;
-        
+
         int cmp = playerScore.compareTo(oppScore);
         if (cmp > 0) {
             state.playerStack += state.pot;
+            Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
         } else if (cmp < 0) {
             state.opponentStack += state.pot;
+            Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
         } else {
             int halfPot = state.pot / 2;
             int remainder = state.pot % 2;
@@ -1093,7 +1129,7 @@ PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
             state.opponentStack += halfPot;
         }
         state.pot = 0;
-        
+
         delegate.refreshAfterStateChange(pokerGame);
     }
     
@@ -1110,6 +1146,8 @@ PokerAICommon.AIResponse response = pokerGame.getOpponentAction();
 
         pokerGame.startNewHand();
         handsPlayedThisSession++;
+
+        Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
 
         delegate.updateGame(pokerGame);
         processOpponentTurnInPlace(delegate);

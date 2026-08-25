@@ -270,11 +270,38 @@ public class BlackjackHandler {
     public void processPlayerActionInPlace(Action action, BlackjackDialogDelegate delegate) {
         if (blackjackGame == null) return;
 
+        BlackjackGame.GameStateData stateBefore = blackjackGame.getState();
+        GameState stateBeforeEnum = stateBefore.state;
+
         switch (action) {
-            case HIT -> blackjackGame.playerHit();
+            case HIT -> {
+                blackjackGame.playerHit();
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            }
             case STAND -> blackjackGame.playerStand();
-            case DOUBLE_DOWN -> blackjackGame.playerDoubleDown();
-            case SPLIT -> blackjackGame.playerSplit();
+            case DOUBLE_DOWN -> {
+                blackjackGame.playerDoubleDown();
+                Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            }
+            case SPLIT -> {
+                blackjackGame.playerSplit();
+                Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            }
+        }
+
+        BlackjackGame.GameStateData state = blackjackGame.getState();
+        if (stateBeforeEnum == GameState.PLAYER_TURN && state.state == GameState.RESULT) {
+            Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+        }
+        if (state.state == GameState.RESULT) {
+            if (state.lastPotWon > 0) {
+                Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
+            } else if (state.lastPotWon < 0) {
+                Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
+            }
         }
 
         delegate.refreshAfterStateChange(blackjackGame);
@@ -292,6 +319,7 @@ public class BlackjackHandler {
 
         blackjackGame.startNewHand();
         handsPlayedThisSession++;
+        Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
 
         delegate.updateGame(blackjackGame);
     }
@@ -308,6 +336,18 @@ public class BlackjackHandler {
 
         boolean success = blackjackGame.placeBet(betSize);
         if (success) {
+            Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            state = blackjackGame.getState();
+            if (state.state == GameState.RESULT) {
+                Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+                if (state.lastPotWon > 0) {
+                    Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
+                } else if (state.lastPotWon < 0) {
+                    Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
+                }
+            }
             delegate.updateGame(blackjackGame);
         }
     }

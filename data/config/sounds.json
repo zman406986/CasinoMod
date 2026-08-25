@@ -10,5 +10,33 @@
         "randomStart": false
       }
     ]
-  }
+  },
+  "ipc_arena_impact": [
+    {"file": "sounds/SFX/impact1.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/impact2.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/impact3.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/impact4.ogg", "pitch": 1.0, "volume": 0.7}
+  ],
+  "ipc_arena_miss": [
+    {"file": "sounds/SFX/miss1.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/miss2.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/miss3.ogg", "pitch": 1.0, "volume": 0.7},
+    {"file": "sounds/SFX/miss4.ogg", "pitch": 1.0, "volume": 0.7}
+  ],
+  "ipc_win": [
+    {"file": "sounds/SFX/win.ogg", "pitch": 1.0, "volume": 0.8}
+  ],
+  "ipc_lose": [
+    {"file": "sounds/SFX/lose.ogg", "pitch": 1.0, "volume": 0.6}
+  ],
+  "ipc_next_character": [
+    {"file": "sounds/SFX/next_character.ogg", "pitch": 1.0, "volume": 0.6}
+  ],
+  "ipc_poker_chip": [
+    {"file": "sounds/SFX/poker-chip.ogg", "pitch": 1.0, "volume": 0.6}
+  ],
+  "ipc_card_flip": [
+    {"file": "sounds/SFX/card-flip1.ogg", "pitch": 1.0, "volume": 0.6},
+    {"file": "sounds/SFX/card-flip2.ogg", "pitch": 1.0, "volume": 0.6}
+  ]
 }

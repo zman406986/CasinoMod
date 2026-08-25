@@ -790,6 +790,8 @@ private boolean simulateArenaStep() {
 
         ArenaPanelUI.RewardBreakdown breakdown = buildRewardBreakdown(betShips, rewards);
 
+        playArenaWinLoseSound(rewards);
+
         if (currentDelegate != null) {
             currentDelegate.setBattleEnded(winnerIndex, finalReward, breakdown, currentRound);
         } else {
@@ -837,6 +839,14 @@ private boolean simulateArenaStep() {
         }
 
         return breakdown;
+    }
+
+    private void playArenaWinLoseSound(RewardCalculation rewards) {
+        if (rewards.totalWinReward > 0) {
+            Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
+        } else if (rewards.totalBet > 0) {
+            Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
+        }
     }
     
     protected boolean battleEnded = false;
@@ -900,8 +910,11 @@ private boolean simulateArenaStep() {
         battleEnded = true;
         finalWinnerIndex = winnerIndex;
         finalReward = rewards.totalWinReward + rewards.totalConsolationReward;
-        
+
         ArenaPanelUI.RewardBreakdown breakdown = buildRewardBreakdown(betShips, rewards);
+
+        playArenaWinLoseSound(rewards);
+
         delegate.setBattleEnded(winnerIndex, finalReward, breakdown, currentRound);
         delegate.setPendingBattleEnd(false);
     }

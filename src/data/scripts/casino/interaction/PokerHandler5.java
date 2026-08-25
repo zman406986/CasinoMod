@@ -151,6 +151,8 @@ public class PokerHandler5 {
         pokerGame = new PokerGame5(startingStacks);
         handsPlayedThisSession = 0;
 
+        Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+
         showPoker5VisualPanel();
     }
 
@@ -196,22 +198,54 @@ public class PokerHandler5 {
     public void processPlayerActionInPlace(PokerAction action, int raiseAmount, PokerDialogDelegate5 delegate) {
         if (pokerGame == null) return;
 
+        PokerRound roundBefore = pokerGame.getState().round;
+
         pokerGame.processPokerAction(PokerGame5.HUMAN_PLAYER_INDEX, action, raiseAmount);
 
         PokerGame5.PokerState5 state = pokerGame.getState();
-        
+
+        if (action == PokerAction.CALL || action == PokerAction.RAISE || action == PokerAction.ALL_IN) {
+            Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+        }
+
+        if (state.round != roundBefore && state.round != PokerRound.SHOWDOWN) {
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+        }
+
         if (state.round == PokerRound.SHOWDOWN) {
             pokerGame.determineWinners();
+            if (state.foldWinner < 0) {
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            }
+            playPoker5WinLoseSound(state);
             delegate.refreshAfterStateChange(pokerGame);
             return;
         }
 
         if (state.currentPlayerIndex != PokerGame5.HUMAN_PLAYER_INDEX &&
             pokerGame.canAct(state.currentPlayerIndex)) {
+            Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
             delegate.startAITurn(state.currentPlayerIndex);
             delegate.refreshAfterStateChange(pokerGame);
         } else {
             delegate.refreshAfterStateChange(pokerGame);
+        }
+    }
+
+    private void playPoker5WinLoseSound(PokerGame5.PokerState5 state) {
+        boolean humanWon = state.foldWinner == PokerGame5.HUMAN_PLAYER_INDEX;
+        if (!humanWon && state.winners != null) {
+            for (int w : state.winners) {
+                if (w == PokerGame5.HUMAN_PLAYER_INDEX) {
+                    humanWon = true;
+                    break;
+                }
+            }
+        }
+        if (humanWon) {
+            Global.getSoundPlayer().playUISound("ipc_win", 1f, 0.8f);
+        } else {
+            Global.getSoundPlayer().playUISound("ipc_lose", 1f, 0.6f);
         }
     }
 
@@ -239,24 +273,43 @@ public class PokerHandler5 {
             return;
         }
 
+        PokerRound roundBefore = state.round;
+
         PokerAI5.AIResponse response = ai.decideAction(aiPlayerIndex, state);
         pokerGame.processAIPokerAction(aiPlayerIndex, response);
+
+        PokerAction aiAction = response.action;
+        if (aiAction == PokerAction.CALL || aiAction == PokerAction.RAISE || aiAction == PokerAction.ALL_IN) {
+            Global.getSoundPlayer().playUISound("ipc_poker_chip", 1f, 0.6f);
+        }
 
         state.lastPokerActions[aiPlayerIndex] = formatActionText(response, aiPlayerIndex);
 
         state = pokerGame.getState();
 
+        if (state.round != roundBefore && state.round != PokerRound.SHOWDOWN) {
+            Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+        }
+
         if (state.round == PokerRound.SHOWDOWN) {
             pokerGame.determineWinners();
+            if (state.foldWinner < 0) {
+                Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
+            }
+            playPoker5WinLoseSound(state);
             delegate.refreshAfterStateChange(pokerGame);
             return;
         }
 
         if (state.currentPlayerIndex != PokerGame5.HUMAN_PLAYER_INDEX &&
             pokerGame.canAct(state.currentPlayerIndex)) {
+            Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
             delegate.startAITurn(state.currentPlayerIndex);
             delegate.refreshAfterStateChange(pokerGame);
         } else {
+            if (state.currentPlayerIndex == PokerGame5.HUMAN_PLAYER_INDEX) {
+                Global.getSoundPlayer().playUISound("ipc_next_character", 1f, 0.6f);
+            }
             delegate.refreshAfterStateChange(pokerGame);
         }
     }
@@ -290,6 +343,8 @@ public class PokerHandler5 {
 
         pokerGame.startNewHand();
         handsPlayedThisSession++;
+
+        Global.getSoundPlayer().playUISound("ipc_card_flip", 1f, 0.6f);
 
         delegate.updateGame(pokerGame);
     }
