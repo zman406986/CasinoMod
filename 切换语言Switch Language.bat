@@ -2,10 +2,10 @@
 setlocal enabledelayedexpansion
 
 echo ============================================
-echo   Switch Language / 切换语言
+echo   Switch Language / �л�����
 echo   Interastral Peace Casino
 echo ============================================
-echo(
+echo/
 
 cd /d "%~dp0"
 if errorlevel 1 (echo [ERROR] Cannot access mod directory. & pause & exit /b 1)
@@ -33,23 +33,26 @@ if exist "strings.tmp" (
         exit /b 1
     )
     echo   [OK] Recovered.
-    echo(
+    echo/
 )
 
 REM --- Detect current language from backup file state ---
 set "CURRENT="
 set "TARGET_FILE="
+set "BACKUP_FILE="
 
 if exist "strings-EN.json" (
     if not exist "strings-CN.json" (
         set "CURRENT=CN"
         set "TARGET_FILE=strings-EN.json"
+        set "BACKUP_FILE=strings-CN.json"
     )
 )
 if not defined CURRENT (
     if exist "strings-CN.json" (
         set "CURRENT=EN"
         set "TARGET_FILE=strings-CN.json"
+        set "BACKUP_FILE=strings-EN.json"
     )
 )
 
@@ -61,7 +64,7 @@ if not defined CURRENT (
         pause
         exit /b 1
     )
-    echo [ERROR] No backup language file found (strings-EN.json or strings-CN.json).
+    echo [ERROR] No backup language file found ^(strings-EN.json or strings-CN.json^).
     echo        Place the alternate language file in %DATA_DIR% and retry.
     pause
     exit /b 1
@@ -69,26 +72,26 @@ if not defined CURRENT (
 
 if "%CURRENT%"=="EN" (
     set "CURRENT_NAME=English"
-    set "TARGET_NAME=Chinese / 中文"
+    set "TARGET_NAME=Chinese / ����"
 ) else (
-    set "CURRENT_NAME=Chinese / 中文"
+    set "CURRENT_NAME=Chinese / ����"
     set "TARGET_NAME=English"
 )
 
-echo Current language / 当前语言: %CURRENT_NAME%
-echo(
-echo Switch to / 切换为: %TARGET_NAME%?
-echo(
+echo Current language / ��ǰ����: %CURRENT_NAME%
+echo/
+echo Switch to / �л�Ϊ: %TARGET_NAME%?
+echo/
 set /p CONFIRM= [Y/N]:
 if /i "!CONFIRM!" neq "Y" (
-    echo Cancelled / 已取消。
+    echo Cancelled / ��ȡ����
     pause
     exit /b
 )
 
-echo(
-echo Switching... / 切换中...
-echo(
+echo/
+echo Switching... / �л���...
+echo/
 
 REM --- Three-step atomic swap ---
 REM Step 1: Move current strings.json to temp
@@ -108,9 +111,9 @@ if errorlevel 1 (
 )
 echo   [OK]
 
-REM Step 3: Move temp to backup
-echo [3/6] strings.tmp --^> %TARGET_FILE% ...
-move /y "strings.tmp" "%TARGET_FILE%" >nul 2>&1
+REM Step 3: Move old content to backup with correct language name
+echo [3/6] strings.tmp --^> %BACKUP_FILE% ...
+move /y "strings.tmp" "%BACKUP_FILE%" >nul 2>&1
 if errorlevel 1 (
     echo   [FAILED] Rolling back...
     move /y "strings.json" "%TARGET_FILE%" >nul 2>&1
@@ -135,8 +138,15 @@ if exist "rules.tmp" (
 )
 
 set "RULES_TARGET="
-if "%CURRENT%"=="EN" set "RULES_TARGET=rules-CN.csv"
-if "%CURRENT%"=="CN" set "RULES_TARGET=rules-EN.csv"
+set "RULES_BACKUP="
+if "%CURRENT%"=="EN" (
+    set "RULES_TARGET=rules-CN.csv"
+    set "RULES_BACKUP=rules-EN.csv"
+)
+if "%CURRENT%"=="CN" (
+    set "RULES_TARGET=rules-EN.csv"
+    set "RULES_BACKUP=rules-CN.csv"
+)
 
 if not defined RULES_TARGET (
     echo [WARN] Cannot determine rules target. Skipping rules switch.
@@ -165,8 +175,8 @@ if errorlevel 1 (
 )
 echo   [OK]
 
-echo [6/6] rules.tmp --^> %RULES_TARGET% ...
-move /y "rules.tmp" "%RULES_TARGET%" >nul 2>&1
+echo [6/6] rules.tmp --^> %RULES_BACKUP% ...
+move /y "rules.tmp" "%RULES_BACKUP%" >nul 2>&1
 if errorlevel 1 (
     echo   [FAILED] Rolling back rules...
     move /y "rules.csv" "%RULES_TARGET%" >nul 2>&1
@@ -177,11 +187,11 @@ echo   [OK]
 :rules_done
 cd /d "%~dp0%DATA_DIR%"
 
-echo(
+echo/
 echo ============================================
-echo  Done! / 完成！
+echo  Done! / ��ɣ�
 echo  Language switched from %CURRENT_NAME% to %TARGET_NAME%
-echo  已从 %CURRENT_NAME% 切换为 %TARGET_NAME%
+echo  �Ѵ� %CURRENT_NAME% �л�Ϊ %TARGET_NAME%
 echo ============================================
-echo(
+echo/
 pause
